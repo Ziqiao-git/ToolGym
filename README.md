@@ -17,30 +17,24 @@ User Query (Natural Language)
     ↓
 Calls: search_mcp_tools(query="search GitHub repositories")
     ↓
-[Meta-MCP Server - FAISS Semantic Search]
+[Meta-MCP Server]
+  ├─ FAISS semantic search
+  ├─ Auto-connect to @smithery-ai/github
+  ├─ Add tools dynamically to Meta-MCP's tool list
+  └─ Send notification: "tools/list_changed"
     ↓
-Returns: [
-  {
-    "server": "@smithery-ai/github",
-    "tool": "search_repositories",
-    "description": "Search for GitHub repositories...",
-    "inputSchema": {...}
-  },
-  ...
-]
+Returns search results + [LLM receives notification]
     ↓
-  [LLM] (picks best tool)
+  [LLM]
+  ├─ Automatically re-queries tools/list
+  └─ Now sees: ["search_mcp_tools", "github__search_repositories", "github__create_issue", ...]
     ↓
-Calls: execute_mcp_tool(
-    server="@smithery-ai/github",
-    tool="search_repositories",
-    arguments={"query": "machine learning", "per_page": 10}
-)
+  [LLM] (sees new tools, picks one)
+    ↓
+Calls: github__search_repositories(query="machine learning", per_page=10)
     ↓
 [Meta-MCP Server]
-  ├─ Auto-connect to @smithery-ai/github (if not connected)
-  ├─ Connection pool management
-  └─ Execute tool
+  └─ Proxies call to @smithery-ai/github (transparent to LLM)
     ↓
 Returns: Actual results from GitHub API
     ↓
@@ -67,9 +61,16 @@ Returns: Actual results from GitHub API
 
 ### 2. Meta-MCP Server Tools
 
-#### Tool 1: `search_mcp_tools`
+The Meta-MCP server uses **dynamic tool registration**. It starts with one base tool and dynamically adds tools as they are discovered.
 
-Search for MCP tools across 306+ servers using semantic search.
+#### Base Tool: `search_mcp_tools`
+
+Search for MCP tools across 306+ servers using semantic search. When called, this tool:
+1. Performs semantic search in FAISS index
+2. Connects to discovered MCP servers
+3. Dynamically adds their tools to Meta-MCP's tool list
+4. Sends `notifications/tools/list_changed` to LLM
+5. LLM automatically re-queries tool list and sees new tools
 
 **Input Schema:**
 ```json
@@ -85,40 +86,50 @@ Search for MCP tools across 306+ servers using semantic search.
 
 **Output:**
 ```json
-[
-  {
-    "server": "string - Qualified server name",
-    "tool": "string - Tool name",
-    "description": "string - Tool description",
-    "inputSchema": "object - JSON schema for tool inputs",
-    "similarity_score": "number - Relevance score (0-1)"
+{
+  "results": [
+    {
+      "server": "string - Qualified server name",
+      "tool": "string - Tool name",
+      "description": "string - Tool description",
+      "inputSchema": "object - JSON schema for tool inputs",
+      "similarity_score": "number - Relevance score (0-1)"
+    }
+  ],
+  "tools_added": ["server__tool_name", ...],
+  "message": "Tools from discovered servers have been added. They are now available in your tool list."
+}
+```
+
+#### Dynamically Added Tools
+
+After `search_mcp_tools` is called, tools appear with naming format: `{server}__{tool_name}`
+
+**Examples:**
+- `github__search_repositories` - Search GitHub repositories
+- `github__create_issue` - Create a GitHub issue
+- `exa__web_search_exa` - Search the web using Exa AI
+- `fetch__fetch_url` - Fetch and analyze web pages
+
+**These tools have the SAME schemas as the original tools** from their respective servers.
+
+**Example: After discovering GitHub tools**
+```json
+{
+  "name": "github__search_repositories",
+  "description": "Search for GitHub repositories using various filters",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "query": {"type": "string", "description": "Search query"},
+      "per_page": {"type": "number", "description": "Results per page"}
+    },
+    "required": ["query"]
   }
-]
-```
-
-#### Tool 2: `execute_mcp_tool`
-
-Execute a tool from any registered MCP server with automatic connection management.
-
-**Input Schema:**
-```json
-{
-  "server": "string - Qualified server name (e.g., '@smithery-ai/github')",
-  "tool": "string - Tool name (e.g., 'search_repositories')",
-  "arguments": "object - Tool-specific arguments"
 }
 ```
 
-**Output:**
-```json
-{
-  "status": "success | error",
-  "result": "any - Tool execution result",
-  "server": "string - Server that executed the tool",
-  "tool": "string - Tool that was executed",
-  "error": "string - (optional) Error message if failed"
-}
-```
+When LLM calls these tools, Meta-MCP transparently proxies the calls to the actual MCP servers.
 
 ### 3. Connection Pool Manager
 
@@ -199,13 +210,16 @@ python MCP_INFO_MGR/build_search_index.py \
 
 ### 2. Runtime Phase (LLM Interaction)
 
-1. **LLM queries for tools**: Calls `search_mcp_tools(query="...")`
+1. **LLM discovers tools**: Calls `search_mcp_tools(query="search GitHub repositories")`
 2. **Semantic search**: FAISS finds relevant tools by similarity
-3. **LLM selects tool**: Analyzes results and picks best match
-4. **Execute tool**: Calls `execute_mcp_tool(server, tool, args)`
-5. **Auto-connect**: Meta-server connects to target MCP server (if needed)
-6. **Proxy execution**: Meta-server executes tool and returns result
-7. **LLM processes result**: Uses the data to respond to user
+3. **Dynamic registration**:
+   - Meta-MCP connects to discovered servers (@smithery-ai/github)
+   - Adds tools to its tool list (github__search_repositories, github__create_issue, etc.)
+   - Sends `notifications/tools/list_changed` to LLM
+4. **LLM refreshes**: Automatically re-queries `tools/list`, sees new tools
+5. **LLM uses tool directly**: Calls `github__search_repositories(query="machine learning", per_page=10)`
+6. **Transparent proxy**: Meta-server forwards call to @smithery-ai/github
+7. **LLM receives result**: Gets data from GitHub API through Meta-MCP
 
 ## Key Features
 
@@ -253,25 +267,54 @@ python MCP_INFO_MGR/build_search_index.py \
 ### 1. Dynamic Tool Selection
 ```
 User: "I need to analyze stock prices for Tesla"
+  ↓
 LLM: search_mcp_tools("stock price analysis")
-     → finds yfinance tool
-     execute_mcp_tool("yfinance", "get_stock_data", {"ticker": "TSLA"})
+  → Tools from yfinance server appear in tool list
+  ↓
+LLM: yfinance__get_stock_data(ticker="TSLA")
+  → Returns Tesla stock data
 ```
 
 ### 2. Multi-Tool Workflows
 ```
 User: "Search GitHub for React repos and create an issue"
+  ↓
 LLM: search_mcp_tools("search github repositories")
-     → execute_mcp_tool("@smithery-ai/github", "search_repositories", ...)
-     search_mcp_tools("create github issue")
-     → execute_mcp_tool("@smithery-ai/github", "create_issue", ...)
+  → GitHub tools appear: github__search_repositories, github__create_issue, etc.
+  ↓
+LLM: github__search_repositories(query="react", per_page=10)
+  → Returns list of React repositories
+  ↓
+LLM: github__create_issue(owner="facebook", repo="react", title="Feature request", ...)
+  → Creates issue on GitHub
 ```
 
 ### 3. Capability Discovery
 ```
 User: "What can you help me with regarding weather?"
+  ↓
 LLM: search_mcp_tools("weather forecasting")
-     → Returns available weather-related tools across all servers
+  → Returns available weather-related tools across all servers
+  → Weather server tools appear in LLM's tool list
+  ↓
+LLM can now use: weather__get_forecast, weather__current_conditions, etc.
+```
+
+### 4. Cross-Server Integration
+```
+User: "Find Python repos on GitHub and search for documentation"
+  ↓
+LLM: search_mcp_tools("search github")
+  → Adds github__search_repositories
+LLM: github__search_repositories(query="python", language="python")
+  → Gets repo list
+  ↓
+LLM: search_mcp_tools("search documentation")
+  → Adds docfork__search_docs
+LLM: docfork__search_docs(query="python best practices")
+  → Gets documentation
+  ↓
+Result: LLM combines data from 2 different MCP servers seamlessly
 ```
 
 ## Implementation Status
@@ -280,13 +323,13 @@ LLM: search_mcp_tools("weather forecasting")
 - [x] MCP connection manager
 - [x] Tool description fetching from 306 servers
 - [x] Fix asyncio task isolation issues
-- [ ] FAISS semantic search backend
-- [ ] Embedding generation pipeline
-- [ ] Build search index script
-- [ ] Meta-MCP server with search_mcp_tools
-- [ ] Meta-MCP server with execute_mcp_tool
-- [ ] Connection pool implementation
-- [ ] End-to-end testing with LLM
+- [x] BGE-M3 embedding generation module
+- [x] FAISS semantic search backend
+- [x] Build search index script
+- [ ] Meta-MCP server with dynamic tool registration
+- [ ] Connection pool with auto-connect on discovery
+- [ ] MCP notification support (tools/list_changed)
+- [ ] End-to-end testing with LLM client
 
 ## Configuration
 
