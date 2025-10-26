@@ -252,8 +252,46 @@ class BenchmarkRunner(metaclass=AutodocABCMeta):
                         )
                         result = response.get_response_str()
                     except Exception as e:
+                        # agent 崩了的话，至少我们还能打分一个错误字符串
+                        response = None
                         result = str(e)
-                    evaluation_results = await task.evaluate(result)
+
+                    # ===== NEW: build extra_values for evaluator / judge =====
+                    # task_id: 如果 Task 没有 task_id 属性，就用文件名做个 fallback
+                    task_id_val = getattr(task, "task_id", os.path.basename(task_path))
+
+                    # category: 我们有 self._config.category，所以直接拿
+                    category_val = "general"
+                    try:
+                        category_val = task._config.category
+                    except Exception:
+                        pass
+
+                    # correct_answer: 有则填，没有就空
+                    correct_answer_val = ""
+                    if hasattr(task, "get_correct_answer"):
+                        try:
+                            correct_answer_val = task.get_correct_answer()
+                        except Exception:
+                            pass
+
+                    # final_answer: prefer AgentResponse.response, fallback to result string
+                    final_answer_val = result
+                    if response is not None and hasattr(response, "response"):
+                        final_answer_val = response.response
+
+                    extra_values = {
+                        "task_id": task_id_val,
+                        "category": category_val,
+                        "question": question,
+                        "output_format": output_format if output_format else {},
+                        "history": agent.get_history(),
+                        "final_answer": final_answer_val,
+                        "correct_answer": correct_answer_val,
+                    }
+
+                    # 传 x=result, extra_values=...
+                    evaluation_results = await task.evaluate(response, extra_values=extra_values)
 
                     # Save the evaluation results
                     task_results[task_path] = {

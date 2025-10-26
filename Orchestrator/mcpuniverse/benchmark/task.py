@@ -114,15 +114,72 @@ class Task(metaclass=AutodocABCMeta):
         """
         return self._config.use_specified_server
 
-    async def evaluate(self, x: str | Dict) -> List[EvaluationResult]:
+    async def evaluate(
+        self,
+        x: str | Dict,
+        extra_values: Optional[Dict[str, Any]] = None,
+    ) -> List[EvaluationResult]:
         """
         Run evaluations given the agent output.
 
         Args:
-            x: The agent output.
+            x: The agent output (model/agent final answer).
+            extra_values: Extra context we want evaluators to see,
+                          e.g. question, history, final_answer, etc.
         """
-        return [await evaluator.evaluate(x) for evaluator in self._evaluators]
+        if extra_values is None:
+            extra_values = {}
 
+        results: List[EvaluationResult] = []
+
+        for evaluator in self._evaluators:
+            # 每个 Evaluator 其实已经知道它自己的 config:
+            #   - evaluator._config.op (比如 "commonllmjudge.pass")
+            #   - evaluator._config.op_args (YAML里的 judge_model / pass_threshold ...)
+            #
+            # Evaluator.evaluate(...) 在 MCP-Universe 里通常会最终调用我们注册的
+            # eval_func / compare_func，签名是 (llm_response, values_dict, **op_args).
+            #
+            # 我们现在就是要构造这个 values_dict。
+
+            base_values = {
+                "task_id": getattr(self, "task_id", "unknown_task"),
+                "category": self._config.category,
+                "question": self._config.question,
+                "output_format": self._config.output_format,
+                # 有些任务可能没有gold，这里如果没有就给空串
+                "correct_answer": "",
+            }
+
+            # merge runner那边传进来的附加信息（history, final_answer等）
+            merged_values = {**base_values, **extra_values}
+
+            # 真正让 Evaluator 去跑。我们需要把 merged_values 交给它。
+            #
+            # 现在 Evaluator.evaluate(x) 只传了 x。
+            # 我们想把 merged_values 也传进去。
+            #
+            # 最小改法：给 Evaluator 增加一个 evaluate_with_values(...) 会比较干净，
+            # 但为了少动别的文件，我们可以直接给 Evaluator 打补丁式调用：
+            #
+            # --- 假设 Evaluator 有一个 .run(...) or ._run(...) 风格的内部调度，
+            # 但我们不知道细节。为了不去大改 Evaluator 类，
+            # 我们可以复用它现有的 .evaluate() ，但是我们要扩它的签名。
+            #
+            # → 简单暴力法：我们直接调用 evaluator.evaluate(x, merged_values)
+            #   因为我们的 eval_func / compare_func（commonllmjudge.*）正是期望
+            #   第一个参数 llm_response = x, 第二个参数 = merged_values。
+
+            raw = await evaluator.evaluate(x, merged_values)
+
+            # 统一包成 EvaluationResult，如果它还不是的话
+            if isinstance(raw, EvaluationResult):
+                results.append(raw)
+            else:
+                results.append(EvaluationResult.model_validate(raw))
+
+        return results
+    
     async def reset(self, trace_records: List[TraceRecord]):
         """
         Reset the task status/environment changed by agents via MCP servers.

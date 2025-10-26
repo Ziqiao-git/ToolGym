@@ -13,6 +13,7 @@ from .playwright.functions import *
 from .google_search.functions import *
 from .notion.functions import *
 from .weather.functions import *
+from . import commonllmjudge  # 重要：导入后才完成注册
 
 __all__ = [
     "Evaluator",
