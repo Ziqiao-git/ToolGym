@@ -15,14 +15,20 @@ import os
 import time
 from typing import List, Dict, Any
 from tqdm import tqdm
+from pathlib import Path
 
 # OpenAI 官方 Python SDK
 # pip install --upgrade openai
 from openai import OpenAI
+from dotenv import load_dotenv
+
+# Load environment variables from .env file in the same directory
+SCRIPT_DIR = Path(__file__).resolve().parent
+load_dotenv(str(SCRIPT_DIR / ".env"))
 
 CLIENT = OpenAI(
   base_url="https://openrouter.ai/api/v1",
-  api_key="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",
+  api_key=os.getenv("OPENROUTER_API_KEY"),
 ) 
 
 MODEL_NAME = "openai/gpt-5" 

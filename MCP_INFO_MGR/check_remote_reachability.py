@@ -238,19 +238,40 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
 
     try:
         for record in iter_ndjson(args.input):
-            if record.get("remote") is not True:
-                continue
+            # Support two formats:
+            # 1. Original format: {remote: true, qualifiedName: "...", connections: [...]}
+            # 2. Simple format: {qualifiedName: "...", requestedUrl: "..."}
 
+            urls_to_probe = []
             qualified_name = record.get("qualifiedName", "<unknown>")
-            connections = record.get("connections") or []
-            if not connections:
+
+            # Format 1: Check for original format with remote and connections
+            if record.get("remote") is True:
+                connections = record.get("connections") or []
+                for connection in connections:
+                    url = connection.get("deploymentUrl") or connection.get("url")
+                    if url:
+                        urls_to_probe.append(url)
+
+            # Format 2: Check for simple format with requestedUrl
+            elif "requestedUrl" in record:
+                url = record.get("requestedUrl")
+                if url:
+                    # Remove existing api_key parameter if present (will be re-added)
+                    parsed = urlparse(url)
+                    query = dict(parse_qsl(parsed.query, keep_blank_values=True))
+                    # Remove redacted keys
+                    query.pop("api_key", None)
+                    query.pop("apiKey", None)
+                    clean_query = urlencode(query, doseq=True)
+                    clean_url = urlunparse(parsed._replace(query=clean_query))
+                    urls_to_probe.append(clean_url)
+
+            # Skip if no URLs found
+            if not urls_to_probe:
                 continue
 
-            for connection in connections:
-                url = connection.get("deploymentUrl") or connection.get("url")
-                if not url:
-                    continue
-
+            for url in urls_to_probe:
                 auth_url = add_query_params(
                     url,
                     {
