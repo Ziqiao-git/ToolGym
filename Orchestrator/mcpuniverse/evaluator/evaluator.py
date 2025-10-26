@@ -109,7 +109,7 @@ class Evaluator(metaclass=AutodocABCMeta):
             res = await EVALUATION_FUNCTIONS[name](res, *args)
         return res
 
-    async def evaluate(self, x: str | Dict) -> EvaluationResult:
+    async def evaluate1(self, x: str | Dict) -> EvaluationResult:
         """
         Evaluate whether an agent output satisfies the rules specified in the config.
 
@@ -149,3 +149,103 @@ class Evaluator(metaclass=AutodocABCMeta):
             return EvaluationResult(
                 config=self._config, response=x, passed=False, reason="Execution error",
                 error=str(e) + str(traceback.format_exc()))
+
+    async def evaluate(
+            self,
+            x: str | Dict,
+            extra_values: Optional[Dict[str, Any]] = None
+    ) -> EvaluationResult:
+        """
+        Evaluate whether an agent output satisfies the rules specified in the config.
+
+        Args:
+            x: The agent output (final answer from the agent). In our pipeline this might
+               actually be an AgentResponse, not just a string.
+            extra_values: Extra context (question, history, final_answer, etc.)
+                          that some evaluators (like commonllmjudge) need.
+        """
+
+        def _extract_results(_res: Any) -> List[FunctionResult]:
+            """Extract function results."""
+            if isinstance(_res, FunctionResult):
+                return [_res]
+            if isinstance(_res, (list, tuple)):
+                _results = []
+                for _r in _res:
+                    _results.extend(_extract_results(_r))
+                return _results
+            raise NotImplementedError(f"Cannot extract function results from type `{type(_res)}`")
+
+        # NEW: normalize x into something EvaluationResult.response can accept
+        def _coerce_response(val: Any):
+            # AgentResponse(...) from the agent
+            if hasattr(val, "response"):
+                return getattr(val, "response")
+            # already str or dict? fine
+            if isinstance(val, (str, dict)):
+                return val
+            # last resort: repr() so it's at least a string for Pydantic
+            return repr(val)
+
+        try:
+                # 1. run the chained evaluation funcs (self._funcs on x)
+                results = _extract_results(await self.execute(x))
+
+                # 2. pull evaluator config
+                op = self._config.op                          # e.g. "commonllmjudge.pass"
+                value_cfg = self._config.value                # legacy 'value' field
+                op_args_cfg = self._config.op_args or {}      # YAML op_args (judge_model, pass_threshold, ...)
+
+                # if caller didn't pass an extra_values dict, default to {}
+                if extra_values is None:
+                    extra_values_local = {}
+                else:
+                    extra_values_local = extra_values
+
+                # 3. check each pipeline result with the comparison op (if any)
+                for r in results:
+                    if not op:
+                        # no comparison op at all → automatically pass
+                        passed, reason = True, ""
+                    else:
+                        passed, reason = await COMPARISON_FUNCTIONS[op](
+                            r.result,                # <- first positional arg
+                            extra_values_local,      # <- second positional arg
+                            value=value_cfg,
+                            context=self._context,
+                            **(op_args_cfg if isinstance(op_args_cfg, dict) else {})
+                        )
+
+                    if not passed:
+                        return EvaluationResult(
+                            config=self._config,
+                            response=_coerce_response(x),
+                            passed=passed,
+                            reason=reason
+                        )
+
+                # if we got here, all sub-results passed
+                return EvaluationResult(
+                    config=self._config,
+                    response=_coerce_response(x),
+                    passed=True
+                )
+
+        except json.JSONDecodeError as e:
+                return EvaluationResult(
+                    config=self._config,
+                    response=_coerce_response(x),
+                    passed=False,
+                    reason="JSON decoding error",
+                    error=str(e)
+                )
+
+        except Exception as e:
+                import traceback
+                return EvaluationResult(
+                    config=self._config,
+                    response=_coerce_response(x),
+                    passed=False,
+                    reason="Execution error",
+                    error=str(e) + str(traceback.format_exc())
+                )
