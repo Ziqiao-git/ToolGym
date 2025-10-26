@@ -1,0 +1,50 @@
+# Environment variables - NEVER commit these!
+.env
+*.env
+**/.env
+
+# API Keys and secrets
+**/config/secrets.json
+*credentials*
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+
+# Virtual environments
+venv/
+env/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# FAISS indices (too large)
+*.faiss
+*.index
+
+# Trajectories (can be large, user-specific)
+trajectories/*.json
+
+# Large data files
+*.ndjson.gz
+*.tar.gz
+
+# Temporary files
+*.tmp
+*.log
+.DS_Store
+
+# Model caches
+models/
+.cache/
