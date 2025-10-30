@@ -2,11 +2,11 @@
 # -*- coding: utf-8 -*-
 
 """
-generate_mcp_queries.py
+query_generate.py
 
-用 GPT-5 为每个 MCP server 生成 5 个问题，并把结果写入新的 JSON。
+使用 GPT-5 基于 MCP 工具描述生成自然语言查询问题。
 用法:
-  python generate_mcp_queries.py --in servers.json --out servers_with_queries.json
+  python query_generate.py --in tool_descriptions.ndjson --out generated_queries.json --num-queries 20
 """
 
 import json
@@ -16,6 +16,7 @@ import time
 from typing import List, Dict, Any
 from tqdm import tqdm
 from pathlib import Path
+import random
 
 # OpenAI 官方 Python SDK
 # pip install --upgrade openai
@@ -129,7 +130,16 @@ Return a JSON object with "queries" array containing exactly {num_queries} strin
 
 
 def call_gpt5_for_queries(tools_summary: str, num_queries: int = 20) -> List[str]:
-    """Generate queries given tool descriptions."""
+    """
+    Generate natural language queries using GPT-5 based on tool descriptions.
+
+    Args:
+        tools_summary: Text summary of available tools
+        num_queries: Number of queries to generate (default: 20)
+
+    Returns:
+        List of generated query strings
+    """
     system_prompt = SYSTEM_PROMPT.format(num_queries=num_queries)
     user_prompt = USER_PROMPT_TEMPLATE.format(
         servers_summary=tools_summary,
@@ -206,22 +216,35 @@ def main():
     print(f"Loading tool descriptions from {tool_descriptions_path}...")
 
     tools_summary = []
+    # Shuffle tools to get diverse set
     with open(tool_descriptions_path, "r", encoding="utf-8") as f:
-        for i, line in enumerate(f):
-            if i >= 100:  # Limit to first 100 tools to keep prompt manageable
+        lines = [json.loads(line) for line in f if line.strip()]
+
+    for tool in lines:
+        tools = tool.get("tools", [])
+        random.shuffle(tools)
+        tool["tools"] = tools
+    random.shuffle(lines)
+
+    count = 0
+    servers_loaded = 0
+    for tool in lines:
+        server = tool.get("qualifiedName", "unknown")
+        servers_loaded += 1
+        for t in tool.get("tools", []):
+            if count >= 100:
                 break
-            if line.strip():
-                tool = json.loads(line)
-                server = tool.get("qualifiedName", "unknown")
-                for t in tool.get("tools", []):
-                    tool_name = t.get("name", "")
-                    tool_desc = t.get("description", "No description")
-                    tools_summary.append(f"- {server}/{tool_name}: {tool_desc}")
+            tool_name = t.get("name", "")
+            tool_desc = t.get("description", "No description")
+            tools_summary.append(f"- {server}/{tool_name}: {tool_desc}")
+            count += 1
+        if count >= 100:
+            break
 
     tools_summary_text = "\n".join(tools_summary)
 
     # Generate queries
-    print(f"Generating {args.num_queries} natural cross-domain queries from {len(tools_summary)} tools...")
+    print(f"Generating {args.num_queries} natural cross-domain queries from {servers_loaded} servers ({len(tools_summary)} tools)...")
     queries = call_gpt5_for_queries(tools_summary_text, num_queries=args.num_queries)
 
     result = {

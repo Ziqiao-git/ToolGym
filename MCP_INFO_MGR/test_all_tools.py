@@ -20,6 +20,7 @@ Options:
     --output OUTPUT_FILE       Output file for results (default: tool_test_results.json)
     --use-llm                  Use LLM to generate realistic test arguments
     --evaluate-with-llm        Use LLM to evaluate response quality (implies --use-llm)
+    --evaluate-existing FILE   Evaluate existing test results with LLM (no re-testing)
     --model MODEL_NAME         LLM model to use (default: from OPENAI_MODEL env or gpt-4)
     --judge-model MODEL_NAME   Judge model for evaluation (default: from JUDGE_MODEL env)
 
@@ -27,6 +28,7 @@ Testing Modes:
     1. Basic Mode (default): Fast technical testing with simple generated arguments
     2. LLM Mode (--use-llm): LLM generates realistic test arguments
     3. LLM Evaluation Mode (--evaluate-with-llm): LLM generates args AND evaluates responses
+    4. Evaluate Existing Mode (--evaluate-existing): Evaluate existing results with LLM
 
 Examples:
     # Fast technical test of all tools
@@ -40,6 +42,9 @@ Examples:
 
     # Test first 10 servers with full LLM evaluation
     python test_all_tools.py --limit 10 --evaluate-with-llm
+
+    # Evaluate existing results without re-testing
+    python test_all_tools.py --evaluate-existing tool_probe_result_llm_trial.json --output evaluated.json
 """
 
 import asyncio
@@ -60,11 +65,42 @@ sys.path.insert(0, str(ORCHESTRATOR_DIR))
 sys.path.insert(0, str(PROJECT_ROOT.parent))
 
 from dotenv import load_dotenv
-from openai import OpenAI
+from openai import OpenAI, AsyncOpenAI
 from mcpuniverse.mcp.manager import MCPManager
 from mcpuniverse.mcp.config import ServerConfig
 
 load_dotenv()
+
+# Rate limiting
+import time
+from collections import deque
+
+class RateLimiter:
+    """Simple rate limiter to avoid API throttling."""
+    def __init__(self, max_requests_per_minute: int = 30):
+        self.max_requests = max_requests_per_minute
+        self.timestamps = deque()
+        self.lock = asyncio.Lock()
+
+    async def acquire(self):
+        """Wait if necessary to respect rate limit."""
+        async with self.lock:
+            now = time.time()
+            # Remove timestamps older than 1 minute
+            while self.timestamps and now - self.timestamps[0] > 60:
+                self.timestamps.popleft()
+
+            # If at limit, wait until oldest request is > 1 minute old
+            if len(self.timestamps) >= self.max_requests:
+                sleep_time = 60 - (now - self.timestamps[0]) + 0.1
+                if sleep_time > 0:
+                    await asyncio.sleep(sleep_time)
+                    now = time.time()
+                    # Clean up again after sleep
+                    while self.timestamps and now - self.timestamps[0] > 60:
+                        self.timestamps.popleft()
+
+            self.timestamps.append(now)
 
 
 # LLM Prompts for testing
@@ -87,29 +123,40 @@ Example output format:
 {{"query": "latest news about AI", "limit": 5}}"""
 
 
-RESPONSE_EVALUATION_PROMPT = """You are a tool testing evaluator. Assess whether a tool execution was successful and useful.
+RESPONSE_EVALUATION_PROMPT = """You are evaluating whether a tool is TECHNICALLY FUNCTIONAL (not result quality).
 
 Tool Name: {tool_name}
 Tool Description: {description}
 Test Arguments: {arguments}
 Tool Response: {response}
 
-Evaluate the tool execution on these criteria:
-1. Execution Success: Did the tool execute without errors?
-2. Response Relevance: Is the response relevant to the arguments provided?
-3. Response Completeness: Does the response appear complete and useful?
-4. Response Quality: Is the response of good quality (not empty, not error messages)?
+Determine if the tool is USABLE (executed without technical errors), NOT whether results are high quality.
 
-Return a JSON object with your evaluation:
+Mark as FAILURE (success: false) ONLY if:
+- HTTP errors (404, 500, etc.) in response
+- Exceptions or error messages
+- "Tool not configured" or "setup required"
+- Completely empty response when data is clearly expected
+- Connection/timeout errors
+
+Mark as SUCCESS (success: true) if:
+- Tool executed and returned ANY data (even if suboptimal/irrelevant)
+- Search returned results (even if not perfectly relevant)
+- Tool returned "no results found" status (tool works, just no data)
+- Response has valid structure with empty/null values (tool works)
+
+Focus on TECHNICAL ERRORS, not result quality or relevance.
+
+Return a JSON object:
 {{
   "success": true/false,
-  "execution_score": 0-10,
-  "relevance_score": 0-10,
-  "completeness_score": 0-10,
-  "quality_score": 0-10,
-  "overall_score": 0-1 (average of above scores / 10),
-  "explanation": "brief explanation of the evaluation",
-  "issues": ["list", "of", "any", "issues", "found"]
+  "execution_score": 0-10 (10 = no errors, 0 = exceptions/errors),
+  "relevance_score": 0-10 (always 10 if no errors - we don't judge quality),
+  "completeness_score": 0-10 (always 10 if got any response - we don't judge quality),
+  "quality_score": 0-10 (always 10 if no errors - we don't judge quality),
+  "overall_score": 0-1 (1.0 if usable, 0.0 if broken),
+  "explanation": "brief explanation focusing on technical errors only",
+  "issues": ["list", "of", "technical", "errors", "only"]
 }}
 
 Return ONLY the JSON object. No markdown formatting."""
@@ -147,7 +194,9 @@ class ToolTester:
             base_url = os.getenv("OPENAI_BASE_URL") or os.getenv("OPENROUTER_BASE_URL")
             if not api_key:
                 raise ValueError("OPENAI_API_KEY or OPENROUTER_API_KEY required for LLM mode")
-            self.llm_client = OpenAI(api_key=api_key, base_url=base_url)
+            self.llm_client = AsyncOpenAI(api_key=api_key, base_url=base_url)
+            # Rate limiter: 30 requests per minute to avoid throttling
+            self.rate_limiter = RateLimiter(max_requests_per_minute=30)
 
         # MCP Manager will be created after loading data
         self.mcp_manager = None
@@ -241,7 +290,7 @@ class ToolTester:
 
         return args
 
-    def generate_llm_test_arguments(self, tool_name: str, description: str,
+    async def generate_llm_test_arguments(self, tool_name: str, description: str,
                                    input_schema: Dict[str, Any]) -> Dict[str, Any]:
         """
         Use LLM to generate realistic test arguments.
@@ -261,7 +310,10 @@ class ToolTester:
         )
 
         try:
-            response = self.llm_client.chat.completions.create(
+            # Rate limit before making API call
+            await self.rate_limiter.acquire()
+
+            response = await self.llm_client.chat.completions.create(
                 model=self.model,
                 messages=[
                     {"role": "system", "content": "You are a tool testing assistant. Return only valid JSON."},
@@ -287,7 +339,7 @@ class ToolTester:
             print(f"    Falling back to simple argument generation")
             return self.generate_simple_test_arguments(input_schema)
 
-    def evaluate_response_with_llm(self, tool_name: str, description: str,
+    async def evaluate_response_with_llm(self, tool_name: str, description: str,
                                   arguments: Dict[str, Any], response: Any) -> Dict[str, Any]:
         """
         Use LLM to evaluate the quality of a tool response.
@@ -319,7 +371,10 @@ class ToolTester:
         )
 
         try:
-            response = self.llm_client.chat.completions.create(
+            # Rate limit before making API call
+            await self.rate_limiter.acquire()
+
+            response = await self.llm_client.chat.completions.create(
                 model=self.judge_model,
                 messages=[
                     {"role": "system", "content": "You are a strict tool evaluation judge. Return only valid JSON."},
@@ -437,7 +492,7 @@ class ToolTester:
 
             if self.use_llm:
                 print(f"    Generating LLM-based test arguments...")
-                test_args = self.generate_llm_test_arguments(tool_name, tool_description, input_schema)
+                test_args = await self.generate_llm_test_arguments(tool_name, tool_description, input_schema)
             else:
                 test_args = self.generate_simple_test_arguments(input_schema)
                 print(f"    Arguments: {json.dumps(test_args)}")
@@ -463,7 +518,7 @@ class ToolTester:
                 # Evaluate with LLM if requested
                 if self.evaluate_with_llm:
                     print(f"    [SUCCESS] Tool executed, evaluating with LLM...")
-                    evaluation = self.evaluate_response_with_llm(
+                    evaluation = await self.evaluate_response_with_llm(
                         tool_name, tool_description, test_args, tool_result
                     )
                     result["llm_evaluation"] = evaluation
@@ -688,6 +743,196 @@ class ToolTester:
         print(f"\nResults saved to: {output_path}")
 
 
+async def evaluate_existing_results(args):
+    """
+    Evaluate existing test results with LLM to find false positives.
+
+    This is much faster than re-running all tests - it just uses LLM to check
+    if "successful" responses actually contain errors or useful data.
+    """
+    print("="*80)
+    print("EVALUATING EXISTING RESULTS WITH LLM")
+    print("="*80)
+
+    input_file = args.evaluate_existing
+    output_file = args.output
+    model = args.judge_model or args.model or os.getenv("JUDGE_MODEL") or os.getenv("OPENAI_MODEL", "gpt-4")
+
+    print(f"Input: {input_file}")
+    print(f"Output: {output_file}")
+    print(f"Model: {model}")
+    print("="*80)
+
+    # Load existing results
+    print(f"\nLoading results from {input_file}...")
+    with open(input_file, 'r') as f:
+        data = json.load(f)
+
+    results = data.get('results', [])
+    print(f"Loaded {len(results)} test results")
+
+    # Count by status
+    status_counts = {}
+    for r in results:
+        status = r['status']
+        status_counts[status] = status_counts.get(status, 0) + 1
+
+    print("\nOriginal status distribution:")
+    for status, count in sorted(status_counts.items(), key=lambda x: x[1], reverse=True):
+        print(f"  {status}: {count} ({count/len(results)*100:.1f}%)")
+
+    # Initialize OpenAI client
+    api_key = os.getenv("OPENAI_API_KEY") or os.getenv("OPENROUTER_API_KEY")
+    base_url = os.getenv("OPENAI_BASE_URL") or os.getenv("OPENROUTER_BASE_URL")
+    if not api_key:
+        raise ValueError("OPENAI_API_KEY or OPENROUTER_API_KEY required for LLM evaluation")
+
+    llm_client = AsyncOpenAI(api_key=api_key, base_url=base_url)
+    rate_limiter = RateLimiter(max_requests_per_minute=30)
+
+    # Only evaluate successful results
+    to_evaluate = [r for r in results if r.get('status') == 'success']
+    print(f"\nEvaluating {len(to_evaluate)} successful results for false positives...")
+
+    # Evaluate in batches
+    batch_size = 10
+    false_positives = []
+
+    for i in range(0, len(to_evaluate), batch_size):
+        batch = to_evaluate[i:i+batch_size]
+        print(f"\nBatch {i//batch_size + 1}/{(len(to_evaluate)-1)//batch_size + 1} ({len(batch)} results)...")
+
+        # Evaluate batch concurrently
+        tasks = []
+        for result in batch:
+            task = evaluate_single_result(result, llm_client, rate_limiter, model)
+            tasks.append(task)
+
+        evaluations = await asyncio.gather(*tasks)
+
+        # Update results
+        for result, evaluation in zip(batch, evaluations):
+            result['llm_evaluation'] = evaluation
+
+            if not evaluation.get('is_truly_successful', True):
+                result['original_status'] = result['status']
+                result['status'] = 'false_positive'
+                false_positives.append(f"{result['server']}/{result['tool']}")
+                print(f"  ⚠️  FALSE POSITIVE: {result['server']}/{result['tool']}")
+                print(f"      {evaluation.get('reasoning', 'Unknown reason')}")
+
+    # Update metadata
+    data['metadata'] = data.get('metadata', {})
+    data['metadata']['evaluated_with_llm'] = True
+    data['metadata']['evaluation_model'] = model
+    data['metadata']['evaluation_timestamp'] = datetime.now().isoformat()
+
+    # Save
+    print(f"\nSaving evaluated results to {output_file}...")
+    with open(output_file, 'w') as f:
+        json.dump(data, f, indent=2)
+
+    # Print summary
+    new_status_counts = {}
+    for r in results:
+        status = r['status']
+        new_status_counts[status] = new_status_counts.get(status, 0) + 1
+
+    print("\n" + "="*80)
+    print("EVALUATION SUMMARY")
+    print("="*80)
+    print("\nNew status distribution:")
+    for status, count in sorted(new_status_counts.items(), key=lambda x: x[1], reverse=True):
+        print(f"  {status}: {count} ({count/len(results)*100:.1f}%)")
+
+    if false_positives:
+        print(f"\n⚠️  Found {len(false_positives)} FALSE POSITIVES")
+        print(f"These tools appeared successful but contain errors in responses")
+
+    true_success = new_status_counts.get('success', 0)
+    print(f"\n✅ TRUE SUCCESS RATE: {true_success}/{len(results)} ({true_success/len(results)*100:.1f}%)")
+
+
+async def evaluate_single_result(result, llm_client, rate_limiter, model):
+    """Evaluate a single result with LLM."""
+    tool_name = result.get('tool', 'unknown')
+    description = result.get('description', '')
+    arguments = result.get('test_arguments', {})
+    response = result.get('response', '')
+
+    # Convert response to string
+    if isinstance(response, dict):
+        response_str = json.dumps(response, indent=2)
+    else:
+        response_str = str(response)
+
+    # Truncate very long responses
+    if len(response_str) > 3000:
+        response_str = response_str[:3000] + "\n... (truncated)"
+
+    prompt = f"""You are evaluating whether a tool is TECHNICALLY FUNCTIONAL (not result quality).
+
+Tool: {tool_name}
+Description: {description}
+Arguments: {json.dumps(arguments, indent=2)}
+Response: {response_str}
+
+Determine if the tool is USABLE (executed without technical errors), NOT whether results are high quality.
+
+Mark as FALSE POSITIVE (not usable) ONLY if:
+- HTTP errors (404, 500, etc.)
+- Exceptions or error messages in response
+- "Tool not configured" or "setup required"
+- Completely empty response when data is clearly expected
+- Connection/timeout errors in response
+
+Mark as TRUE (usable) if:
+- Tool executed and returned ANY data (even if suboptimal/irrelevant)
+- Search returned results (even if not perfectly relevant)
+- Tool returned "no results found" status (tool works, just no data)
+- Response has valid structure with empty/null values (tool works)
+
+Focus on TECHNICAL ERRORS, not result quality or relevance.
+
+Return JSON:
+{{
+  "is_truly_successful": true/false,
+  "confidence": 0-1,
+  "reasoning": "brief explanation",
+  "detected_issues": []
+}}
+
+Return ONLY the JSON object."""
+
+    try:
+        await rate_limiter.acquire()
+
+        response = await llm_client.chat.completions.create(
+            model=model,
+            messages=[
+                {"role": "system", "content": "You are a tool evaluator. Return only valid JSON."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.0,
+            max_tokens=300
+        )
+
+        content = response.choices[0].message.content.strip()
+        if content.startswith("```"):
+            lines = content.split("\n")
+            content = "\n".join(lines[1:-1]) if len(lines) > 2 else content
+
+        return json.loads(content)
+
+    except Exception as e:
+        return {
+            "is_truly_successful": True,  # Default to true if evaluation fails
+            "confidence": 0.0,
+            "reasoning": f"Evaluation error: {str(e)}",
+            "detected_issues": ["evaluation_failed"]
+        }
+
+
 async def main():
     """Main entry point."""
     parser = argparse.ArgumentParser(
@@ -704,6 +949,8 @@ async def main():
                        help="Use LLM to generate realistic test arguments")
     parser.add_argument("--evaluate-with-llm", action="store_true",
                        help="Use LLM to evaluate response quality (implies --use-llm)")
+    parser.add_argument("--evaluate-existing", metavar="FILE",
+                       help="Evaluate existing test results with LLM (no re-testing)")
     parser.add_argument("--model", help="LLM model for argument generation (default: from OPENAI_MODEL env)")
     parser.add_argument("--judge-model", help="Judge model for evaluation (default: from JUDGE_MODEL env)")
 
@@ -712,6 +959,11 @@ async def main():
     # Validate arguments
     if args.tool and not args.server:
         parser.error("--tool requires --server to be specified")
+
+    # If evaluating existing results, run that mode instead
+    if args.evaluate_existing:
+        await evaluate_existing_results(args)
+        return
 
     # Set up paths (script is now in MCP_INFO_MGR directory)
     data_dir = PROJECT_ROOT / "mcp_data"
