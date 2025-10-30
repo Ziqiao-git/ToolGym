@@ -185,14 +185,14 @@ Example flow:
             "execution": {
                 "final_response": response.response,
                 "tool_calls": agent.trajectory,
-                "loaded_servers": list(agent.loaded_servers),
                 "total_tool_calls": len(agent.trajectory),
-                "dynamically_loaded_count": sum(1 for t in agent.trajectory if t.get("dynamically_loaded")),
+                "tool_calls_with_dynamic_load": sum(1 for t in agent.trajectory if t.get("dynamically_loaded")),
             },
             "servers": {
                 "initially_loaded": ["meta-mcp"],
-                "dynamically_loaded": list(agent.loaded_servers),
-                "total_servers_used": 1 + len(agent.loaded_servers),
+                "dynamically_loaded": list(agent.dynamically_loaded_servers),
+                "total_servers_used": len(agent.loaded_servers),
+                "dynamically_loaded_count": len(agent.dynamically_loaded_servers),
             }
         }
 

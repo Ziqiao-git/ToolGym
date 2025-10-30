@@ -36,6 +36,15 @@ ENV/
 # Trajectories (can be large, user-specific)
 trajectories/*.json
 
+# Test/probe results (JSON files - often large and temporary)
+*.json
+!package.json
+!package-lock.json
+!tsconfig.json
+!config.json
+!**/config.json
+!.vscode/*.json
+
 # Large data files
 *.ndjson.gz
 *.tar.gz

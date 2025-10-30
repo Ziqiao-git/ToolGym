@@ -1,172 +1,186 @@
-# MCP-R: Meta MCP Server with Semantic Tool Discovery
+# MCP-R: Evaluation Pipeline for MCP Tool-Using Agents
 
-A meta-level Model Context Protocol (MCP) server that provides semantic search and automatic discovery of MCP tools across 306+ registered servers.
+An end-to-end evaluation framework for testing AI agents' ability to dynamically discover and use Model Context Protocol (MCP) tools. Generates realistic benchmark tasks, executes them with a ReAct agent using semantic tool discovery across 4,572 tools from 301 servers, and evaluates performance using LLM-as-judge with a 5-dimension rubric.
 
 ## Overview
 
-MCP-R acts as a registry and orchestrator for MCP servers, allowing LLMs to dynamically discover and execute tools from any registered MCP server through natural language queries.
+**MCP-R's Purpose**: Benchmark and evaluate how well AI agents can:
+1. **Discover** relevant MCP tools through semantic search
+2. **Load** MCP servers dynamically on-demand
+3. **Execute** tools correctly to complete tasks
+4. **Ground** responses in actual tool outputs (no hallucination)
+
+The system generates diverse benchmark tasks, runs a ReAct agent with dynamic server loading, and evaluates results using an LLM judge that scores on 5 dimensions: task fulfillment, grounding, tool choice, tool execution, and requirement satisfaction.
+
+## Quick Start
+
+### Complete Evaluation Pipeline
+
+```bash
+# Step 1: Generate benchmark tasks (5 queries per MCP server)
+python mcp_generate/query_generate.py \
+  --in MCP_INFO_MGR/mcp_data/usable/useable_remote_server_metadata.ndjson \
+  --out evaluation/benchmark_tasks.json
+
+# Step 2: Run agent on all tasks
+python evaluation/run_benchmark.py \
+  --tasks evaluation/benchmark_tasks.json \
+  --output evaluation/results/
+
+# Step 3: Evaluate with LLM judge
+python evaluation/evaluate_results.py \
+  --trajectories evaluation/results/ \
+  --output evaluation/evaluation_report.json
+```
+
+### Manual Agent Testing
+
+```bash
+# Basic usage
+python runtime/run_react_agent.py "Search the web for latest AI news"
+
+# With trajectory logging for evaluation
+python runtime/run_react_agent.py "Find GitHub repos about ML" --save-trajectory
+
+# Custom model and iterations
+python runtime/run_react_agent.py "Your query" \
+  --model anthropic/claude-3.5-sonnet \
+  --max-iterations 10 \
+  --save-trajectory
+```
 
 ## Architecture
 
-### High-Level Flow
+### Complete Flow
 
 ```
-User Query (Natural Language)
+User Query: "Search the web for latest AI news"
     ↓
-  [LLM]
+┌─────────────────────────────────────────────────────┐
+│ ReAct Agent (initialized with meta-mcp only)        │
+└─────────────────────────────────────────────────────┘
     ↓
-Calls: search_mcp_tools(query="search GitHub repositories")
+    Reasoning: "I need to search for tools that can search news"
     ↓
-[Meta-MCP Server]
-  ├─ FAISS semantic search
-  ├─ Auto-connect to @smithery-ai/github
-  ├─ Add tools dynamically to Meta-MCP's tool list
-  └─ Send notification: "tools/list_changed"
+┌─────────────────────────────────────────────────────┐
+│ Tool Call: meta-mcp/search_tools                    │
+│ Args: {query: "search news articles", top_k: 5}    │
+└─────────────────────────────────────────────────────┘
     ↓
-Returns search results + [LLM receives notification]
+┌─────────────────────────────────────────────────────┐
+│ Meta-MCP Server (FAISS + BGE-M3)                   │
+│ Searches 4,572 tools semantically                   │
+└─────────────────────────────────────────────────────┘
     ↓
-  [LLM]
-  ├─ Automatically re-queries tools/list
-  └─ Now sees: ["search_mcp_tools", "github__search_repositories", "github__create_issue", ...]
+    Returns: [@Ymuberra/geo-news-mcp/search_news (score: 0.604), ...]
     ↓
-  [LLM] (sees new tools, picks one)
+┌─────────────────────────────────────────────────────┐
+│ Dynamic Server Loader (intercepts tool call)        │
+│ Detects: @Ymuberra/geo-news-mcp not loaded         │
+└─────────────────────────────────────────────────────┘
     ↓
-Calls: github__search_repositories(query="machine learning", per_page=10)
+    1. Fetch server config from remote_server_configs.json
+    2. Replace {{SMITHERY_API_KEY}} with actual key
+    3. Connect to https://server.smithery.ai/@Ymuberra/geo-news-mcp
+    4. Load 2 tools: search_news, get_headlines
     ↓
-[Meta-MCP Server]
-  └─ Proxies call to @smithery-ai/github (transparent to LLM)
+┌─────────────────────────────────────────────────────┐
+│ Tool Call: @Ymuberra/geo-news-mcp/search_news      │
+│ Args: {query: "artificial intelligence"}           │
+└─────────────────────────────────────────────────────┘
     ↓
-Returns: Actual results from GitHub API
+    Returns: Real news articles about AI
     ↓
-  [LLM]
+Agent synthesizes final response with citations
 ```
 
 ## Core Components
 
-### 1. Semantic Search Backend (FAISS + BGE-M3)
+### 1. Dynamic ReAct Agent
 
-- **Vector Database**: FAISS (Facebook AI Similarity Search)
-  - Index Type: `IndexFlatIP` (Inner Product for normalized vectors)
-  - Dimensions: 1024
-  - Scale: 306 servers, 1000+ tools
-- **Embeddings**: BGE-M3 (BAAI General Embedding)
-  - Model: `BAAI/bge-m3`
-  - Languages: 100+ languages supported
-  - Context Length: Up to 8192 tokens
-  - Quality: State-of-the-art for multilingual retrieval
-  - Special Features: Dense + sparse + multi-vector retrieval
-- **Index**: `tool_descriptions.ndjson` → BGE-M3 embeddings → FAISS index
-- **Search Strategy**: Semantic similarity search with metadata filtering
-- **Query Enhancement**: Instruction-based prompting for better retrieval
+**Location:** `Orchestrator/mcpuniverse/agent/dynamic_react.py`
 
-### 2. Meta-MCP Server Tools
+Extends the base ReAct agent with on-demand server loading:
+- **Intercepts tool calls** before execution
+- **Detects unloaded servers** from tool names
+- **Dynamically loads** server configs and connects
+- **Tracks trajectory** for evaluation
+- **Proper cleanup** to avoid asyncio errors
 
-The Meta-MCP server uses **dynamic tool registration**. It starts with one base tool and dynamically adds tools as they are discovered.
+**Key Methods:**
+```python
+async def _load_server_on_demand(server_name: str) -> bool:
+    """Load MCP server config, connect, and register tools."""
 
-#### Base Tool: `search_mcp_tools`
+async def call_tool(llm_response) -> CallToolResult:
+    """Intercept tool calls and load servers if needed."""
 
-Search for MCP tools across 306+ servers using semantic search. When called, this tool:
-1. Performs semantic search in FAISS index
-2. Connects to discovered MCP servers
-3. Dynamically adds their tools to Meta-MCP's tool list
-4. Sends `notifications/tools/list_changed` to LLM
-5. LLM automatically re-queries tool list and sees new tools
+async def cleanup():
+    """Properly close all MCP client connections."""
+```
 
-**Input Schema:**
+### 2. Meta-MCP Server
+
+**Location:** `meta_mcp_server/server.py`
+
+Provides semantic search across all indexed tools:
+
+**Tool:** `search_tools`
 ```json
 {
-  "query": "string - Natural language description of what you need",
-  "limit": "number - Max results to return (default: 5)",
-  "filters": {
-    "server": "string - (optional) Filter by server name",
-    "tags": "array - (optional) Filter by tags"
-  }
+  "query": "search GitHub repositories",
+  "top_k": 5,
+  "min_score": 0.3
 }
 ```
 
-**Output:**
+**Returns:**
 ```json
 {
   "results": [
     {
-      "server": "string - Qualified server name",
-      "tool": "string - Tool name",
-      "description": "string - Tool description",
-      "inputSchema": "object - JSON schema for tool inputs",
-      "similarity_score": "number - Relevance score (0-1)"
+      "server": "@smithery-ai/github",
+      "tool": "search_repositories",
+      "description": "Search GitHub repositories...",
+      "similarity_score": 0.845,
+      "parameters": ["query", "language", "per_page"]
     }
-  ],
-  "tools_added": ["server__tool_name", ...],
-  "message": "Tools from discovered servers have been added. They are now available in your tool list."
+  ]
 }
 ```
 
-#### Dynamically Added Tools
+### 3. Semantic Search Backend
 
-After `search_mcp_tools` is called, tools appear with naming format: `{server}__{tool_name}`
+**Location:** `MCP_INFO_MGR/semantic_search/`
 
-**Examples:**
-- `github__search_repositories` - Search GitHub repositories
-- `github__create_issue` - Create a GitHub issue
-- `exa__web_search_exa` - Search the web using Exa AI
-- `fetch__fetch_url` - Fetch and analyze web pages
-
-**These tools have the SAME schemas as the original tools** from their respective servers.
-
-**Example: After discovering GitHub tools**
-```json
-{
-  "name": "github__search_repositories",
-  "description": "Search for GitHub repositories using various filters",
-  "inputSchema": {
-    "type": "object",
-    "properties": {
-      "query": {"type": "string", "description": "Search query"},
-      "per_page": {"type": "number", "description": "Results per page"}
-    },
-    "required": ["query"]
-  }
-}
-```
-
-When LLM calls these tools, Meta-MCP transparently proxies the calls to the actual MCP servers.
-
-### 3. Connection Pool Manager
-
-- **Purpose**: Maintain persistent connections to MCP servers
-- **Strategy**: Lazy initialization - connect only when needed
-- **Reuse**: Keep connections alive for repeated tool calls
-- **Cleanup**: Automatic cleanup of idle connections
-- **Implementation**: Uses `MCPManager.build_client()` from existing codebase
-
-### 4. Tool Indexing Pipeline
-
-```
-tool_descriptions.ndjson (Source Data)
-    ↓
-[BGE-M3 Embedding Generation]
-  For each tool, create embedding from:
-  - Tool name
-  - Tool description
-  - Server name
-  - Input schema summary
-  - Combined text with instruction prefix
-    ↓
-  Query instruction: "Represent this sentence for searching relevant passages: "
-  Document instruction: (none for BGE-M3)
-    ↓
-[Normalize Embeddings]
-  L2 normalization for cosine similarity
-    ↓
-[FAISS Index Creation]
-  - Index Type: faiss.IndexFlatIP (Inner Product on normalized vectors = cosine similarity)
+- **Vector Database**: FAISS (IndexFlatIP for cosine similarity)
+- **Embeddings**: BGE-M3 (`BAAI/bge-m3`)
   - Dimensions: 1024
-  - Metadata store: Separate JSON file
-    ↓
-Saved Artifacts:
-  - tools.faiss (FAISS index)
-  - tools_metadata.json (Server name, tool name, description, inputSchema)
-  - embeddings_config.json (Model name, version, dimensions)
+  - Multilingual: 100+ languages
+  - Context length: 8192 tokens
+- **Index Size**: 4,572 tools from 301 servers
+- **Search**: Fast semantic similarity with metadata
+
+### 4. Data Organization
+
+**Location:** `MCP_INFO_MGR/mcp_data/`
+
+```
+mcp_data/
+├── raw/                    # Original Smithery data
+│   ├── smithery_servers.ndjson
+│   └── smithery_metadata.ndjson
+│
+├── usable/                 # 306 reachable servers
+│   ├── reachability_ok_servers.ndjson
+│   ├── remote_server_configs.json
+│   └── useable_remote_server_metadata.ndjson
+│
+├── unusable/               # Failed reachability tests
+│   └── reachability_results_*.ndjson
+│
+└── indexed/                # 301 servers with 4,572 tools
+    └── tool_descriptions.ndjson
 ```
 
 ## Project Structure
@@ -174,204 +188,479 @@ Saved Artifacts:
 ```
 MCP-R/
 ├── README.md                           # This file
-├── MCP_INFO_MGR/                       # MCP information management
-│   ├── tool_descriptions.ndjson        # All tools from 306 servers
-│   ├── remote_server_configs.json     # Server connection configs
-│   ├── reachability_ok_servers.ndjson  # Reachable servers list
+│
+├── runtime/                            # Agent runtime
+│   ├── run_react_agent.py             # Main CLI for running agent
+│   └── README.md                       # Runtime documentation
+│
+├── meta_mcp_server/                    # Semantic search server
+│   └── server.py                       # MCP server with search_tools
+│
+├── MCP_INFO_MGR/                       # MCP data management
+│   ├── mcp_data/                       # Organized MCP data
+│   │   ├── raw/                       # Smithery raw data
+│   │   ├── usable/                    # 306 reachable servers
+│   │   ├── unusable/                  # Failed servers
+│   │   └── indexed/                   # 4,572 indexed tools
+│   │
+│   ├── semantic_search/                # Search infrastructure
+│   │   ├── embeddings.py              # BGE-M3 embedding generation
+│   │   ├── faiss_backend.py           # FAISS indexing & search
+│   │   ├── build_search_index.py      # Build FAISS index
+│   │   ├── test_semantic_search.py    # Test search quality
+│   │   ├── index.faiss                # FAISS index (gitignored)
+│   │   ├── metadata.json              # Tool metadata
+│   │   └── model_info.json            # BGE-M3 model config
 │   │
 │   ├── fetch_tool_descriptions.py      # Fetch tools from servers
-│   ├── build_search_index.py           # Build FAISS index (TODO)
-│   ├── mcp_registry_server.py          # Meta-MCP server (TODO)
-│   │
-│   └── semantic_search/                # Semantic search components
-│       ├── faiss_backend.py            # FAISS indexing & search (TODO)
-│       └── embeddings.py               # Embedding generation (TODO)
+│   └── check_remote_reachability.py    # Test server connectivity
 │
-└── Orchestrator/                       # MCP orchestration framework
-    └── mcpuniverse/
-        └── mcp/
-            ├── client.py               # MCP client implementation
-            └── manager.py              # MCP manager with connection handling
-```
-
-## Data Flow
-
-### 1. Indexing Phase (One-time / Periodic Update)
-
-```bash
-# Step 1: Fetch tool descriptions from all servers
-python MCP_INFO_MGR/fetch_tool_descriptions.py
-
-# Step 2: Build FAISS search index
-python MCP_INFO_MGR/build_search_index.py \
-    --input MCP_INFO_MGR/tool_descriptions.ndjson \
-    --output MCP_INFO_MGR/semantic_search/
-```
-
-### 2. Runtime Phase (LLM Interaction)
-
-1. **LLM discovers tools**: Calls `search_mcp_tools(query="search GitHub repositories")`
-2. **Semantic search**: FAISS finds relevant tools by similarity
-3. **Dynamic registration**:
-   - Meta-MCP connects to discovered servers (@smithery-ai/github)
-   - Adds tools to its tool list (github__search_repositories, github__create_issue, etc.)
-   - Sends `notifications/tools/list_changed` to LLM
-4. **LLM refreshes**: Automatically re-queries `tools/list`, sees new tools
-5. **LLM uses tool directly**: Calls `github__search_repositories(query="machine learning", per_page=10)`
-6. **Transparent proxy**: Meta-server forwards call to @smithery-ai/github
-7. **LLM receives result**: Gets data from GitHub API through Meta-MCP
-
-## Key Features
-
-### Automatic Discovery
-- LLMs can discover tools without hardcoded knowledge
-- Natural language queries match to technical tool descriptions
-- Reduces need for manual tool selection
-
-### Connection Pooling
-- Reuses connections across multiple tool calls
-- Reduces latency for repeated operations
-- Efficient resource management
-
-### Scalability
-- Currently indexes 306 servers with 1000+ tools
-- FAISS can scale to billions of vectors
-- Fast search even with large registries
-
-### Extensibility
-- Easy to add new MCP servers to the registry
-- Support for metadata filtering (tags, categories)
-- Hybrid search (semantic + keyword) possible
-
-## Technology Stack
-
-- **Vector Search**: FAISS (Meta AI)
-  - Index Type: `IndexFlatIP` for cosine similarity
-  - Optimized for fast similarity search
-- **Embeddings**: BGE-M3 (`BAAI/bge-m3`)
-  - Framework: Sentence Transformers
-  - Dimensions: 1024
-  - Multilingual: 100+ languages
-  - Best-in-class for multilingual retrieval tasks
-- **MCP Protocol**: `mcp==1.9.4`
-- **Connection Management**: Custom MCPManager with pooling
-- **Data Format**: NDJSON (Newline-delimited JSON)
-- **Language**: Python 3.11+
-- **Dependencies**:
-  - `faiss-cpu` or `faiss-gpu`: Vector similarity search
-  - `sentence-transformers`: BGE-M3 model loading and inference
-  - `torch`: Deep learning backend for embeddings
-
-## Use Cases
-
-### 1. Dynamic Tool Selection
-```
-User: "I need to analyze stock prices for Tesla"
-  ↓
-LLM: search_mcp_tools("stock price analysis")
-  → Tools from yfinance server appear in tool list
-  ↓
-LLM: yfinance__get_stock_data(ticker="TSLA")
-  → Returns Tesla stock data
-```
-
-### 2. Multi-Tool Workflows
-```
-User: "Search GitHub for React repos and create an issue"
-  ↓
-LLM: search_mcp_tools("search github repositories")
-  → GitHub tools appear: github__search_repositories, github__create_issue, etc.
-  ↓
-LLM: github__search_repositories(query="react", per_page=10)
-  → Returns list of React repositories
-  ↓
-LLM: github__create_issue(owner="facebook", repo="react", title="Feature request", ...)
-  → Creates issue on GitHub
-```
-
-### 3. Capability Discovery
-```
-User: "What can you help me with regarding weather?"
-  ↓
-LLM: search_mcp_tools("weather forecasting")
-  → Returns available weather-related tools across all servers
-  → Weather server tools appear in LLM's tool list
-  ↓
-LLM can now use: weather__get_forecast, weather__current_conditions, etc.
-```
-
-### 4. Cross-Server Integration
-```
-User: "Find Python repos on GitHub and search for documentation"
-  ↓
-LLM: search_mcp_tools("search github")
-  → Adds github__search_repositories
-LLM: github__search_repositories(query="python", language="python")
-  → Gets repo list
-  ↓
-LLM: search_mcp_tools("search documentation")
-  → Adds docfork__search_docs
-LLM: docfork__search_docs(query="python best practices")
-  → Gets documentation
-  ↓
-Result: LLM combines data from 2 different MCP servers seamlessly
+├── Orchestrator/                       # MCP orchestration framework
+│   └── mcpuniverse/
+│       ├── agent/
+│       │   ├── react.py               # Base ReAct agent
+│       │   └── dynamic_react.py       # Dynamic loading wrapper
+│       ├── mcp/
+│       │   ├── client.py              # MCP client
+│       │   └── manager.py             # Connection manager
+│       ├── evaluator/                  # Evaluation framework
+│       │   ├── commonllmjudge.py      # LLM-as-judge evaluator
+│       │   └── evaluator.py           # Base evaluator
+│       └── benchmark/                  # Benchmark runner
+│           ├── runner.py              # Task execution
+│           └── task.py                # Task definitions
+│
+├── mcp_generate/                       # Query generation
+│   ├── query_generate.py              # Generate benchmark queries
+│   └── .env                           # API keys (gitignored)
+│
+├── trajectories/                       # Agent execution logs
+│   └── trajectory_*.json              # Saved trajectories (gitignored)
+│
+└── evaluation/                         # Evaluation pipeline (planned)
+    ├── generate_benchmark_tasks.py    # Create evaluation tasks
+    ├── run_benchmark.py               # Execute tasks with agent
+    └── evaluate_results.py            # Judge trajectories with LLM
 ```
 
 ## Implementation Status
 
-- [x] MCP client implementation
-- [x] MCP connection manager
+### ✅ Completed
+
+#### Core Infrastructure
+- [x] MCP client implementation with stdio and HTTP support
+- [x] MCP connection manager with proper cleanup
 - [x] Tool description fetching from 306 servers
-- [x] Fix asyncio task isolation issues
 - [x] BGE-M3 embedding generation module
-- [x] FAISS semantic search backend
+- [x] FAISS semantic search backend (4,572 tools indexed)
+- [x] Meta-MCP server with search_tools function
+
+#### Dynamic Agent System
+- [x] Dynamic ReAct agent with on-demand server loading
+- [x] Tool call interception and server detection
+- [x] Template variable replacement ({{SMITHERY_API_KEY}})
+- [x] Trajectory logging for evaluation
+- [x] Asyncio cleanup fixes
+
+#### Data & Organization
+- [x] Data organization (raw/usable/unusable/indexed)
 - [x] Build search index script
-- [ ] Meta-MCP server with dynamic tool registration
-- [ ] Connection pool with auto-connect on discovery
-- [ ] MCP notification support (tools/list_changed)
-- [ ] End-to-end testing with LLM client
+- [x] Test semantic search script
+- [x] Comprehensive documentation
+
+#### Evaluation Pipeline (Step 1/3)
+- [x] Query generation script (`mcp_generate/query_generate.py`)
+  - Generates 5 realistic queries per MCP server
+  - Uses GPT-5 with structured output
+  - Validates concrete, operational questions
+
+### 🚧 In Progress
+
+#### Evaluation Pipeline (Steps 2-3)
+- [ ] Benchmark runner (`evaluation/run_benchmark.py`)
+  - Run agent on all generated tasks
+  - Save trajectories with metadata
+  - Handle errors and timeouts
+- [ ] Evaluation script (`evaluation/evaluate_results.py`)
+  - Load trajectories and parse history
+  - Call LLM judge with 5-dimension rubric
+  - Generate comprehensive report
+
+#### Improvements
+- [ ] Handle invalid Smithery API keys gracefully
+- [ ] Add retry logic for failed server connections
+- [ ] WebUI for browsing tools and trajectories
+
+### 📋 Planned
+
+- [ ] Hybrid search (semantic + BM25 keyword)
+- [ ] Tool usage analytics
+- [ ] Automatic categorization
+- [ ] Rate limiting and quotas
+- [ ] Caching layer for frequent tools
+- [ ] Multi-agent collaboration
+
+## Evaluation Pipeline (Design)
+
+### Overview
+
+```
+Step 1: Generate Tasks          Step 2: Run Agent              Step 3: Evaluate
+─────────────────────           ──────────────────             ────────────────
+mcp_generate/                   runtime/                       Orchestrator/
+query_generate.py               run_react_agent.py             evaluator/
+                                                               commonllmjudge.py
+        ↓                               ↓                              ↓
+benchmark_tasks.json            trajectories/*.json            evaluation_report.json
+```
+
+### Step 1: Generate Benchmark Tasks
+
+Uses LLM to create diverse evaluation tasks covering:
+- Web search
+- GitHub operations
+- Database queries
+- API interactions
+- File operations
+- Data analysis
+
+**Output:** `evaluation/benchmark_tasks.json`
+```json
+{
+  "tasks": [
+    {
+      "task_id": "task_001",
+      "category": "web_search",
+      "question": "Search for latest AI regulation news",
+      "expected_tools": ["search_news", "web_search"],
+      "correct_answer_type": "news_articles",
+      "evaluation_criteria": "Must find recent articles with sources"
+    }
+  ]
+}
+```
+
+### Step 2: Run Agent on Tasks
+
+For each task:
+1. Load task from `benchmark_tasks.json`
+2. Execute: `python runtime/run_react_agent.py "{question}" --save-trajectory`
+3. Collect trajectory with:
+   - Tool calls made
+   - Servers loaded dynamically
+   - Execution times
+   - Final response
+
+**Output:** `trajectories/trajectory_{timestamp}.json`
+```json
+{
+  "metadata": {
+    "query": "Search for AI news",
+    "model": "anthropic/claude-3.5-sonnet"
+  },
+  "execution": {
+    "tool_calls": [
+      {
+        "server": "meta-mcp",
+        "tool": "search_tools",
+        "dynamically_loaded": false,
+        "duration_seconds": 3.16
+      },
+      {
+        "server": "@Ymuberra/geo-news-mcp",
+        "tool": "search_news",
+        "dynamically_loaded": true,
+        "duration_seconds": 8.24
+      }
+    ],
+    "final_response": "...",
+    "loaded_servers": ["@Ymuberra/geo-news-mcp"]
+  }
+}
+```
+
+### Step 3: Evaluate with LLM Judge
+
+Uses `commonllmjudge.py` to score on 5 dimensions (0-10 each):
+1. **Task Fulfillment** - Answers the question correctly
+2. **Grounding** - Claims supported by tool outputs
+3. **Tool Choice** - Selected appropriate tools
+4. **Tool Execution** - Used tools effectively
+5. **Requirement Satisfaction** - Met all constraints
+
+**Output:** `evaluation/evaluation_report.json`
+```json
+{
+  "overall_metrics": {
+    "total_tasks": 10,
+    "pass_rate": 0.85,
+    "avg_score": 0.87,
+    "avg_tools_per_task": 2.3,
+    "avg_dynamic_loads": 1.2
+  },
+  "task_results": [
+    {
+      "task_id": "task_001",
+      "overall_score": 0.92,
+      "binary": "success",
+      "subscores": {
+        "task_fulfillment": 9,
+        "grounding": 10,
+        "tool_choice": 9,
+        "tool_execution": 9,
+        "requirement_satisfaction": 9
+      },
+      "explanation": "Agent correctly used search_news tool..."
+    }
+  ]
+}
+```
+
+## Key Features
+
+### 1. Dynamic Server Loading
+
+- **Start lightweight**: Initialize with only Meta-MCP server
+- **Load on-demand**: Connect to servers only when needed
+- **Automatic discovery**: Agent finds tools through semantic search
+- **Efficient**: No wasted connections to unused servers
+
+### 2. Semantic Tool Discovery
+
+- **Natural language**: Query "search GitHub" finds GitHub tools
+- **Cross-lingual**: BGE-M3 supports 100+ languages
+- **Ranked results**: Similarity scores help choose best tool
+- **Fast search**: FAISS enables sub-second queries
+
+### 3. Trajectory Logging
+
+- **Complete history**: Every tool call, load, and response
+- **Timing data**: Measure performance bottlenecks
+- **Evaluation ready**: Format compatible with LLM judge
+- **Debugging**: Understand agent reasoning process
+
+### 4. Proper Resource Management
+
+- **Async cleanup**: No more RuntimeError exceptions
+- **Connection pooling**: Reuse loaded servers
+- **Memory efficient**: Close unused connections
+- **Production ready**: Handles errors gracefully
+
+## Use Cases
+
+### 1. Multi-Step Research Task
+
+```bash
+python runtime/run_react_agent.py \
+  "Find popular Python ML libraries on GitHub and search for their documentation"
+```
+
+**What happens:**
+1. Agent searches tools: "find GitHub repositories"
+2. Loads `@smithery-ai/github` server dynamically
+3. Calls `search_repositories(query="python machine learning")`
+4. Agent searches tools: "search documentation"
+5. Loads documentation server dynamically
+6. Combines results from multiple sources
+
+### 2. News Aggregation
+
+```bash
+python runtime/run_react_agent.py \
+  "Search for latest news about artificial intelligence" \
+  --save-trajectory
+```
+
+**What happens:**
+1. Agent searches: "search news articles"
+2. Finds and loads `@Ymuberra/geo-news-mcp`
+3. Executes `search_news(query="artificial intelligence")`
+4. Returns news with sources and dates
+5. Saves trajectory for evaluation
+
+### 3. Capability Discovery
+
+```bash
+python runtime/run_react_agent.py \
+  "What tools are available for working with databases?"
+```
+
+**What happens:**
+1. Agent calls `search_tools(query="database operations")`
+2. Returns list of database-related tools across servers
+3. Agent can then choose and use appropriate tools
+
+## Technology Stack
+
+### Core Technologies
+
+- **Agent Framework**: ReAct (Reasoning + Acting)
+- **LLM**: OpenRouter (Claude 3.5 Sonnet default)
+- **Vector Search**: FAISS (Meta AI)
+- **Embeddings**: BGE-M3 (BAAI, 1024 dims)
+- **MCP Protocol**: `mcp==1.9.4` (stdio + HTTP)
+- **Language**: Python 3.11+
+
+### Key Dependencies
+
+```
+faiss-cpu                # Vector similarity search
+sentence-transformers    # BGE-M3 embeddings
+torch                    # Deep learning backend
+mcp                      # Model Context Protocol
+openai                   # OpenRouter API client
+python-dotenv            # Environment management
+```
 
 ## Configuration
 
 ### Environment Variables
 
+Create `.env` files in appropriate directories:
+
+**`Orchestrator/.env`:**
 ```bash
-# Required for Smithery servers
-SMITHERY_API_KEY=your_api_key_here
+OPENROUTER_API_KEY=sk-or-v1-...
+SMITHERY_API_KEY=your-smithery-key
 ```
 
-### Server Configuration
+**`mcp_generate/.env`:**
+```bash
+OPENROUTER_API_KEY=sk-or-v1-...
+SMITHERY_API_KEY=your-smithery-key
+```
 
-Server configurations are stored in `MCP_INFO_MGR/remote_server_configs.json`:
+### Server Configurations
+
+Server configs in `MCP_INFO_MGR/mcp_data/usable/remote_server_configs.json` support template variables:
 
 ```json
 {
   "@smithery-ai/github": {
     "streamable_http": {
-      "url": "https://server.smithery.ai/@smithery-ai/github/mcp",
-      "headers": {
-        "Authorization": "Bearer {{SMITHERY_API_KEY}}"
-      }
-    }
+      "url": "https://server.smithery.ai/@smithery-ai/github/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
   }
 }
 ```
 
+Templates like `{{SMITHERY_API_KEY}}` are replaced with environment variables during dynamic loading.
+
+## Testing
+
+### Test Semantic Search
+
+```bash
+python MCP_INFO_MGR/semantic_search/test_semantic_search.py
+```
+
+Tests queries like:
+- "search github repositories"
+- "fetch weather data"
+- "analyze stock prices"
+
+### Test Dynamic Agent
+
+```bash
+# Simple query (no tools)
+python runtime/run_react_agent.py "What is 2+2?"
+
+# Tool discovery and use
+python runtime/run_react_agent.py "Search for AI news" --save-trajectory
+
+# Complex multi-tool task
+python runtime/run_react_agent.py \
+  "Find ML repos on GitHub" \
+  --max-iterations 10 \
+  --save-trajectory
+```
+
+## Known Issues
+
+### Minor Issues (Non-blocking)
+
+1. **Resource tracker warning**: `resource_tracker: There appear to be 1 leaked semaphore objects`
+   - Harmless warning during shutdown
+   - Does not affect functionality
+   - Python multiprocessing cleanup artifact
+
+2. **JSON-RPC validation errors**: Some servers return non-standard errors during connection
+   - Gracefully handled by retry logic
+   - Does not affect successful connections
+
+### Limitations
+
+1. **Invalid API keys**: Some Smithery servers return 401 errors
+   - Need to refresh Smithery API key
+   - Or test with local MCP servers
+
+2. **Large FAISS index**: 4,572-tool index not in git
+   - Need to rebuild with `build_search_index.py`
+   - Gitignored due to size (~20MB)
+
 ## Future Enhancements
 
-- [ ] Hybrid search (semantic + keyword BM25)
-- [ ] Tool usage analytics and popularity ranking
-- [ ] Automatic tool categorization/tagging
-- [ ] Multi-language support for tool descriptions
-- [ ] WebUI for browsing available tools
-- [ ] Rate limiting and quota management
-- [ ] Tool versioning and compatibility tracking
-- [ ] Caching layer for frequently used tools
+### Short Term
+
+- [ ] Automated evaluation pipeline
+- [ ] Benchmark task suite (10-50 tasks)
+- [ ] Performance metrics dashboard
+- [ ] Better error messages for failed servers
+
+### Medium Term
+
+- [ ] Hybrid semantic + keyword search
+- [ ] Tool popularity ranking
+- [ ] Usage analytics
+- [ ] Multi-agent collaboration
+- [ ] Streaming responses
+
+### Long Term
+
+- [ ] WebUI for tool discovery
+- [ ] Visual trajectory viewer
+- [ ] Tool marketplace integration
+- [ ] Version compatibility tracking
+- [ ] Automatic tool caching
+- [ ] Federation across multiple registries
 
 ## Contributing
 
-This is a research project exploring meta-level MCP orchestration and semantic tool discovery.
+This is a research project exploring:
+- Meta-level MCP orchestration
+- Semantic tool discovery
+- Dynamic agent architectures
+- LLM-based evaluation
+
+Contributions welcome! Areas of interest:
+- Evaluation benchmark tasks
+- New MCP server integrations
+- Performance optimizations
+- Documentation improvements
+
+## Citation
+
+If you use MCP-R in your research, please cite:
+
+```
+@software{mcp_r_2025,
+  title = {MCP-R: Dynamic ReAct Agent with Semantic MCP Tool Discovery},
+  author = {[Your Name]},
+  year = {2025},
+  url = {https://github.com/Ziqiao-git/MCP-R}
+}
+```
 
 ## License
 
 [To be determined]
+
+---
+
+**Status**: Active Development
+**Last Updated**: October 2025
+**Tools Indexed**: 4,572 from 301 servers
+**Agent**: ReAct with dynamic loading
+**Evaluation**: LLM-as-judge (5-dimension rubric)

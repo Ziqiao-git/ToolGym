@@ -43,8 +43,25 @@ class DynamicReActAgent(ReAct):
         """
         super().__init__(mcp_manager=mcp_manager, llm=llm, config=config)
         self.server_configs = server_configs
-        self.loaded_servers = set()
+        self.loaded_servers = set()  # Tracks ALL loaded servers
+        self.dynamically_loaded_servers = set()  # Tracks ONLY dynamically loaded servers
         self.trajectory = []  # Store execution trajectory
+
+    async def initialize(self, mcp_servers: List[Dict[str, str]] = None):
+        """
+        Initialize the agent with initial servers.
+        Overrides parent to track which servers are pre-loaded.
+        """
+        # Call parent initialization
+        await super().initialize(mcp_servers=mcp_servers)
+
+        # Track initially loaded servers in loaded_servers (but NOT in dynamically_loaded_servers)
+        if mcp_servers:
+            for server in mcp_servers:
+                server_name = server.get("name")
+                if server_name:
+                    self.loaded_servers.add(server_name)  # Track as loaded
+                    self._logger.info(f"✓ Pre-loaded server: {server_name}")
 
     async def _load_server_on_demand(self, server_name: str) -> bool:
         """
@@ -86,6 +103,7 @@ class DynamicReActAgent(ReAct):
             self._tools[server_name] = tools
 
             self.loaded_servers.add(server_name)
+            self.dynamically_loaded_servers.add(server_name)  # Track as dynamically loaded
             self._logger.info(f"✅ Loaded {len(tools)} tools from {server_name}")
 
             return True
@@ -127,7 +145,7 @@ class DynamicReActAgent(ReAct):
                 server_name = tool_call["server"]
 
                 # Try to load server if not already loaded
-                if server_name not in self._tools:
+                if server_name not in self.loaded_servers:
                     self._logger.info(f"📡 Server {server_name} not loaded, attempting dynamic load...")
                     success = await self._load_server_on_demand(server_name)
                     server_loaded_dynamically = success
@@ -147,21 +165,39 @@ class DynamicReActAgent(ReAct):
         except Exception as e:
             self._logger.warning(f"Error in dynamic server loading: {e}")
 
-        # Call parent's call_tool method
-        result = await super().call_tool(llm_response, tracer, callbacks)
+        # Call parent's call_tool method and capture success/failure
+        result = None
+        error = None
+        try:
+            result = await super().call_tool(llm_response, tracer, callbacks)
+        except Exception as e:
+            error = str(e)
+            self._logger.error(f"Tool call failed: {e}")
+            # Re-raise so the agent sees the error
+            raise
 
         # Log to trajectory
         end_time = time.time()
         if tool_call:
-            self.trajectory.append({
+            trajectory_entry = {
                 "type": "tool_call",
+                "thought": tool_call.get("thought"),  # Capture LLM's reasoning
                 "server": tool_call.get("server"),
                 "tool": tool_call.get("tool"),
                 "arguments": tool_call.get("arguments"),
                 "dynamically_loaded": server_loaded_dynamically,
                 "duration_seconds": round(end_time - start_time, 3),
                 "result_preview": str(result)[:200] if result else None,
-            })
+            }
+
+            # Add error info if tool call failed
+            if error:
+                trajectory_entry["status"] = "error"
+                trajectory_entry["error"] = error
+            else:
+                trajectory_entry["status"] = "success"
+
+            self.trajectory.append(trajectory_entry)
 
         return result
 

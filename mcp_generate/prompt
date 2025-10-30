@@ -1,0 +1,10 @@
+{
+  "metadata": {
+    "total_queries": 2,
+    "servers_count": 306
+  },
+  "queries": [
+    "I’m choosing between AWS Lambda Function URLs and Azure Functions HTTP triggers for a public API. Compare auth options (IAM/SigV4 vs Azure AD/function keys), cold-start mitigation, concurrency and request/response size limits, custom domain setup, and estimated costs at about 1M requests/month. Also verify regional availability for the needed features in ap-south-1 (Mumbai) and Central India, and give step-by-step setup guides with Node.js and C# code snippets for both clouds.",
+    "I’m planning a last‑minute trip from Austin to Seattle Nov 8–10, 2025. Find the cheapest round‑trip flights (economy, carry‑on only) and show if shifting by ±2 days lowers the price a lot. Combine that with the 7‑day Seattle weather forecast and any active weather alerts, and list 3 notable tech meetups or conferences in Seattle that weekend with links and start times so I can plan around the weather."
+  ]
+}

@@ -35,15 +35,24 @@ MODEL_NAME = "openai/gpt-5"
 MAX_RETRIES = 3
 
 
-SYSTEM_PROMPT = """You are an expert at creating natural language benchmark questions for MCP servers.
-Goal: For the given MCP server (with name / summary / tools), generate 5 natural language queries that would realistically trigger its tool usage and cover its capabilities.
+SYSTEM_PROMPT = """You are an expert at creating natural, realistic user queries that involve research or multi-step tasks.
+
+Goal: Given a list of available MCP servers, generate {num_queries} natural language queries that users might realistically ask, where answering would naturally involve using information from different sources.
 
 Requirements:
-- Write 5 distinct, fluent, natural English questions (not commands).
-- Cover as many different tools as possible (if multiple).
-- Each question should correspond to a realistic user request (summaries, lookups, troubleshooting, top-k, filtering, etc.).
-- Output must be a valid JSON array containing ·exactly 5 strings.
-- Do not include any explanation, only the JSON array.
+- Write natural, fluent questions that real users would ask
+- Questions should involve research, comparison, or connecting different types of information
+- Be concrete and specific (mention actual topics, technologies, companies, locations, etc.)
+- Questions should sound like genuine user requests, not forced "use multiple tools" prompts
+- Output must be a valid JSON object with "queries" array containing exactly {num_queries} strings
+
+Examples of natural queries:
+- "What are the latest developments in AI regulation and which companies are most affected?"
+- "Find recent machine learning projects on GitHub and tell me what problems they solve"
+- "What's the weather like in Seattle and are there any tech events happening there?"
+- "Show me trending Python projects and explain what makes them popular"
+
+Make queries natural, diverse, and genuinely useful.
 """
 
 # SYSTEM_PROMPT = """You create concrete, realistic, English benchmark questions for MCP servers.
@@ -107,17 +116,25 @@ Requirements:
 
 
 
-USER_PROMPT_TEMPLATE = """Here is an MCP server. 
-Generate 5 concrete, realistic ENGLISH questions as a JSON array of EXACTLY 5 strings.
-Remember the hard requirements and banned phrases.
-server:
-{server_json}
+USER_PROMPT_TEMPLATE = """Here are the available MCP servers grouped by domain:
+
+{servers_summary}
+
+Generate {num_queries} natural, realistic user queries that people would actually ask.
+These queries should naturally involve researching or combining information from different sources.
+
+Return a JSON object with "queries" array containing exactly {num_queries} strings.
 """
 
 
 
-def call_gpt5_for_queries(server: Dict[str, Any]) -> List[str]:
-    user_prompt = USER_PROMPT_TEMPLATE.format(server_json=json.dumps(server, ensure_ascii=False, indent=2))
+def call_gpt5_for_queries(tools_summary: str, num_queries: int = 20) -> List[str]:
+    """Generate queries given tool descriptions."""
+    system_prompt = SYSTEM_PROMPT.format(num_queries=num_queries)
+    user_prompt = USER_PROMPT_TEMPLATE.format(
+        servers_summary=tools_summary,
+        num_queries=num_queries
+    )
 
     schema = {
         "type": "json_schema",
@@ -129,8 +146,8 @@ def call_gpt5_for_queries(server: Dict[str, Any]) -> List[str]:
                 "properties": {
                     "queries": {
                         "type": "array",
-                        "minItems": 5,
-                        "maxItems": 5,
+                        "minItems": num_queries,
+                        "maxItems": num_queries,
                         "items": {"type": "string"}
                     }
                 },
@@ -144,20 +161,20 @@ def call_gpt5_for_queries(server: Dict[str, Any]) -> List[str]:
         resp = CLIENT.chat.completions.create(
             model=MODEL_NAME,
             messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
             ],
-            temperature=0.6,
+            temperature=0.7,
             max_tokens=20000,
-            response_format=schema, 
+            response_format=schema,
         )
         text = resp.choices[0].message.content.strip()
         obj = json.loads(text)
 
         if not (isinstance(obj, dict) and isinstance(obj.get("queries"), list)
-                and len(obj["queries"]) == 5
+                and len(obj["queries"]) == num_queries
                 and all(isinstance(x, str) for x in obj["queries"])):
-            raise ValueError("Model did not return an object with 'queries': [5 strings].")
+            raise ValueError(f"Model did not return an object with 'queries': [{num_queries} strings].")
 
         return obj["queries"]
 
@@ -168,43 +185,62 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--in", dest="in_path", required=True, help="输入 JSON 文件路径（MCP servers 列表）")
     parser.add_argument("--out", dest="out_path", required=True, help="输出 JSON 文件路径")
+    parser.add_argument("--num-queries", type=int, default=20, help="生成查询数量 (default: 20)")
     args = parser.parse_args()
 
     if not os.path.exists(args.in_path):
         raise FileNotFoundError(f"输入文件不存在: {args.in_path}")
 
+    # Load servers (support both JSON and NDJSON)
     with open(args.in_path, "r", encoding="utf-8") as f:
-        servers = json.load(f)
+        if args.in_path.endswith('.ndjson'):
+            servers = [json.loads(line) for line in f if line.strip()]
+        else:
+            servers = json.load(f)
 
     if not isinstance(servers, list):
         raise ValueError("输入 JSON 须为列表，每个元素为一个 MCP server 的字典。")
 
-    result: List[Dict[str, Any]] = []
-    i = 0
-    for server in tqdm(servers, desc="Generating queries for MCP servers"):
-        # 仅提取必要字段传给模型，避免噪声；但输出保留完整 server 信息
-        minimal_server = {
-            "name": server.get("name"),
-            "summary": server.get("summary") or server.get("description"),
-            "tools": server.get("tools"),
-        }
-        queries = call_gpt5_for_queries(minimal_server)
+    # Load tool descriptions from indexed data
+    tool_descriptions_path = "MCP_INFO_MGR/mcp_data/indexed/tool_descriptions.ndjson"
+    print(f"Loading tool descriptions from {tool_descriptions_path}...")
 
-        # 合并到新结构
-        item = dict(server)  # 原样复制 server 所有字段
-        item["generated_queries"] = queries
-        result.append(item)
+    tools_summary = []
+    with open(tool_descriptions_path, "r", encoding="utf-8") as f:
+        for i, line in enumerate(f):
+            if i >= 100:  # Limit to first 100 tools to keep prompt manageable
+                break
+            if line.strip():
+                tool = json.loads(line)
+                server = tool.get("qualifiedName", "unknown")
+                for t in tool.get("tools", []):
+                    tool_name = t.get("name", "")
+                    tool_desc = t.get("description", "No description")
+                    tools_summary.append(f"- {server}/{tool_name}: {tool_desc}")
 
-        i+=1
+    tools_summary_text = "\n".join(tools_summary)
 
+    # Generate queries
+    print(f"Generating {args.num_queries} natural cross-domain queries from {len(tools_summary)} tools...")
+    queries = call_gpt5_for_queries(tools_summary_text, num_queries=args.num_queries)
 
-  
+    result = {
+        "metadata": {
+            "total_queries": len(queries),
+            "servers_count": len(servers)
+        },
+        "queries": queries
+    }
 
+    # Create output directory if it doesn't exist
+    output_dir = os.path.dirname(args.out_path)
+    if output_dir:
+        os.makedirs(output_dir, exist_ok=True)
 
     with open(args.out_path, "w", encoding="utf-8") as f:
         json.dump(result, f, ensure_ascii=False, indent=2)
 
-    print(f"✅ 已写入: {args.out_path}")
+    print(f"✅ Generated {len(queries)} queries and saved to {args.out_path}")
 
 
 if __name__ == "__main__":
