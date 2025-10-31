@@ -16,21 +16,7 @@ load_dotenv()
 
 def _safe_parse_json(s: Optional[str]) -> Optional[Dict[str, Any]]:
     """
-    Best-effort parse of judge output.
-
-    We assume ONLY the new multi-dimension rubric format, e.g.:
-
-    {
-      "task_fulfillment": <int 0-10>,
-      "grounding": <int 0-10>,
-      "tool_choice": <int 0-10>,
-      "tool_execution": <int 0-10>,
-      "requirement_satisfaction": <int 0-10>,
-      "overall_score": <float 0-1>,
-      "explanation": "<short reason referencing HISTORY>",
-      "binary": "success" or "failure"
-    }
-
+    Try to parse model output as JSON.
     We accept fenced code blocks like ```json ... ``` or ``` ... ```.
     Return dict or None.
     """
@@ -64,23 +50,243 @@ def _safe_parse_json(s: Optional[str]) -> Optional[Dict[str, Any]]:
 
 
 # =====================================================
-# LLM judge prompt template
+# LLM helper: generic chat call (always gpt-4o-mini)
+# =====================================================
+
+def _call_llm(
+    *,
+    prompt: str,
+    system_prompt: str,
+    context: Optional[Context] = None,
+    temperature: float = 0.0,
+    max_tokens: int = 8000,
+    prompt_char_limit: int = 100000,
+) -> Optional[str]:
+    """
+    Thin wrapper around OpenAI-compatible chat.completions.create
+    used both for trajectory summarization and judging.
+
+    The model is hard-coded to openai/gpt-4o-mini.
+    """
+    ctx = context or Context()
+
+    api_key = ctx.get_env("OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY")
+    base_url = ctx.get_env("OPENAI_BASE_URL") or os.getenv("OPENAI_BASE_URL")
+
+    MODEL_NAME = "openai/gpt-4o-mini"
+
+    client = OpenAI(api_key=api_key, base_url=base_url)
+
+    safe_prompt = prompt[:prompt_char_limit]
+
+    tries = 3
+    while tries > 0:
+        tries -= 1
+        try:
+            resp = client.chat.completions.create(
+                model=MODEL_NAME,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": safe_prompt},
+                ],
+                temperature=temperature,
+                max_tokens=max_tokens,
+            )
+            return resp.choices[0].message.content
+        except Exception as e:
+            print(f"[commonllmjudge] LLM call failed: {e}")
+
+    return None
+
+
+# =====================================================
+# Trajectory summarization prompt template
+# =====================================================
+
+# 关键更新：
+# - Thought / Action 必须逐字/逐步保留语义，不要省略信息，不要“概括到看不出原意”。
+# - Tool Result 只抽“推理真正用到的字段”，例如:
+#   * geocode: 只要坐标
+
+# - 最后一步（通常是选winner的那一步）一定要点名哪家被选中 + 为什么它赢
+#   (平衡性/是cafe/满足约束等)
+# - 不要重复最终答案的JSON Schema，但可以提店名
+
+TRAJECTORY_SUMMARY_TEMPLATE = """You are compressing an agent's multi-step ReAct trace
+to create a compact trajectory summary for an evaluation judge.
+
+GOALS
+- Preserve reasoning faithfulness.
+- Give the judge enough evidence to verify constraint satisfaction and grounding.
+- Keep it short enough to not blow up the context.
+- DO NOT hide or skip any step that is important for how the final cafe / answer was chosen.
+
+CRITICAL GUARANTEES (DO NOT VIOLATE):
+- You MUST include EVERY step from the original trace, in order.
+- You MUST include the FINAL step's Thought (the agent's final reasoning / choice rationale).
+- You MUST NOT output the final structured answer JSON (e.g. {{'stops': ...}}).
+
+INSTRUCTIONS
+
+1. You MUST keep the step structure and numbering exactly:
+   Step 1:
+   Thought: ...
+   Action: server=<server>, tool=<tool>
+   Action Input: ...
+   Tool Result: ...
+   Step 2:
+   ...
+   (Continue for ALL steps in the original trace. Do not skip the last step.)
+
+2. THOUGHT:
+   - You MUST copy the agent's Thought **exactly as written**, character-for-character.
+   - DO NOT paraphrase, summarize, shorten, reorder, or modify any wording, punctuation, or formatting.
+   - The Thought text must be a **verbatim copy** from the original trace.
+   - If a Thought contains reasoning, constraint checking, or justification, you must include it in full.
+
+3. ACTION:
+   - You MUST include both server and tool exactly
+     (e.g. "server=google-maps, tool=maps_distance_matrix").
+   - You MUST ALSO include the agent's stated reason / motivation for calling the tool
+     if it exists (e.g. "to compare travel times across all friends").
+     Put that reason directly under Action.
+   - Action Input must include all essential arguments actually sent to the tool.
+     Essential arguments include:
+       - origins / source addresses
+       - destinations / candidate places (entire list, not truncated)
+       - query text
+       - radius / mode
+     You are NOT allowed to silently drop destinations from the list.
+     If there is a long list (e.g. many cafes), you MUST keep all names in that list,
+     but you MAY omit unneeded address suffixes like ", Singapore" if they repeat.
+   - Non-essential: internal flags, formatting clutter, debug metadata, etc.
+
+   FORMAT EXAMPLE:
+   Action: server=google-maps, tool=maps_distance_matrix
+   Reason: Using this tool lets me compare drive times from all 3 homes.
+   Action Input:
+     origins: [...]
+     destinations: [...]
+     mode: driving
+
+4. TOOL RESULT:
+   - You MUST preserve the **entire tool output** as returned by the environment or API.
+   - You may reformat it for readability (e.g., convert JSON to bullet lists or inline summaries),
+     but you MUST NOT drop, condense, or selectively omit any entries, keys, or values.
+   - The ONLY exception is to remove clearly irrelevant low-value noise such as:
+       • extremely long coordinate arrays,
+       • large 3D geometry meshes or bounding boxes,
+       • base64-encoded image blobs.
+   - You MUST keep all fields, even if they do not appear to be explicitly referenced later.
+     Do NOT assume which parts were “used for reasoning” — preserve everything except obvious noise.
+   - If the tool returned multiple items (e.g., distance matrix, route list, address list, result set),
+     keep **all rows, columns, and entries**, not just samples or partial previews.
+   - When you rewrite for readability, ensure that all numeric values and key–value pairs remain intact and unaltered.
+
+   Examples of acceptable Tool Result style:
+     Tool Result:
+       origin_addresses: [...]
+       destination_addresses: [...]
+       durations (mins):
+         - Cafe A: [20, 22, 21]
+         - Cafe B: [18, 24, 19]
+       Observation: spread ~3 min for Cafe A (most balanced)
+
+   Examples of what NOT to do:
+     - Do NOT shorten destination list to first 5 items if there were 20.
+     - Do NOT convert a full distance matrix into only one cafe unless the agent ALSO
+       only used that cafe later.
+
+5. DO NOT add any extra "Winner Justification" section.
+   The reasoning in the agent's Thought (especially the last step) IS the justification.
+
+6. DO NOT include giant raw JSON dumps or long coordinate lists.
+   DO NOT include multi-dozen-line arrays of lat/lng pairs.
+   DO NOT include the final structured answer JSON schema or the final structured answer.
+
+7. Output must be plain text EXACTLY in this format, no markdown fences.
+
+Now here is the full original trace you must compress:
+
+{raw_history}
+"""
+
+
+
+def summarize_trajectory_for_judge(
+    raw_history: str,
+    *,
+    context: Optional[Context] = None,
+    temperature: float = 0.0,
+    max_tokens: int = 8000,
+    prompt_char_limit: int = 100000,
+) -> str:
+    """
+    Use gpt-4o-mini to convert the full verbose trace into a compact,
+    judge-friendly trajectory:
+      - Step-by-step.
+      - Thought and Action preserved with intent intact.
+      - Tool Result distilled to only decision-relevant fields.
+      - Final step MUST justify why the chosen cafe was selected
+        (balance of travel times, is cafe, etc).
+      - DOES NOT echo the final JSON answer block.
+
+    If summarization fails or returns empty, fallback to last ~8000 chars of raw_history.
+    """
+
+    system_prompt = (
+        "You are a faithful summarizer that keeps agent reasoning steps intact "
+        "while pruning unneeded raw JSON. You MUST follow the requested output "
+        "format exactly."
+    )
+
+    user_prompt = TRAJECTORY_SUMMARY_TEMPLATE.format(raw_history=raw_history)
+
+    summary = _call_llm(
+        prompt=user_prompt,
+        system_prompt=system_prompt,
+        context=context,
+        temperature=temperature,
+        max_tokens=max_tokens,
+        prompt_char_limit=prompt_char_limit,
+    )
+
+    if not summary:
+        MAX_FALLBACK = 8000
+        return raw_history[-MAX_FALLBACK:]
+
+    summary = summary.strip()
+    if not summary:
+        MAX_FALLBACK = 8000
+        return raw_history[-MAX_FALLBACK:]
+
+    return summary
+
+
+# =====================================================
+# Judge prompt template
 # =====================================================
 
 LLM_JUDGE_TEMPLATE = """You are a **strict and conservative** evaluator of multi-step, tool-using ReAct agents.
 Your role is to score the quality of reasoning and tool use across multiple dimensions.
 
 🔒 Important:
-- **Perfect 10s should be rare (<10%)**.  
-- Start from 8 and deduct points for any uncertainty, redundancy, or lack of verification.  
+- **Perfect 10s should be rare (<10%)**.
+- Start from 8 and deduct points for any uncertainty, redundancy, or lack of verification.
 - Be conservative: if unsure between two scores, choose the lower.
 
 ------------------------------------------------------------
-You will receive:
-1. META: task_id, category, and optional correct_answer.
-2. TASK: question and expected output_format.
-3. HISTORY: the agent's reasoning trace with tool "Result:" outputs.
-4. FINAL_ANSWER: the final response of the agent.
+META:
+{meta_json}
+
+TASK:
+{task_json}
+
+HISTORY:
+{history_text}
+
+FINAL_ANSWER:
+{final_answer_text}
 
 ------------------------------------------------------------
 EVALUATION RUBRIC (each 0–10, integers only):
@@ -110,14 +316,16 @@ EVALUATION RUBRIC (each 0–10, integers only):
    - ≤5 = major execution errors or ignored outputs.
 
 5) Requirement Satisfaction / Constraint Coverage (0–10)
-   - 10 = explicitly checks and meets all constraints or conditions in TASK (e.g., distance/time limits, correct number of results, etc.).
+   - 10 = explicitly checks and meets all constraints or conditions in TASK
+         (e.g., correct number of items, distance/time limits, etc.).
    - 8–9 = likely meets most constraints but without explicit verification.
    - 6–7 = partial or uncertain constraint satisfaction.
    - ≤5 = violates or ignores explicit constraints.
 
 ------------------------------------------------------------
 OVERALL SCORE
-overall_score = (task_fulfillment + grounding + tool_choice + tool_execution + requirement_satisfaction) / 50.
+overall_score = (task_fulfillment + grounding + tool_choice
+                 + tool_execution + requirement_satisfaction) / 50.
 Round to two decimals. Must be in [0,1].
 
 ------------------------------------------------------------
@@ -139,186 +347,69 @@ Return STRICT JSON:
 }}
 
 Return ONLY the JSON object — no prose or commentary.
-
-------------------------------------------------------------
-DATA:
-{payload}
 """
 
 
-
 # =====================================================
-# low-level LLM call
-# =====================================================
-
-def _call_llm_judge(
-    prompt: str,
-    *,
-    context: Optional[Context] = None,
-    model: Optional[str] = None,
-    temperature: float = 0.0,
-    max_tokens: int = 512,
-    prompt_char_limit: int = 15000,
-) -> Optional[str]:
-    """
-    Call the judge model via OpenAI-compatible API.
-    We assume the caller provides:
-      - valid api key via env or context
-      - model name via kwargs or env; if missing we raise
-    """
-    ctx = context or Context()
-
-    api_key = ctx.get_env("OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY")
-    base_url = ctx.get_env("OPENAI_BASE_URL") or os.getenv("OPENAI_BASE_URL")
-
-    # hard requirement: specify judge model
-    judge_model = model or os.getenv("JUDGE_MODEL")
-    if not judge_model:
-        raise RuntimeError("No judge model specified (missing judge_model / JUDGE_MODEL).")
-
-    client = OpenAI(api_key=api_key, base_url=base_url)
-
-    # naive truncate to avoid overlong prompts
-    safe_prompt = prompt[:prompt_char_limit]
-
-    tries = 3
-    while tries > 0:
-        tries -= 1
-        try:
-            resp = client.chat.completions.create(
-                model=judge_model,
-                messages=[
-                    {
-                        "role": "system",
-                        "content": (
-                            "You are a strict grading judge. "
-                            "Always return ONLY the JSON object, "
-                            "no prose before or after."
-                        ),
-                    },
-                    {"role": "user", "content": safe_prompt},
-                ],
-                temperature=temperature,
-                max_tokens=max_tokens,
-            )
-            return resp.choices[0].message.content
-        except Exception as e:
-            print(f"[commonllmjudge] LLM judge call failed: {e}")
-
-    return None
-
-
-# =====================================================
-# payload builder
-# =====================================================
-
-def _build_inputs(
-    llm_response: Any,
-    values: Dict[str, Any],
-) -> Dict[str, Any]:
-    """
-    Runner is expected to put these in `values`:
-        - "question": original user query (string)
-        - "history": agent full ReAct trace (string)
-        - "final_answer": final answer string
-        - "output_format": task schema (dict or string)
-        - optional: "task_id", "category", "correct_answer"
-
-    We'll normalize that into:
-        task:    {task_id, category, question, output_format}
-        payload: {META, TASK, HISTORY, FINAL_ANSWER}
-    """
-
-    question = values.get("question", "")
-    history = values.get("history", "")
-    final_answer = values.get("final_answer", "")
-
-    task = {
-        "task_id": values.get("task_id", "unknown_task"),
-        "category": values.get("category", "general"),
-        "question": question,
-        "output_format": values.get("output_format", {}),
-    }
-
-    correct_answer = values.get("correct_answer", "")
-
-    payload = {
-        "META": {
-            "task_id": task["task_id"],
-            "category": task["category"],
-            "correct_answer": correct_answer,
-        },
-        "TASK": {
-            "question": task["question"],
-            "output_format": task["output_format"],
-        },
-        "HISTORY": history,
-        "FINAL_ANSWER": final_answer,
-    }
-
-    return {
-        "task": task,
-        "history": history,
-        "final_answer": final_answer,
-        "payload": payload,
-    }
-
-
-# =====================================================
-# core scoring logic (new rubric only)
+# judge call
 # =====================================================
 
 def llm_as_judge_score(
     *,
+    meta: Dict[str, Any],
     task: Dict[str, Any],
     history: str,
     final_answer: str,
-    payload: Dict[str, Any],
-    judge_model: Optional[str] = None,
+    context: Optional[Context] = None,
     temperature: float = 0.0,
     pass_threshold: float = 0.85,
-    context: Optional[Context] = None,
-    max_completion_tokens: int = 512,
-    prompt_char_limit: int = 15000,
+    max_completion_tokens: int = 8000,
+    prompt_char_limit: int = 100000,
 ) -> Dict[str, Any]:
     """
-    Call the judge LLM with the new rubric-only prompt, parse it,
-    and convert to our internal normalized result:
+    Call the judge LLM with the rubric, parse output, and normalize it.
+    Always uses openai/gpt-4o-mini via _call_llm().
 
-    {
-        "score": float in [0,1],        # final overall score
-        "binary": "success"|"failure",  # pass/fail vs threshold
-        "explanation": str,
-
-        "task_fulfillment": float|None,
-        "grounding": float|None,
-        "tool_choice": float|None,
-        "tool_execution": float|None,
-        "requirement_satisfaction": float|None,
-
-        "raw_judge_output": original_text
-    }
-
-    If anything is invalid/unparsable, we return score=0.0,failure.
+    Returns a dict with overall score, subscores, and explanation.
     """
 
-    # build judge prompt from template
+    # stringify
+    meta_json = json.dumps(meta, ensure_ascii=False)
+    task_json = json.dumps(task, ensure_ascii=False)
+    history_text = str(history).strip()
+    final_answer_text = str(final_answer).strip()
+
     prompt = LLM_JUDGE_TEMPLATE.format(
         pass_threshold=pass_threshold,
-        payload=json.dumps(payload, ensure_ascii=False),
+        meta_json=meta_json,
+        task_json=task_json,
+        history_text=history_text,
+        final_answer_text=final_answer_text,
     )
 
-    # call judge model
-    raw = _call_llm_judge(
-        prompt,
+    # Debug to stderr
+    import sys
+    print(
+        "========== [DEBUG] FULL prompt SENT TO JUDGE ==========\n"
+        f"{prompt}\n"
+        "=====================================================\n",
+        file=sys.stderr,
+        flush=True,
+    )
+
+    raw = _call_llm(
+        prompt=prompt,
+        system_prompt=(
+            "You are an impartial evaluator judging the quality of an AI agent’s multi-server, tool-based task execution. "
+            "Evaluate the reasoning, grounding, and adherence to requirements objectively and strictly. "
+            "Return ONLY a valid JSON object containing your scores and explanation — no extra text, commentary, or formatting outside JSON."
+        ),
         context=context,
-        model=judge_model,
         temperature=temperature,
         max_tokens=max_completion_tokens,
         prompt_char_limit=prompt_char_limit,
     )
 
-    # parse JSON
     parsed = _safe_parse_json(raw)
     if not parsed or not isinstance(parsed, dict):
         return {
@@ -333,7 +424,6 @@ def llm_as_judge_score(
             "raw_judge_output": raw,
         }
 
-    # Extract subscores
     def _coerce_0_10(x: Any) -> Optional[float]:
         try:
             val = float(x)
@@ -353,7 +443,6 @@ def llm_as_judge_score(
         "requirement_satisfaction": _coerce_0_10(parsed.get("requirement_satisfaction")),
     }
 
-    # compute / validate overall score
     def _avg_subscores_to_overall(subvals: Dict[str, Optional[float]]) -> Optional[float]:
         vals = [v for v in subvals.values() if v is not None]
         if not vals:
@@ -366,18 +455,13 @@ def llm_as_judge_score(
     except Exception:
         overall = None
 
-    if overall is None or overall < 0 or overall > 1:
+    if overall is None or not (0.0 <= overall <= 1.0):
         overall = _avg_subscores_to_overall(subs)
         if overall is None:
             overall = 0.0
 
-    # clamp final
-    if overall < 0.0:
-        overall = 0.0
-    if overall > 1.0:
-        overall = 1.0
+    overall = max(0.0, min(1.0, overall))
 
-    # derive binary if missing / malformed
     binary = parsed.get("binary")
     if binary not in ("success", "failure"):
         binary = "success" if overall >= pass_threshold else "failure"
@@ -385,7 +469,7 @@ def llm_as_judge_score(
     explanation = parsed.get("explanation", "")
 
     return {
-        "score": overall,  # canonical score in [0,1]
+        "score": overall,
         "binary": binary,
         "explanation": explanation,
         "task_fulfillment": subs["task_fulfillment"],
@@ -398,47 +482,84 @@ def llm_as_judge_score(
 
 
 # =====================================================
-# shared evaluation helper
+# history cleanup + evaluation orchestration
 # =====================================================
+
+def _clean_history_before_summary(raw_history: str) -> str:
+    """
+    Remove trailing "Answer:" block so FINAL_ANSWER stays only in FINAL_ANSWER,
+    not leaked into HISTORY. We split on the first "Answer:".
+    """
+    if not raw_history:
+        return ""
+    parts = raw_history.split("Answer:", 1)
+    return parts[0].strip()
+
 
 def _evaluate_once(
     agent_output: Any,
     values_dict: Dict[str, Any],
     ctx: Context,
-    judge_model: Optional[str],
     temperature: float,
     pass_threshold: float,
     max_completion_tokens: int,
     prompt_char_limit: int,
 ) -> Dict[str, Any]:
     """
-    Common logic used by both commonllmjudge_score and commonllmjudge_pass.
-    Builds payload, recovers final_answer, calls llm_as_judge_score.
+    Shared logic for score/pass.
+
+    Expected values_dict keys:
+        - task_id
+        - category
+        - correct_answer (optional)
+        - question
+        - output_format
+        - history  (full raw chain-of-thought/tool log)
+        - final_answer
     """
-    built = _build_inputs(agent_output, values_dict)
 
-    # Recover final answer:
-    final_answer = built["final_answer"]
-    if not final_answer:
-        # fallback to agent_output.response if available
-        if hasattr(agent_output, "response"):
-            final_answer = getattr(agent_output, "response")
-        else:
-            final_answer = str(agent_output)
+    question = values_dict.get("question", "")
+    raw_history = values_dict.get("history", "") or ""
 
-    # Sync FINAL_ANSWER back into payload copy:
-    payload = built["payload"].copy()
-    payload["FINAL_ANSWER"] = final_answer
+    final_answer = (
+        values_dict.get("final_answer")
+        or getattr(agent_output, "response", None)
+        or str(agent_output)
+    )
 
+    meta = {
+        "task_id": values_dict.get("task_id", "unknown_task"),
+        "category": values_dict.get("category", "general"),
+        "correct_answer": values_dict.get("correct_answer", ""),
+    }
+
+    task = {
+        "question": question,
+        "output_format": values_dict.get("output_format", {}),
+    }
+
+    # 1) strip final Answer block from history
+    cleaned_history = _clean_history_before_summary(raw_history)
+
+    # 2) summarize (this will now keep all Thought/Action intent,
+    #    and will keep only useful Tool Result fields, PLUS winner justification)
+    summarized_history = summarize_trajectory_for_judge(
+        cleaned_history,
+        context=ctx,
+        temperature=0.0,
+        max_tokens=8000,
+        prompt_char_limit=prompt_char_limit,
+    )
+
+    # 3) send to judge
     return llm_as_judge_score(
-        task=built["task"],
-        history=built["history"],
+        meta=meta,
+        task=task,
+        history=summarized_history,
         final_answer=final_answer,
-        payload=payload,
-        judge_model=judge_model,
+        context=ctx,
         temperature=temperature,
         pass_threshold=pass_threshold,
-        context=ctx,
         max_completion_tokens=max_completion_tokens,
         prompt_char_limit=prompt_char_limit,
     )
@@ -455,10 +576,8 @@ def _extract_values_arg(args) -> Dict[str, Any]:
     """
     if len(args) >= 1 and isinstance(args[0], dict):
         return args[0]
-
     if len(args) >= 2 and isinstance(args[1], dict):
         return args[1]
-
     return {}
 
 
@@ -474,11 +593,10 @@ async def commonllmjudge_score(llm_response: Any, *args, **kwargs) -> FunctionRe
         agent_output=llm_response,
         values_dict=values,
         ctx=ctx,
-        judge_model=kwargs.get("judge_model"),
         temperature=float(kwargs.get("temperature", 0.0)),
         pass_threshold=float(kwargs.get("pass_threshold", 0.85)),
-        max_completion_tokens=int(kwargs.get("max_completion_tokens", 512)),
-        prompt_char_limit=int(kwargs.get("prompt_char_limit", 15000)),
+        max_completion_tokens=int(kwargs.get("max_completion_tokens", 8000)),
+        prompt_char_limit=int(kwargs.get("prompt_char_limit", 100000)),
     )
 
     return FunctionResult(result=obj)
@@ -499,18 +617,16 @@ async def commonllmjudge_pass(a: Any, *args, **kwargs) -> (bool, str):
         agent_output=a,
         values_dict=values,
         ctx=ctx,
-        judge_model=kwargs.get("judge_model"),
         temperature=float(kwargs.get("temperature", 0.0)),
         pass_threshold=float(kwargs.get("pass_threshold", 0.85)),
-        max_completion_tokens=int(kwargs.get("max_completion_tokens", 512)),
-        prompt_char_limit=int(kwargs.get("prompt_char_limit", 15000)),
+        max_completion_tokens=int(kwargs.get("max_completion_tokens", 8000)),
+        prompt_char_limit=int(kwargs.get("prompt_char_limit", 100000)),
     )
 
     ok = (obj.get("binary") == "success")
     score_val = obj.get("score", None)
     reason = obj.get("explanation", "")
 
-    # print breakdown to stderr for nice benchmark logs
     print(
         "[LLM-JUDGE SCORE] "
         f"overall={score_val} "
@@ -530,7 +646,7 @@ async def commonllmjudge_pass(a: Any, *args, **kwargs) -> (bool, str):
 @compare_func(name="score>=")
 async def score_ge(a: Any, b: Any, *args, **kwargs) -> (bool, str):
     """
-    Utility comparator for benchmark YAMLs:
+    Comparator for benchmark YAMLs:
     - left side is typically commonllmjudge.score result, or a dict with "score".
     - right side is threshold, or kwargs["threshold"] fallback.
     """
@@ -548,6 +664,7 @@ async def score_ge(a: Any, b: Any, *args, **kwargs) -> (bool, str):
         b = b.result
     try:
         b_val = float(b)
+        # if parse fails, fallback to kwarg
     except Exception:
         b_val = float(kwargs.get("threshold", 0.85))
 
