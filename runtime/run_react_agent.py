@@ -182,6 +182,7 @@ Example flow:
                 "model": args.model,
                 "max_iterations": args.max_iterations,
             },
+            "reasoning_trace": agent.reasoning_trace,  # Complete reasoning process
             "execution": {
                 "final_response": response.response,
                 "tool_calls": agent.trajectory,

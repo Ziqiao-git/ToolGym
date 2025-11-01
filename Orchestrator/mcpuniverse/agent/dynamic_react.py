@@ -45,7 +45,21 @@ class DynamicReActAgent(ReAct):
         self.server_configs = server_configs
         self.loaded_servers = set()  # Tracks ALL loaded servers
         self.dynamically_loaded_servers = set()  # Tracks ONLY dynamically loaded servers
-        self.trajectory = []  # Store execution trajectory
+        self.trajectory = []  # Store tool call trajectory
+        self.reasoning_trace = []  # Store complete reasoning trace (thoughts + actions + observations)
+
+    def _add_history(self, history_type: str, message: str):
+        """
+        Override to capture reasoning trace in addition to history.
+        """
+        # Call parent to add to history
+        super()._add_history(history_type, message)
+
+        # Also save to reasoning trace for trajectory
+        self.reasoning_trace.append({
+            "type": history_type,
+            "content": message
+        })
 
     async def initialize(self, mcp_servers: List[Dict[str, str]] = None):
         """
