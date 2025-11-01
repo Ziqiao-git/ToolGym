@@ -57,3 +57,5 @@ trajectories/*.json
 # Model caches
 models/
 .cache/
+
+MCP-Universe/

@@ -7,7 +7,8 @@
 
 TASKS_FILE=$1
 OUTPUT_DIR="evaluation/results"
-
+TRAJ_DIR="trajectories"
+RESULT_JSON="$OUTPUT_DIR/judge_results.json"
 if [ -z "$TASKS_FILE" ]; then
     echo "Usage: bash evaluation/run_benchmark.sh <path_to_benchmark_tasks.json>"
     exit 1
@@ -54,3 +55,21 @@ EOF
 
 echo ""
 echo "Benchmark complete! Trajectories saved to: trajectories/"
+echo "🔎 Running commonllmjudge on generated trajectories..."
+
+# 运行评测
+python Orchestrator.mcpuniverse.evaluator.commonllmjudge.py \
+  --prompt "$TASKS_FILE" \
+  --traj_dir "$TRAJ_DIR" \
+  --threshold 0.85 \
+  --temperature 0.0 \
+  --save_json "$RESULT_JSON"
+
+
+# ==============================
+# 4. Done
+# ==============================
+echo ""
+echo "✅ Evaluation complete! Results saved to:"
+echo "   $RESULT_JSON"
+echo ""
