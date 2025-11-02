@@ -1,6 +1,7 @@
 # commonllmjudge.py
-# Minimal judge that ONLY reads prompt.json + trajectories/trajectory_*.json
-# Rubric preserved exactly; builds HISTORY from tool_calls if no raw history exists.
+# Judge that reads prompt + trajectories/trajectory_*.json
+# HISTORY is built ONLY from reasoning_trace (Thought-aware).
+# No fallback to execution.tool_calls. No LLM summarization step.
 
 from __future__ import annotations
 import os, json, glob, argparse, sys
@@ -130,48 +131,166 @@ def match_traj_by_query(trajs: List[Dict[str, Any]], query: str) -> Optional[Dic
 
 
 # =========================
-# HISTORY construction
+# HISTORY construction (reasoning_trace only)
 # =========================
 
-def _build_history_from_tool_calls(traj_obj: Dict[str, Any]) -> str:
+def build_history_from_reasoning_trace(traj_obj: Dict[str, Any]) -> str:
     """
-    Convert trajectory.execution.tool_calls into a HISTORY text for judge.
-    Current trajectories don't include Thought; we mark it explicitly.
+    仅使用 trajectory['reasoning_trace'] 构建 HISTORY（保留 Thought），
+    忽略 execution.tool_calls（不回退、不补齐）。
+    - 跳过 type=="error"、空 content 的占位项和空 Step 标记
+    - 允许 trace 中缺少显式 'Step k' 标记：自动按顺序合并成步骤
+    - 过滤“全空步”；去重相邻 action+input 等价且后者信息更完整的情况
     """
-    exe = traj_obj.get("execution", {}) or {}
-    tool_calls = exe.get("tool_calls", []) or []
+    import re, ast
 
-    lines: List[str] = []
-    if not tool_calls:
-        lines += [
+    rt = (traj_obj.get("reasoning_trace") or [])
+    if not rt:
+        # 没有 trace：给一个最小兜底（不回退 tool_calls）
+        return "\n".join([
             "Step 1:",
             "Thought: (not recorded in trajectory file)",
-            "Action: (no tools called)",
+            "Action: (none)",
             "Action Input: {}",
             "Tool Result: (none)",
-        ]
-        return "\n".join(lines).strip()
+        ]).strip()
 
-    for i, call in enumerate(tool_calls, 1):
-        server = call.get("server", "unknown")
-        tool = call.get("tool", "unknown")
-        args = call.get("arguments", {})
-        status = call.get("status", "")
-        preview = call.get("result_preview", "")
-        duration = call.get("duration_seconds", None)
-        dyn = call.get("dynamically_loaded", None)
-
-        lines.append(f"Step {i}:")
-        lines.append("Thought: (not recorded in trajectory file)")
-        lines.append(f"Action: server={server}, tool={tool}")
-        lines.append("Action Input: " + _json(args))
-        tr = {
-            "status": status,
-            "duration_seconds": duration,
-            "dynamically_loaded": dyn,
-            "result_preview": preview,
+    def _new_step(idx: int) -> Dict[str, Any]:
+        return {
+            "step": idx,
+            "thought": None,
+            "action": None,
+            "action_input": None,
+            "tool_result": None,
         }
-        lines.append("Tool Result: " + _json(tr))
+
+    def _is_placeholder_thought(t: Optional[str]) -> bool:
+        if not t: return True
+        return str(t).strip() == "(not recorded in trajectory file)"
+
+    def _jsonish_parse(s: Any) -> Any:
+        """尽量把字符串解析成 dict/list；先 json，再 ast.literal_eval；失败则原样返回。"""
+        if isinstance(s, (dict, list)):
+            return s
+        if isinstance(s, str):
+            txt = s.strip()
+            try:
+                return json.loads(txt)
+            except Exception:
+                pass
+            try:
+                v = ast.literal_eval(txt)
+                return v
+            except Exception:
+                return s
+        return s
+
+    # 1) 解析为步骤
+    steps: List[Dict[str, Any]] = []
+    current: Optional[Dict[str, Any]] = None
+    idx = 0
+
+    for item in rt:
+        ttype = (item.get("type") or "").strip()
+        content = (item.get("content") or "")
+
+        # 跳过错误项与纯空项
+        if ttype.lower() == "error":
+            continue
+
+        # 显式 Step 标记
+        if ttype.lower().startswith("step"):
+            if current:
+                steps.append(current)
+            idx += 1
+            current = _new_step(idx)
+            # 不要求这里必须有内容；后续字段会填充
+            continue
+
+        # 若没有显式 Step，从 1 开始自动累计
+        if current is None:
+            idx += 1
+            current = _new_step(idx)
+
+        low = ttype.lower()
+        if low == "thought":
+            current["thought"] = content
+
+        elif low == "action":
+            # 原样保留 action 文本（不再从文本里抽取 server/tool）
+            current["action"] = content or current.get("action")
+
+        elif low in ("action input", "action_input"):
+            current["action_input"] = _jsonish_parse(content)
+
+        elif low in ("result", "tool result", "tool_result"):
+            current["tool_result"] = _jsonish_parse(content)
+
+        elif low in ("answer",):
+            # 保留宽松：answer 后不强制截断
+            pass
+
+        else:
+            # 其他类型忽略
+            pass
+
+    if current:
+        steps.append(current)
+
+    # 2) 过滤“全空步”
+    def _is_meaningful(s: Dict[str, Any]) -> bool:
+        if s.get("action"):
+            return True
+        ai = s.get("action_input")
+        tr = s.get("tool_result")
+        if ai not in (None, {}, "", "{}", "[]"):
+            return True
+        if tr not in (None, {}, "", "(none)", "{}", "[]"):
+            return True
+        if s.get("thought") and not _is_placeholder_thought(s["thought"]):
+            return True
+        return False
+
+    steps = [s for s in steps if _is_meaningful(s)]
+
+    # 3) 去重：相邻 action+input 等价时，优先保留信息更丰富的那一条
+    def _norm_ai(x: Any) -> Any:
+        return _jsonish_parse(x)
+
+    deduped: List[Dict[str, Any]] = []
+    for s in steps:
+        if deduped:
+            prev = deduped[-1]
+            same_action = (str(prev.get("action")).strip() == str(s.get("action")).strip())
+            same_input = (_norm_ai(prev.get("action_input")) == _norm_ai(s.get("action_input")))
+            prev_rich = (not _is_placeholder_thought(prev.get("thought"))) or bool(prev.get("tool_result"))
+            curr_rich = (not _is_placeholder_thought(s.get("thought"))) or bool(s.get("tool_result"))
+            if same_action and same_input:
+                if curr_rich and not prev_rich:
+                    deduped[-1] = s
+                # 若两者同样丰富，保留先到的
+                continue
+        deduped.append(s)
+
+    # 4) Thought 兜底
+    for s in deduped:
+        if not s.get("thought"):
+            s["thought"] = "(not recorded in trajectory file)"
+
+    # 5) 序列化输出
+    lines: List[str] = []
+    for i, s in enumerate(deduped, 1):
+        lines.append(f"Step {i}:")
+        lines.append(f"Thought: {s.get('thought')}")
+        lines.append(f"Action: {s.get('action') or '(none)'}")
+
+        ai = s.get("action_input")
+        ai_str = json.dumps(ai, ensure_ascii=False) if isinstance(ai, (dict, list)) else (str(ai) if ai is not None else "{}")
+        lines.append("Action Input: " + ai_str)
+
+        tr = s.get("tool_result")
+        tr_str = json.dumps(tr, ensure_ascii=False) if isinstance(tr, (dict, list)) else (str(tr) if tr is not None else "(none)")
+        lines.append("Tool Result: " + tr_str)
 
     return "\n".join(lines).strip()
 
@@ -184,73 +303,6 @@ def _clean_history_before_summary(raw_history: str) -> str:
         return ""
     parts = raw_history.split("Answer:", 1)
     return parts[0].strip()
-
-
-# =========================
-# Summarizer (Rubric unchanged; only summary rules adapted)
-# =========================
-
-TRAJECTORY_SUMMARY_TEMPLATE = """You are compressing an agent's multi-step ReAct trace
-to create a compact trajectory summary for an evaluation judge.
-
-GOALS
-- Preserve reasoning faithfulness when available.
-- Provide enough evidence to verify constraint satisfaction and grounding.
-- Keep it concise.
-- If the original trace has no explicit Thought lines, use exactly:
-  "Thought: (not recorded in trajectory file)".
-
-CRITICAL GUARANTEES:
-- Include EVERY step from the original trace, in order.
-- Do NOT fabricate tool calls or results.
-- Do NOT output the final structured answer JSON.
-
-INSTRUCTIONS
-
-Use this exact format:
-
-Step 1:
-Thought: ...
-Action: server=<server>, tool=<tool>
-Action Input: ...
-Tool Result: ...
-Step 2:
-...
-
-Here is the trace to compress:
-
-{raw_history}
-"""
-
-def summarize_trajectory_for_judge(
-    raw_history: str,
-    *,
-    temperature: float = 0.0,
-    max_tokens: int = 8000,
-    prompt_char_limit: int = 100000,
-) -> str:
-    system_prompt = (
-        "You are a faithful summarizer that keeps agent steps intact while removing noise. "
-        "Follow the requested output format exactly."
-    )
-    user_prompt = TRAJECTORY_SUMMARY_TEMPLATE.format(raw_history=raw_history)
-
-    summary = _call_llm(
-        prompt=user_prompt,
-        system_prompt=system_prompt,
-        temperature=temperature,
-        max_tokens=max_tokens,
-        prompt_char_limit=prompt_char_limit,
-    )
-
-    if not summary:
-        MAX_FALLBACK = 8000
-        return raw_history[-MAX_FALLBACK:]
-    summary = summary.strip()
-    if not summary:
-        MAX_FALLBACK = 8000
-        return raw_history[-MAX_FALLBACK:]
-    return summary
 
 
 # =========================
@@ -456,16 +508,10 @@ def _values_from_prompt_and_traj(query: str, traj_obj: Dict[str, Any], task_id: 
     exe = traj_obj.get("execution", {}) or {}
     final_resp = exe.get("final_response", "")
 
-    # Prefer raw history if you later add it; currently we build from tool_calls
-    history_text = _build_history_from_tool_calls(traj_obj)
-
+    # Build HISTORY strictly from reasoning_trace (no summarization)
+    history_text = build_history_from_reasoning_trace(traj_obj)
     cleaned_history = _clean_history_before_summary(history_text)
-    summarized_history = summarize_trajectory_for_judge(
-        cleaned_history,
-        temperature=0.0,
-        max_tokens=8000,
-        prompt_char_limit=100000,
-    )
+    summarized_history = cleaned_history  # no LLM compression
 
     meta = {
         "task_id": task_id,
@@ -542,7 +588,7 @@ def run_judge_from_files(
 # =========================
 
 def main():
-    parser = argparse.ArgumentParser(description="Judge from prompt.json + trajectories/*.json")
+    parser = argparse.ArgumentParser(description="Judge from prompt.json + trajectories/*.json (reasoning_trace only)")
     parser.add_argument("--prompt", default="prompt.json", help="path to prompt.json")
     parser.add_argument("--traj_dir", default="trajectories", help="directory of trajectory_*.json")
     parser.add_argument("--threshold", type=float, default=0.85)

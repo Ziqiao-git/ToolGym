@@ -58,12 +58,15 @@ echo "Benchmark complete! Trajectories saved to: trajectories/"
 echo "🔎 Running commonllmjudge on generated trajectories..."
 
 # 运行评测
-python Orchestrator.mcpuniverse.evaluator.commonllmjudge.py \
+export PYTHONPATH="/Users/shuangliang/MCP-U-Shuang/Orchestrator:$PYTHONPATH"
+
+python Orchestrator/mcpuniverse/evaluator/commonllmjudge.py \
   --prompt "$TASKS_FILE" \
   --traj_dir "$TRAJ_DIR" \
   --threshold 0.85 \
   --temperature 0.0 \
   --save_json "$RESULT_JSON"
+
 
 
 # ==============================
