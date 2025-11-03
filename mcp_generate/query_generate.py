@@ -13,6 +13,7 @@ import json
 import argparse
 import os
 import time
+import asyncio
 from typing import List, Dict, Any
 from tqdm import tqdm
 from pathlib import Path
@@ -20,32 +21,33 @@ import random
 
 # OpenAI 官方 Python SDK
 # pip install --upgrade openai
-from openai import OpenAI
+from openai import AsyncOpenAI
 from dotenv import load_dotenv
 
 # Load environment variables from .env file in the same directory
 SCRIPT_DIR = Path(__file__).resolve().parent
 load_dotenv(str(SCRIPT_DIR / ".env"))
 
-CLIENT = OpenAI(
+CLIENT = AsyncOpenAI(
   base_url="https://openrouter.ai/api/v1",
   api_key=os.getenv("OPENROUTER_API_KEY"),
-) 
+)
 
-MODEL_NAME = "openai/gpt-5" 
+MODEL_NAME = "openai/gpt-5"
 MAX_RETRIES = 3
+MAX_CONCURRENT = 5  # Maximum concurrent API calls
 
 
 SYSTEM_PROMPT = """You are an expert at creating natural, realistic user queries that involve research or multi-step tasks.
 
-Goal: Given a list of available MCP servers, generate {num_queries} natural language queries that users might realistically ask, where answering would naturally involve using information from different sources.
+Goal: Given a list of available MCP servers, generate 1 natural language query that users might realistically ask, where answering would naturally involve using information from different sources.
 
 Requirements:
 - Write natural, fluent questions that real users would ask
 - Questions should involve research, comparison, or connecting different types of information
 - Be concrete and specific (mention actual topics, technologies, companies, locations, etc.)
 - Questions should sound like genuine user requests, not forced "use multiple tools" prompts
-- Output must be a valid JSON object with "queries" array containing exactly {num_queries} strings
+- Output must be a valid JSON object with "query" field containing a single string
 
 Examples of natural queries:
 - "What are the latest developments in AI regulation and which companies are most affected?"
@@ -53,7 +55,7 @@ Examples of natural queries:
 - "What's the weather like in Seattle and are there any tech events happening there?"
 - "Show me trending Python projects and explain what makes them popular"
 
-Make queries natural, diverse, and genuinely useful.
+Make the query natural, diverse, and genuinely useful.
 """
 
 # SYSTEM_PROMPT = """You create concrete, realistic, English benchmark questions for MCP servers.
@@ -121,77 +123,157 @@ USER_PROMPT_TEMPLATE = """Here are the available MCP servers grouped by domain:
 
 {servers_summary}
 
-Generate {num_queries} natural, realistic user queries that people would actually ask.
-These queries should naturally involve researching or combining information from different sources.
+Generate 1 natural, realistic user query that people would actually ask.
+This query should naturally involve researching or combining information from different sources.
 
-Return a JSON object with "queries" array containing exactly {num_queries} strings.
+Return a JSON object with "query" field containing a single string.
 """
 
 
 
-def call_gpt5_for_queries(tools_summary: str, num_queries: int = 20) -> List[str]:
+async def generate_single_query(all_tools: List[Dict], query_idx: int) -> str:
     """
-    Generate natural language queries using GPT-5 based on tool descriptions.
+    Generate a single query with freshly shuffled tools.
 
     Args:
-        tools_summary: Text summary of available tools
-        num_queries: Number of queries to generate (default: 20)
+        all_tools: List of all tool descriptions
+        query_idx: Index of this query (for logging)
 
     Returns:
-        List of generated query strings
+        Generated query string
     """
-    system_prompt = SYSTEM_PROMPT.format(num_queries=num_queries)
-    user_prompt = USER_PROMPT_TEMPLATE.format(
-        servers_summary=tools_summary,
-        num_queries=num_queries
-    )
+    # Shuffle tools for this specific query
+    tools_copy = [tool.copy() for tool in all_tools]
+    for tool in tools_copy:
+        tools = tool.get("tools", [])
+        random.shuffle(tools)
+        tool["tools"] = tools
+    random.shuffle(tools_copy)
+
+    # Select top 100 tools
+    tools_summary = []
+    count = 0
+    for tool in tools_copy:
+        server = tool.get("qualifiedName", "unknown")
+        for t in tool.get("tools", []):
+            if count >= 100:
+                break
+            tool_name = t.get("name", "")
+            tool_desc = t.get("description", "No description")
+            tools_summary.append(f"- {server}/{tool_name}: {tool_desc}")
+            count += 1
+        if count >= 100:
+            break
+
+    tools_summary_text = "\n".join(tools_summary)
+
+    # Generate query
+    user_prompt = USER_PROMPT_TEMPLATE.format(servers_summary=tools_summary_text)
 
     schema = {
         "type": "json_schema",
         "json_schema": {
-            "name": "queries_schema",
+            "name": "query_schema",
             "schema": {
                 "type": "object",
                 "additionalProperties": False,
                 "properties": {
-                    "queries": {
-                        "type": "array",
-                        "minItems": num_queries,
-                        "maxItems": num_queries,
-                        "items": {"type": "string"}
-                    }
+                    "query": {"type": "string"}
                 },
-                "required": ["queries"]
+                "required": ["query"]
             },
             "strict": True
         }
     }
 
     for attempt in range(1, MAX_RETRIES + 1):
-        resp = CLIENT.chat.completions.create(
-            model=MODEL_NAME,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt},
-            ],
-            temperature=0.7,
-            max_tokens=20000,
-            response_format=schema,
-        )
-        text = resp.choices[0].message.content.strip()
-        obj = json.loads(text)
+        try:
+            resp = await CLIENT.chat.completions.create(
+                model=MODEL_NAME,
+                messages=[
+                    {"role": "system", "content": SYSTEM_PROMPT},
+                    {"role": "user", "content": user_prompt},
+                ],
+                temperature=0.7,
+                max_tokens=2000,
+                response_format=schema,
+            )
+            text = resp.choices[0].message.content
 
-        if not (isinstance(obj, dict) and isinstance(obj.get("queries"), list)
-                and len(obj["queries"]) == num_queries
-                and all(isinstance(x, str) for x in obj["queries"])):
-            raise ValueError(f"Model did not return an object with 'queries': [{num_queries} strings].")
+            if not text or not text.strip():
+                print(f"⚠️  Query {query_idx}: Empty response, retrying... (attempt {attempt}/{MAX_RETRIES})")
+                if attempt < MAX_RETRIES:
+                    await asyncio.sleep(1)
+                    continue
+                else:
+                    return f"[Error: Empty response after {MAX_RETRIES} attempts]"
 
-        return obj["queries"]
+            text = text.strip()
+
+            try:
+                obj = json.loads(text)
+            except json.JSONDecodeError as je:
+                print(f"⚠️  Query {query_idx}: JSON decode error, retrying... (attempt {attempt}/{MAX_RETRIES})")
+                print(f"     Response preview: {text[:100]}...")
+                if attempt < MAX_RETRIES:
+                    await asyncio.sleep(1)
+                    continue
+                else:
+                    return f"[Error: Invalid JSON after {MAX_RETRIES} attempts]"
+
+            if not (isinstance(obj, dict) and isinstance(obj.get("query"), str)):
+                print(f"⚠️  Query {query_idx}: Invalid format, retrying... (attempt {attempt}/{MAX_RETRIES})")
+                if attempt < MAX_RETRIES:
+                    await asyncio.sleep(1)
+                    continue
+                else:
+                    return f"[Error: Invalid format after {MAX_RETRIES} attempts]"
+
+            return obj["query"]
+
+        except Exception as e:
+            print(f"⚠️  Query {query_idx}: Unexpected error: {type(e).__name__}: {str(e)}")
+            if attempt < MAX_RETRIES:
+                print(f"     Retrying... (attempt {attempt}/{MAX_RETRIES})")
+                await asyncio.sleep(2)  # Longer sleep for unexpected errors
+            else:
+                print(f"     Failed after {MAX_RETRIES} attempts")
+                return f"[Error: {type(e).__name__} after {MAX_RETRIES} attempts]"
+
+
+async def generate_queries_async(all_tools: List[Dict], num_queries: int) -> List[str]:
+    """
+    Generate multiple queries concurrently, each with freshly shuffled tools.
+
+    Args:
+        all_tools: List of all tool descriptions
+        num_queries: Number of queries to generate
+
+    Returns:
+        List of generated query strings
+    """
+    # Create semaphore to limit concurrent API calls
+    semaphore = asyncio.Semaphore(MAX_CONCURRENT)
+
+    async def generate_with_semaphore(idx):
+        async with semaphore:
+            return await generate_single_query(all_tools, idx)
+
+    # Generate all queries concurrently
+    tasks = [generate_with_semaphore(i) for i in range(num_queries)]
+    queries = []
+
+    # Use tqdm for progress bar
+    for coro in tqdm(asyncio.as_completed(tasks), total=num_queries, desc="Generating queries"):
+        query = await coro
+        queries.append(query)
+
+    return queries
 
 
 
 
-def main():
+async def main_async():
     parser = argparse.ArgumentParser()
     parser.add_argument("--in", dest="in_path", required=True, help="输入 JSON 文件路径（MCP servers 列表）")
     parser.add_argument("--out", dest="out_path", required=True, help="输出 JSON 文件路径")
@@ -211,46 +293,25 @@ def main():
     if not isinstance(servers, list):
         raise ValueError("输入 JSON 须为列表，每个元素为一个 MCP server 的字典。")
 
-    # Load tool descriptions from indexed data
+    # Load all tool descriptions
     tool_descriptions_path = "MCP_INFO_MGR/mcp_data/indexed/tool_descriptions.ndjson"
     print(f"Loading tool descriptions from {tool_descriptions_path}...")
 
-    tools_summary = []
-    # Shuffle tools to get diverse set
     with open(tool_descriptions_path, "r", encoding="utf-8") as f:
-        lines = [json.loads(line) for line in f if line.strip()]
+        all_tools = [json.loads(line) for line in f if line.strip()]
 
-    for tool in lines:
-        tools = tool.get("tools", [])
-        random.shuffle(tools)
-        tool["tools"] = tools
-    random.shuffle(lines)
+    print(f"Loaded {len(all_tools)} servers with tools")
 
-    count = 0
-    servers_loaded = 0
-    for tool in lines:
-        server = tool.get("qualifiedName", "unknown")
-        servers_loaded += 1
-        for t in tool.get("tools", []):
-            if count >= 100:
-                break
-            tool_name = t.get("name", "")
-            tool_desc = t.get("description", "No description")
-            tools_summary.append(f"- {server}/{tool_name}: {tool_desc}")
-            count += 1
-        if count >= 100:
-            break
-
-    tools_summary_text = "\n".join(tools_summary)
-
-    # Generate queries
-    print(f"Generating {args.num_queries} natural cross-domain queries from {servers_loaded} servers ({len(tools_summary)} tools)...")
-    queries = call_gpt5_for_queries(tools_summary_text, num_queries=args.num_queries)
+    # Generate queries concurrently, each with freshly shuffled tools
+    print(f"Generating {args.num_queries} queries concurrently (max {MAX_CONCURRENT} at a time)...")
+    print(f"Each query will use a different random sample of 100 tools")
+    queries = await generate_queries_async(all_tools, num_queries=args.num_queries)
 
     result = {
         "metadata": {
             "total_queries": len(queries),
-            "servers_count": len(servers)
+            "servers_count": len(servers),
+            "generation_method": "async_with_per_query_shuffle"
         },
         "queries": queries
     }
@@ -264,6 +325,10 @@ def main():
         json.dump(result, f, ensure_ascii=False, indent=2)
 
     print(f"✅ Generated {len(queries)} queries and saved to {args.out_path}")
+
+
+def main():
+    asyncio.run(main_async())
 
 
 if __name__ == "__main__":

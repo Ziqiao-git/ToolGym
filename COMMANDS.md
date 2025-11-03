@@ -6,9 +6,10 @@ This document contains all the Python commands and scripts for the MCP Research 
 1. [Agent Execution](#agent-execution)
 2. [Tool Testing](#tool-testing)
 3. [Query Generation](#query-generation)
-4. [Data Filtering](#data-filtering)
-5. [FAISS Index Building](#faiss-index-building)
-6. [Analysis Scripts](#analysis-scripts)
+4. [Trajectory Evaluation](#trajectory-evaluation)
+5. [Data Filtering](#data-filtering)
+6. [FAISS Index Building](#faiss-index-building)
+7. [Analysis Scripts](#analysis-scripts)
 
 ---
 
@@ -224,6 +225,103 @@ python mcp_generate/query_generate.py \
 
 ---
 
+## Trajectory Evaluation
+
+### Evaluate Agent Trajectories with LLM Judge
+
+Evaluate agent execution quality using an LLM-as-judge approach with a 5-dimension rubric:
+
+#### Evaluate Single Trajectory
+
+```bash
+cd /Users/xiziqiao/Documents/MCP-Research/MCP-R
+
+# Set Python path
+export PYTHONPATH="/Users/xiziqiao/Documents/MCP-Research/MCP-R/Orchestrator:$PYTHONPATH"
+
+# Evaluate single trajectory (uses gpt-4o-mini by default)
+python Orchestrator/mcpuniverse/evaluator/commonllmjudge.py \
+  --trajectory trajectories/trajectory_20251101_143915.json \
+  --save_json evaluation/result.json
+
+# Use different LLM model for evaluation
+python Orchestrator/mcpuniverse/evaluator/commonllmjudge.py \
+  --trajectory trajectories/trajectory_20251101_143915.json \
+  --model anthropic/claude-3.5-sonnet \
+  --save_json evaluation/result_claude.json
+
+# Use GPT-4o for more thorough evaluation
+python Orchestrator/mcpuniverse/evaluator/commonllmjudge.py \
+  --trajectory trajectories/trajectory_20251101_143915.json \
+  --model openai/gpt-4o \
+  --save_json evaluation/result_gpt4o.json
+```
+
+#### Evaluate Multiple Trajectories (Batch Mode)
+
+```bash
+cd /Users/xiziqiao/Documents/MCP-Research/MCP-R
+
+export PYTHONPATH="/Users/xiziqiao/Documents/MCP-Research/MCP-R/Orchestrator:$PYTHONPATH"
+
+# Evaluate all trajectories matching queries in prompt file
+python Orchestrator/mcpuniverse/evaluator/commonllmjudge.py \
+  --prompt mcp_generate/prompt/benchmark_tasks.json \
+  --traj_dir trajectories \
+  --save_json evaluation/batch_results.json
+
+# With custom model and threshold
+python Orchestrator/mcpuniverse/evaluator/commonllmjudge.py \
+  --prompt mcp_generate/prompt/benchmark_tasks.json \
+  --traj_dir trajectories \
+  --model anthropic/claude-3.5-sonnet \
+  --threshold 0.9 \
+  --save_json evaluation/batch_results_strict.json
+```
+
+**Arguments:**
+- `--trajectory`: Path to single trajectory file (auto-extracts query from metadata)
+- `--prompt`: Path to prompt JSON file with queries (for batch mode)
+- `--traj_dir`: Directory containing trajectory files (default: `trajectories`)
+- `--model`: LLM model for evaluation (default: `openai/gpt-4o-mini`)
+  - Available: `openai/gpt-4o-mini`, `openai/gpt-4o`, `anthropic/claude-3.5-sonnet`, etc.
+- `--threshold`: Pass/fail threshold (default: 0.85)
+- `--temperature`: LLM temperature (default: 0.0)
+- `--save_json`: Output JSON file path
+
+**Evaluation Dimensions:**
+1. **Task Fulfillment** (0.0-1.0): Did the agent accomplish the user's goal?
+2. **Grounding** (0.0-1.0): Are responses based on actual tool outputs?
+3. **Tool Choice** (0.0-1.0): Were the right tools selected?
+4. **Tool Execution** (0.0-1.0): Were tools used correctly?
+5. **Requirement Satisfaction** (0.0-1.0): Were all sub-requirements met?
+
+**Output Format:**
+```json
+[
+  {
+    "task_id": "trajectory_20251101_143915",
+    "query": "Find research papers about small LLMs...",
+    "binary": true,
+    "score": 0.82,
+    "task_fulfillment": 0.85,
+    "grounding": 0.90,
+    "tool_choice": 0.80,
+    "tool_execution": 0.75,
+    "requirement_satisfaction": 0.80,
+    "explanation": "The agent successfully found relevant papers..."
+  }
+]
+```
+
+**Environment Variables Required:**
+```bash
+export OPENAI_API_KEY="your-openrouter-api-key"
+export OPENAI_BASE_URL="https://openrouter.ai/api/v1"
+```
+
+---
+
 ## Data Filtering
 
 ### Filter Working Tools
@@ -332,19 +430,56 @@ python -m MCP_INFO_MGR.semantic_search.build_search_index \
   --output MCP_INFO_MGR/semantic_search/
 ```
 
-### Generate and Test Queries
+### Complete Evaluation Pipeline Workflow
+
+End-to-end workflow for benchmarking and evaluating MCP agents:
 
 ```bash
 cd /Users/xiziqiao/Documents/MCP-Research/MCP-R
 
-# 1. Generate queries
+# Step 1: Generate benchmark queries
 python mcp_generate/query_generate.py \
   --in MCP_INFO_MGR/mcp_data/indexed/tool_descriptions.ndjson \
-  --out mcp_generate/requests/test_queries.json \
+  --out mcp_generate/prompt/benchmark_tasks.json \
   --num-queries 50
 
-# 2. Run agent on all queries using batch script
-bash evaluation/run_benchmark.sh mcp_generate/requests/test_queries.json
+# Step 2: Run agent on all queries (saves trajectories)
+bash evaluation/run_benchmark.sh mcp_generate/prompt/benchmark_tasks.json
+
+# Step 3: Evaluate all trajectories with LLM judge
+export PYTHONPATH="/Users/xiziqiao/Documents/MCP-Research/MCP-R/Orchestrator:$PYTHONPATH"
+python Orchestrator/mcpuniverse/evaluator/commonllmjudge.py \
+  --prompt mcp_generate/prompt/benchmark_tasks.json \
+  --traj_dir trajectories \
+  --model openai/gpt-4o-mini \
+  --save_json evaluation/benchmark_results.json
+
+# Step 4: Analyze results (optional - custom analysis script)
+python -c "
+import json
+with open('evaluation/benchmark_results.json') as f:
+    results = json.load(f)
+    scores = [r['score'] for r in results if 'score' in r]
+    print(f'Average Score: {sum(scores)/len(scores):.2f}')
+    print(f'Pass Rate: {sum(1 for r in results if r.get(\"binary\"))/len(results):.1%}')
+"
+```
+
+### Quick Single Query Test
+
+```bash
+cd /Users/xiziqiao/Documents/MCP-Research/MCP-R
+
+# 1. Run agent with trajectory saving
+python runtime/run_react_agent.py \
+  "Find recent machine learning papers on arXiv" \
+  --save-trajectory
+
+# 2. Evaluate the trajectory (use the most recent one)
+export PYTHONPATH="/Users/xiziqiao/Documents/MCP-Research/MCP-R/Orchestrator:$PYTHONPATH"
+python Orchestrator/mcpuniverse/evaluator/commonllmjudge.py \
+  --trajectory trajectories/trajectory_$(ls -t trajectories/ | head -1 | cut -d'_' -f2-3).json \
+  --save_json evaluation/single_result.json
 ```
 
 ---
@@ -392,7 +527,11 @@ OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
   - `trajectories/trajectory_*.json`
 
 - **Generated Queries:**
-  - `mcp_generate/requests/generated_queries.json`
+  - `mcp_generate/prompt/benchmark_tasks.json`
+
+- **Evaluation Results:**
+  - `evaluation/benchmark_results.json`
+  - `evaluation/single_result.json`
 
 ---
 
@@ -410,7 +549,11 @@ cd ..
 python runtime/run_react_agent.py "Your query" --save-trajectory
 
 # Generate queries
-python mcp_generate/query_generate.py --in MCP_INFO_MGR/mcp_data/indexed/tool_descriptions.ndjson --out queries.json --num-queries 20
+python mcp_generate/query_generate.py --in MCP_INFO_MGR/mcp_data/indexed/tool_descriptions.ndjson --out mcp_generate/prompt/benchmark_tasks.json --num-queries 20
+
+# Evaluate trajectory
+export PYTHONPATH="/Users/xiziqiao/Documents/MCP-Research/MCP-R/Orchestrator:$PYTHONPATH"
+python Orchestrator/mcpuniverse/evaluator/commonllmjudge.py --trajectory trajectories/trajectory_YYYYMMDD_HHMMSS.json --save_json evaluation/result.json
 
 # Rebuild index
 python -m MCP_INFO_MGR.semantic_search.build_search_index --input MCP_INFO_MGR/mcp_data/indexed/tool_descriptions.ndjson --output MCP_INFO_MGR/semantic_search/

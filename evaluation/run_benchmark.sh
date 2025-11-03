@@ -3,15 +3,26 @@
 # run_benchmark.sh
 # Run ReAct agent on all benchmark tasks
 #
-# Usage: bash evaluation/run_benchmark.sh mcp_generate/prompt/benchmark_tasks.json
+# Usage: bash evaluation/run_benchmark.sh <path_to_benchmark_tasks.json> [--skip-eval]
 
 TASKS_FILE=$1
+SKIP_EVAL=false
 OUTPUT_DIR="evaluation/results"
 TRAJ_DIR="trajectories"
 RESULT_JSON="$OUTPUT_DIR/judge_results.json"
+
+# Parse arguments
 if [ -z "$TASKS_FILE" ]; then
-    echo "Usage: bash evaluation/run_benchmark.sh <path_to_benchmark_tasks.json>"
+    echo "Usage: bash evaluation/run_benchmark.sh <path_to_benchmark_tasks.json> [--skip-eval]"
+    echo ""
+    echo "Options:"
+    echo "  --skip-eval    Skip automatic evaluation after running agent"
     exit 1
+fi
+
+# Check for --skip-eval flag
+if [ "$2" = "--skip-eval" ]; then
+    SKIP_EVAL=true
 fi
 
 # Create output directory
@@ -54,25 +65,36 @@ for i, query in enumerate(queries):
 EOF
 
 echo ""
-echo "Benchmark complete! Trajectories saved to: trajectories/"
-echo "🔎 Running commonllmjudge on generated trajectories..."
+echo "✅ Benchmark complete! Trajectories saved to: trajectories/"
 
-# 运行评测
-export PYTHONPATH="/Users/shuangliang/MCP-U-Shuang/Orchestrator:$PYTHONPATH"
+# Run evaluation unless --skip-eval flag is set
+if [ "$SKIP_EVAL" = false ]; then
+    echo ""
+    echo "🔎 Running commonllmjudge on generated trajectories..."
 
-python Orchestrator/mcpuniverse/evaluator/commonllmjudge.py \
-  --prompt "$TASKS_FILE" \
-  --traj_dir "$TRAJ_DIR" \
-  --threshold 0.85 \
-  --temperature 0.0 \
-  --save_json "$RESULT_JSON"
+    # 运行评测
+    export PYTHONPATH="/Users/xiziqiao/Documents/MCP-Research/MCP-R/Orchestrator:$PYTHONPATH"
 
+    python Orchestrator/mcpuniverse/evaluator/commonllmjudge.py \
+      --prompt "$TASKS_FILE" \
+      --traj_dir "$TRAJ_DIR" \
+      --threshold 0.85 \
+      --temperature 0.0 \
+      --save_json "$RESULT_JSON"
 
+    echo ""
+    echo "✅ Evaluation complete! Results saved to:"
+    echo "   $RESULT_JSON"
+else
+    echo ""
+    echo "⏭️  Skipping evaluation (use --skip-eval flag to control this)"
+    echo ""
+    echo "To evaluate later, run:"
+    echo "  export PYTHONPATH=\"/Users/xiziqiao/Documents/MCP-Research/MCP-R/Orchestrator:\$PYTHONPATH\""
+    echo "  python Orchestrator/mcpuniverse/evaluator/commonllmjudge.py \\"
+    echo "    --prompt $TASKS_FILE \\"
+    echo "    --traj_dir $TRAJ_DIR \\"
+    echo "    --save_json $RESULT_JSON"
+fi
 
-# ==============================
-# 4. Done
-# ==============================
-echo ""
-echo "✅ Evaluation complete! Results saved to:"
-echo "   $RESULT_JSON"
 echo ""

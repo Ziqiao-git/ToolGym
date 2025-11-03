@@ -402,6 +402,7 @@ def llm_as_judge_score(
     pass_threshold: float = 0.85,
     max_completion_tokens: int = 8000,
     prompt_char_limit: int = 100000,
+    model_name: str = "openai/gpt-4o-mini",
 ) -> Dict[str, Any]:
     meta_json = _json(meta)
     task_json = _json(task)
@@ -425,12 +426,13 @@ def llm_as_judge_score(
     raw = _call_llm(
         prompt=prompt,
         system_prompt=(
-            "You are an impartial evaluator judging the quality of an AI agent’s multi-server, tool-based task execution. "
+            "You are an impartial evaluator judging the quality of an AI agent's multi-server, tool-based task execution. "
             "Return ONLY a valid JSON object with your scores and explanation."
         ),
         temperature=temperature,
         max_tokens=max_completion_tokens,
         prompt_char_limit=prompt_char_limit,
+        model_name=model_name,
     )
 
     parsed = _safe_parse_json(raw)
@@ -539,6 +541,7 @@ def run_judge_from_files(
     temperature: float = 0.0,
     max_completion_tokens: int = 8000,
     prompt_char_limit: int = 100000,
+    model_name: str = "openai/gpt-4o-mini",
 ) -> List[Dict[str, Any]]:
     prompts = load_prompts(prompt_path)
     trajs = load_all_trajectories(trajectories_dir)
@@ -566,6 +569,7 @@ def run_judge_from_files(
             pass_threshold=pass_threshold,
             max_completion_tokens=max_completion_tokens,
             prompt_char_limit=prompt_char_limit,
+            model_name=model_name,
         )
 
         results.append({
@@ -591,19 +595,66 @@ def main():
     parser = argparse.ArgumentParser(description="Judge from prompt.json + trajectories/*.json (reasoning_trace only)")
     parser.add_argument("--prompt", default="prompt.json", help="path to prompt.json")
     parser.add_argument("--traj_dir", default="trajectories", help="directory of trajectory_*.json")
+    parser.add_argument("--trajectory", default="", help="evaluate single trajectory file (auto-extracts query)")
     parser.add_argument("--threshold", type=float, default=0.85)
     parser.add_argument("--temperature", type=float, default=0.0)
+    parser.add_argument("--model", default="openai/gpt-4o-mini", help="LLM model to use for evaluation (default: openai/gpt-4o-mini)")
     parser.add_argument("--save_json", default="", help="optional: path to save JSON results")
     args = parser.parse_args()
 
-    results = run_judge_from_files(
-        prompt_path=args.prompt,
-        trajectories_dir=args.traj_dir,
-        pass_threshold=args.threshold,
-        temperature=args.temperature,
-    )
+    # Handle single trajectory file mode
+    if args.trajectory:
+        import tempfile
+        import shutil
+        from pathlib import Path
 
-    out = _json(results)
+        traj_path = Path(args.trajectory)
+        if not traj_path.exists():
+            print(f"[ERROR] Trajectory file not found: {traj_path}", file=sys.stderr)
+            sys.exit(1)
+
+        # Read trajectory to extract query
+        with open(traj_path, 'r', encoding='utf-8') as f:
+            traj_data = json.load(f)
+
+        query = traj_data.get("metadata", {}).get("query", "")
+        if not query:
+            print("[ERROR] No query found in trajectory metadata", file=sys.stderr)
+            sys.exit(1)
+
+        # Create temp prompt file
+        temp_prompt = tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False, encoding='utf-8')
+        json.dump({"queries": [query]}, temp_prompt, ensure_ascii=False)
+        temp_prompt.close()
+
+        # Create temp directory with just this trajectory
+        temp_dir = tempfile.mkdtemp()
+        shutil.copy(traj_path, Path(temp_dir) / traj_path.name)
+
+        try:
+            results = run_judge_from_files(
+                prompt_path=temp_prompt.name,
+                trajectories_dir=temp_dir,
+                pass_threshold=args.threshold,
+                temperature=args.temperature,
+                model_name=args.model,
+            )
+        finally:
+            # Cleanup
+            os.unlink(temp_prompt.name)
+            shutil.rmtree(temp_dir)
+    else:
+        # Original mode: prompt file + trajectory directory
+        results = run_judge_from_files(
+            prompt_path=args.prompt,
+            trajectories_dir=args.traj_dir,
+            pass_threshold=args.threshold,
+            temperature=args.temperature,
+            model_name=args.model,
+        )
+
+    # Pretty-print JSON with indentation for readability
+    out = json.dumps(results, ensure_ascii=False, indent=2)
     print(out)
 
     if args.save_json:
