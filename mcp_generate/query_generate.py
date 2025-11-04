@@ -38,16 +38,24 @@ MAX_RETRIES = 3
 MAX_CONCURRENT = 5  # Maximum concurrent API calls
 
 
+# -------- 改动 1：SYSTEM_PROMPT（新增 reference_tools 要求） --------
 SYSTEM_PROMPT = """You are an expert at creating natural, realistic user queries that involve research or multi-step tasks.
 
 Goal: Given a list of available MCP servers, generate 1 natural language query that users might realistically ask, where answering would naturally involve using information from different sources.
 
-Requirements:
-- Write natural, fluent questions that real users would ask
-- Questions should involve research, comparison, or connecting different types of information
-- Be concrete and specific (mention actual topics, technologies, companies, locations, etc.)
-- Questions should sound like genuine user requests, not forced "use multiple tools" prompts
-- Output must be a valid JSON object with "query" field containing a single string
+Additionally, return a short list of reference tools the agent would likely use to answer the query. IMPORTANT:
+- Only choose tools that appear in the provided servers_summary (use the exact server/tool names).
+- Pick 2–4 tools MAX that are most relevant to solve the query end-to-end.
+- For each tool, include a one-sentence rationale ("why").
+- Do NOT invent tools or servers.
+
+Requirements for the query:
+- Natural, fluent, genuinely useful; sounds like a real user request
+- Involves research, comparison, or connecting different types of information
+- Be concrete and specific, but avoid meta/instructional phrasing
+- Output must be a valid JSON object with fields:
+  - "query": string
+  - "reference_tools": array of { "server": string, "tool": string, "why": string }
 
 Examples of natural queries:
 - "What are the latest developments in AI regulation and which companies are most affected?"
@@ -55,7 +63,7 @@ Examples of natural queries:
 - "What's the weather like in Seattle and are there any tech events happening there?"
 - "Show me trending Python projects and explain what makes them popular"
 
-Make the query natural, diverse, and genuinely useful.
+Make the query natural, diverse, and genuinely useful; choose only the most relevant tools from the list.
 """
 
 # SYSTEM_PROMPT = """You create concrete, realistic, English benchmark questions for MCP servers.
@@ -131,7 +139,7 @@ Return a JSON object with "query" field containing a single string.
 
 
 
-async def generate_single_query(all_tools: List[Dict], query_idx: int) -> str:
+async def generate_single_query(all_tools: List[Dict], query_idx: int) -> Any:
     """
     Generate a single query with freshly shuffled tools.
 
@@ -140,7 +148,7 @@ async def generate_single_query(all_tools: List[Dict], query_idx: int) -> str:
         query_idx: Index of this query (for logging)
 
     Returns:
-        Generated query string
+        Generated object: {"query": str, "reference_tools": [...]}
     """
     # Shuffle tools for this specific query
     tools_copy = [tool.copy() for tool in all_tools]
@@ -170,17 +178,33 @@ async def generate_single_query(all_tools: List[Dict], query_idx: int) -> str:
     # Generate query
     user_prompt = USER_PROMPT_TEMPLATE.format(servers_summary=tools_summary_text)
 
+    # -------- 改动 2：response_format schema（新增 reference_tools 字段） --------
     schema = {
         "type": "json_schema",
         "json_schema": {
-            "name": "query_schema",
+            "name": "query_with_refs_schema",
             "schema": {
                 "type": "object",
                 "additionalProperties": False,
                 "properties": {
-                    "query": {"type": "string"}
+                    "query": {"type": "string"},
+                    "reference_tools": {
+                        "type": "array",
+                        "minItems": 2,
+                        "maxItems": 4,
+                        "items": {
+                            "type": "object",
+                            "additionalProperties": False,
+                            "properties": {
+                                "server": {"type": "string"},
+                                "tool": {"type": "string"},
+                                "why": {"type": "string"}
+                            },
+                            "required": ["server", "tool", "why"]
+                        }
+                    }
                 },
-                "required": ["query"]
+                "required": ["query", "reference_tools"]
             },
             "strict": True
         }
@@ -206,7 +230,7 @@ async def generate_single_query(all_tools: List[Dict], query_idx: int) -> str:
                     await asyncio.sleep(1)
                     continue
                 else:
-                    return f"[Error: Empty response after {MAX_RETRIES} attempts]"
+                    return {"query": f"[Error: Empty response after {MAX_RETRIES} attempts]", "reference_tools": []}
 
             text = text.strip()
 
@@ -219,17 +243,23 @@ async def generate_single_query(all_tools: List[Dict], query_idx: int) -> str:
                     await asyncio.sleep(1)
                     continue
                 else:
-                    return f"[Error: Invalid JSON after {MAX_RETRIES} attempts]"
+                    return {"query": f"[Error: Invalid JSON after {MAX_RETRIES} attempts]", "reference_tools": []}
 
-            if not (isinstance(obj, dict) and isinstance(obj.get("query"), str)):
+            # -------- 改动 3（解析校验）：必须同时包含 query 与 reference_tools --------
+            if not (isinstance(obj, dict)
+                    and isinstance(obj.get("query"), str)
+                    and isinstance(obj.get("reference_tools"), list)):
                 print(f"⚠️  Query {query_idx}: Invalid format, retrying... (attempt {attempt}/{MAX_RETRIES})")
                 if attempt < MAX_RETRIES:
                     await asyncio.sleep(1)
                     continue
                 else:
-                    return f"[Error: Invalid format after {MAX_RETRIES} attempts]"
+                    return {"query": f"[Error: Invalid format after {MAX_RETRIES} attempts]", "reference_tools": []}
 
-            return obj["query"]
+            return {
+                "query": obj["query"],
+                "reference_tools": obj["reference_tools"]
+            }
 
         except Exception as e:
             print(f"⚠️  Query {query_idx}: Unexpected error: {type(e).__name__}: {str(e)}")
@@ -238,10 +268,10 @@ async def generate_single_query(all_tools: List[Dict], query_idx: int) -> str:
                 await asyncio.sleep(2)  # Longer sleep for unexpected errors
             else:
                 print(f"     Failed after {MAX_RETRIES} attempts")
-                return f"[Error: {type(e).__name__} after {MAX_RETRIES} attempts]"
+                return {"query": f"[Error: {type(e).__name__} after {MAX_RETRIES} attempts]", "reference_tools": []}
 
 
-async def generate_queries_async(all_tools: List[Dict], num_queries: int) -> List[str]:
+async def generate_queries_async(all_tools: List[Dict], num_queries: int) -> List[Any]:
     """
     Generate multiple queries concurrently, each with freshly shuffled tools.
 
@@ -250,7 +280,7 @@ async def generate_queries_async(all_tools: List[Dict], num_queries: int) -> Lis
         num_queries: Number of queries to generate
 
     Returns:
-        List of generated query strings
+        List of generated objects: [{"query": str, "reference_tools": [...]}, ...]
     """
     # Create semaphore to limit concurrent API calls
     semaphore = asyncio.Semaphore(MAX_CONCURRENT)
@@ -307,13 +337,14 @@ async def main_async():
     print(f"Each query will use a different random sample of 100 tools")
     queries = await generate_queries_async(all_tools, num_queries=args.num_queries)
 
+    # -------- 改动 3（输出结构）：由 "queries": [...] 改为 "items": [...] --------
     result = {
         "metadata": {
-            "total_queries": len(queries),
+            "total_items": len(queries),
             "servers_count": len(servers),
             "generation_method": "async_with_per_query_shuffle"
         },
-        "queries": queries
+        "items": queries
     }
 
     # Create output directory if it doesn't exist
