@@ -33,7 +33,7 @@ CLIENT = AsyncOpenAI(
   api_key=os.getenv("OPENROUTER_API_KEY"),
 )
 
-MODEL_NAME = "openai/gpt-5"
+MODEL_NAME = "openai/gpt-4o-mini"
 MAX_RETRIES = 3
 MAX_CONCURRENT = 5  # Maximum concurrent API calls
 

@@ -38,7 +38,12 @@ import sys
 
 with open("$TASKS_FILE") as f:
     data = json.load(f)
-    queries = data.get("queries", [])
+    if "queries" in data:
+        queries = data["queries"]
+    elif "items" in data:
+        queries = [item["query"] for item in data["items"] if "query" in item]
+    else:
+        queries = []
 
 print(f"Found {len(queries)} queries")
 

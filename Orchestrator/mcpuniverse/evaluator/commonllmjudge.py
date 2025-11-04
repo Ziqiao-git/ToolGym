@@ -1,5 +1,5 @@
 # commonllmjudge.py
-# Judge that reads prompt + trajectories/trajectory_*.json
+# Judge that reads prompt.json (NEW format only) + trajectories/trajectory_*.json
 # HISTORY is built ONLY from reasoning_trace (Thought-aware).
 # No fallback to execution.tool_calls. No LLM summarization step.
 
@@ -8,7 +8,6 @@ import os, json, glob, argparse, sys
 from typing import Any, Dict, List, Optional
 from dotenv import load_dotenv
 
-# If you don't use python-dotenv, you can remove the next line safely.
 load_dotenv()
 
 # =========================
@@ -71,7 +70,6 @@ def _safe_parse_json(s: Optional[str]) -> Optional[Dict[str, Any]]:
         return None
     s = str(s).strip()
 
-    # strip code fences if present
     if s.startswith("```"):
         parts = s.split("```")
         candidate = ""
@@ -102,10 +100,39 @@ def _json(obj: Any) -> str:
 # File loading & matching
 # =========================
 
-def load_prompts(prompt_path: str) -> List[str]:
+def load_prompts(prompt_path: str) -> List[Dict[str, Any]]:
+    """
+    NEW FORMAT ONLY:
+    {
+      "metadata": {...},
+      "items": [
+        {"query": "...", "reference_tools": [{"server":"...", "tool":"...", "why":"..."}]},
+        ...
+      ]
+    }
+    """
     with open(prompt_path, "r", encoding="utf-8") as f:
         data = json.load(f)
-    return data.get("queries", [])
+
+    if not isinstance(data, dict) or "items" not in data or not isinstance(data["items"], list):
+        raise ValueError("prompt.json must use the NEW format with top-level 'items' list.")
+
+    out: List[Dict[str, Any]] = []
+    for it in data["items"]:
+        q = (it or {}).get("query", "")
+        ref = (it or {}).get("reference_tools", [])
+        if not isinstance(ref, list):
+            ref = []
+        norm_ref = []
+        for r in ref:
+            if isinstance(r, dict):
+                norm_ref.append({
+                    "server": r.get("server", ""),
+                    "tool": r.get("tool", ""),
+                    "why": r.get("why", "")
+                })
+        out.append({"query": q, "reference_tools": norm_ref})
+    return out
 
 
 def load_all_trajectories(dirpath: str) -> List[Dict[str, Any]]:
@@ -136,17 +163,13 @@ def match_traj_by_query(trajs: List[Dict[str, Any]], query: str) -> Optional[Dic
 
 def build_history_from_reasoning_trace(traj_obj: Dict[str, Any]) -> str:
     """
-    仅使用 trajectory['reasoning_trace'] 构建 HISTORY（保留 Thought），
-    忽略 execution.tool_calls（不回退、不补齐）。
-    - 跳过 type=="error"、空 content 的占位项和空 Step 标记
-    - 允许 trace 中缺少显式 'Step k' 标记：自动按顺序合并成步骤
-    - 过滤“全空步”；去重相邻 action+input 等价且后者信息更完整的情况
+    Only trajectory['reasoning_trace'] to build HISTORY (keep Thought).
+    Ignore execution.tool_calls (no fallback, no completion).
     """
-    import re, ast
+    import ast
 
     rt = (traj_obj.get("reasoning_trace") or [])
     if not rt:
-        # 没有 trace：给一个最小兜底（不回退 tool_calls）
         return "\n".join([
             "Step 1:",
             "Thought: (not recorded in trajectory file)",
@@ -156,20 +179,13 @@ def build_history_from_reasoning_trace(traj_obj: Dict[str, Any]) -> str:
         ]).strip()
 
     def _new_step(idx: int) -> Dict[str, Any]:
-        return {
-            "step": idx,
-            "thought": None,
-            "action": None,
-            "action_input": None,
-            "tool_result": None,
-        }
+        return {"step": idx, "thought": None, "action": None, "action_input": None, "tool_result": None}
 
     def _is_placeholder_thought(t: Optional[str]) -> bool:
         if not t: return True
         return str(t).strip() == "(not recorded in trajectory file)"
 
     def _jsonish_parse(s: Any) -> Any:
-        """尽量把字符串解析成 dict/list；先 json，再 ast.literal_eval；失败则原样返回。"""
         if isinstance(s, (dict, list)):
             return s
         if isinstance(s, str):
@@ -185,7 +201,6 @@ def build_history_from_reasoning_trace(traj_obj: Dict[str, Any]) -> str:
                 return s
         return s
 
-    # 1) 解析为步骤
     steps: List[Dict[str, Any]] = []
     current: Optional[Dict[str, Any]] = None
     idx = 0
@@ -194,20 +209,16 @@ def build_history_from_reasoning_trace(traj_obj: Dict[str, Any]) -> str:
         ttype = (item.get("type") or "").strip()
         content = (item.get("content") or "")
 
-        # 跳过错误项与纯空项
         if ttype.lower() == "error":
             continue
 
-        # 显式 Step 标记
         if ttype.lower().startswith("step"):
             if current:
                 steps.append(current)
             idx += 1
             current = _new_step(idx)
-            # 不要求这里必须有内容；后续字段会填充
             continue
 
-        # 若没有显式 Step，从 1 开始自动累计
         if current is None:
             idx += 1
             current = _new_step(idx)
@@ -215,29 +226,20 @@ def build_history_from_reasoning_trace(traj_obj: Dict[str, Any]) -> str:
         low = ttype.lower()
         if low == "thought":
             current["thought"] = content
-
         elif low == "action":
-            # 原样保留 action 文本（不再从文本里抽取 server/tool）
             current["action"] = content or current.get("action")
-
         elif low in ("action input", "action_input"):
             current["action_input"] = _jsonish_parse(content)
-
         elif low in ("result", "tool result", "tool_result"):
             current["tool_result"] = _jsonish_parse(content)
-
         elif low in ("answer",):
-            # 保留宽松：answer 后不强制截断
             pass
-
         else:
-            # 其他类型忽略
             pass
 
     if current:
         steps.append(current)
 
-    # 2) 过滤“全空步”
     def _is_meaningful(s: Dict[str, Any]) -> bool:
         if s.get("action"):
             return True
@@ -253,7 +255,6 @@ def build_history_from_reasoning_trace(traj_obj: Dict[str, Any]) -> str:
 
     steps = [s for s in steps if _is_meaningful(s)]
 
-    # 3) 去重：相邻 action+input 等价时，优先保留信息更丰富的那一条
     def _norm_ai(x: Any) -> Any:
         return _jsonish_parse(x)
 
@@ -268,16 +269,13 @@ def build_history_from_reasoning_trace(traj_obj: Dict[str, Any]) -> str:
             if same_action and same_input:
                 if curr_rich and not prev_rich:
                     deduped[-1] = s
-                # 若两者同样丰富，保留先到的
                 continue
         deduped.append(s)
 
-    # 4) Thought 兜底
     for s in deduped:
         if not s.get("thought"):
             s["thought"] = "(not recorded in trajectory file)"
 
-    # 5) 序列化输出
     lines: List[str] = []
     for i, s in enumerate(deduped, 1):
         lines.append(f"Step {i}:")
@@ -296,9 +294,6 @@ def build_history_from_reasoning_trace(traj_obj: Dict[str, Any]) -> str:
 
 
 def _clean_history_before_summary(raw_history: str) -> str:
-    """
-    Remove trailing 'Answer:' block if any.
-    """
     if not raw_history:
         return ""
     parts = raw_history.split("Answer:", 1)
@@ -306,7 +301,7 @@ def _clean_history_before_summary(raw_history: str) -> str:
 
 
 # =========================
-# Rubric (unchanged)
+# Rubric (updated for reference_tools)
 # =========================
 
 LLM_JUDGE_TEMPLATE = """You are a **strict and conservative** evaluator of multi-step, tool-using ReAct agents.
@@ -323,6 +318,9 @@ META:
 
 TASK:
 {task_json}
+
+REFERENCE_TOOLS (expected/allowed baseline):
+{reference_tools_json}
 
 HISTORY:
 {history_text}
@@ -346,10 +344,11 @@ EVALUATION RUBRIC (each 0–10, integers only):
    - ≤5 = hallucinated or contradicts evidence.
 
 3) Tool Choice (0–10)
-   - 10 = used only appropriate tools that directly address the task.
-   - 8–9 = some redundancy or missed a helpful tool.
-   - 6–7 = several irrelevant or missing calls.
-   - ≤5 = poor tool selection or none used when needed.
+   - Evaluate **alignment to REFERENCE_TOOLS** where applicable.
+   - 10 = selects appropriate tools that directly address the task **and** matches the REFERENCE_TOOLS list unless a clearly justified deviation is demonstrated (e.g., better alternative with explicit evidence of suitability).
+   - 8–9 = minor redundancy or omits one reference tool without strong impact; or deviates with partial justification.
+   - 6–7 = several irrelevant or missing calls; poor alignment with reference tools or unjustified deviation.
+   - ≤5 = no necessary tools used when needed; largely ignores reference tools without justification.
 
 4) Tool Execution (0–10)
    - 10 = all tool calls succeeded and outputs used effectively.
@@ -398,6 +397,7 @@ def llm_as_judge_score(
     task: Dict[str, Any],
     history: str,
     final_answer: str,
+    reference_tools: List[Dict[str, Any]],
     temperature: float = 0.0,
     pass_threshold: float = 0.85,
     max_completion_tokens: int = 8000,
@@ -406,20 +406,21 @@ def llm_as_judge_score(
 ) -> Dict[str, Any]:
     meta_json = _json(meta)
     task_json = _json(task)
+    ref_tools_json = _json(reference_tools or [])
 
     prompt = LLM_JUDGE_TEMPLATE.format(
         pass_threshold=pass_threshold,
         meta_json=meta_json,
         task_json=task_json,
+        reference_tools_json=ref_tools_json,
         history_text=history,
         final_answer_text=final_answer,
     )
 
-    # Debug
     print(
         "========== [DEBUG] FULL prompt SENT TO JUDGE ==========\n"
         f"{prompt}\n"
-        "=====================================================\n",
+        "===================================================== \n",
         file=sys.stderr, flush=True
     )
 
@@ -506,30 +507,27 @@ def llm_as_judge_score(
 # Pipeline from files only
 # =========================
 
-def _values_from_prompt_and_traj(query: str, traj_obj: Dict[str, Any], task_id: str) -> Dict[str, Any]:
+def _values_from_prompt_and_traj(query: str, traj_obj: Dict[str, Any], task_id: str, reference_tools: List[Dict[str, Any]]) -> Dict[str, Any]:
     exe = traj_obj.get("execution", {}) or {}
     final_resp = exe.get("final_response", "")
 
-    # Build HISTORY strictly from reasoning_trace (no summarization)
     history_text = build_history_from_reasoning_trace(traj_obj)
     cleaned_history = _clean_history_before_summary(history_text)
-    summarized_history = cleaned_history  # no LLM compression
+    summarized_history = cleaned_history
 
     meta = {
         "task_id": task_id,
         "category": (traj_obj.get("metadata") or {}).get("model", "unknown_model"),
         "correct_answer": "",
     }
-    task = {
-        "question": query,
-        "output_format": {},
-    }
+    task = {"question": query, "output_format": {}}
 
     return {
         "meta": meta,
         "task": task,
         "history": summarized_history,
         "final_answer": final_resp,
+        "reference_tools": reference_tools or [],
     }
 
 
@@ -543,11 +541,13 @@ def run_judge_from_files(
     prompt_char_limit: int = 100000,
     model_name: str = "openai/gpt-4o-mini",
 ) -> List[Dict[str, Any]]:
-    prompts = load_prompts(prompt_path)
+    items = load_prompts(prompt_path)  # NEW format only
     trajs = load_all_trajectories(trajectories_dir)
 
     results: List[Dict[str, Any]] = []
-    for idx, q in enumerate(prompts, 1):
+    for idx, item in enumerate(items, 1):
+        q = item.get("query", "")
+        ref_tools = item.get("reference_tools", []) or []
         matched = match_traj_by_query(trajs, q)
         if not matched:
             results.append({
@@ -558,13 +558,14 @@ def run_judge_from_files(
             continue
 
         task_id = matched.get("_filename", f"task_{idx}")
-        pack = _values_from_prompt_and_traj(q, matched, task_id)
+        pack = _values_from_prompt_and_traj(q, matched, task_id, ref_tools)
 
         obj = llm_as_judge_score(
             meta=pack["meta"],
             task=pack["task"],
             history=pack["history"],
             final_answer=pack["final_answer"],
+            reference_tools=pack["reference_tools"],
             temperature=temperature,
             pass_threshold=pass_threshold,
             max_completion_tokens=max_completion_tokens,
@@ -592,8 +593,8 @@ def run_judge_from_files(
 # =========================
 
 def main():
-    parser = argparse.ArgumentParser(description="Judge from prompt.json + trajectories/*.json (reasoning_trace only)")
-    parser.add_argument("--prompt", default="prompt.json", help="path to prompt.json")
+    parser = argparse.ArgumentParser(description="Judge from NEW prompt.json format + trajectories/*.json (reasoning_trace only; supports reference_tools)")
+    parser.add_argument("--prompt", default="prompt.json", help="path to NEW-format prompt.json")
     parser.add_argument("--traj_dir", default="trajectories", help="directory of trajectory_*.json")
     parser.add_argument("--trajectory", default="", help="evaluate single trajectory file (auto-extracts query)")
     parser.add_argument("--threshold", type=float, default=0.85)
@@ -602,7 +603,7 @@ def main():
     parser.add_argument("--save_json", default="", help="optional: path to save JSON results")
     args = parser.parse_args()
 
-    # Handle single trajectory file mode
+    # Single trajectory mode → create NEW-format temp prompt with empty reference_tools
     if args.trajectory:
         import tempfile
         import shutil
@@ -610,10 +611,9 @@ def main():
 
         traj_path = Path(args.trajectory)
         if not traj_path.exists():
-            print(f"[ERROR] Trajectory file not found: {traj_path}", file=sys.stderr)
+            print(f("[ERROR] Trajectory file not found: {traj_path}"), file=sys.stderr)
             sys.exit(1)
 
-        # Read trajectory to extract query
         with open(traj_path, 'r', encoding='utf-8') as f:
             traj_data = json.load(f)
 
@@ -622,12 +622,13 @@ def main():
             print("[ERROR] No query found in trajectory metadata", file=sys.stderr)
             sys.exit(1)
 
-        # Create temp prompt file
         temp_prompt = tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False, encoding='utf-8')
-        json.dump({"queries": [query]}, temp_prompt, ensure_ascii=False)
+        json.dump({
+            "metadata": {},
+            "items": [{"query": query, "reference_tools": []}]
+        }, temp_prompt, ensure_ascii=False)
         temp_prompt.close()
 
-        # Create temp directory with just this trajectory
         temp_dir = tempfile.mkdtemp()
         shutil.copy(traj_path, Path(temp_dir) / traj_path.name)
 
@@ -640,11 +641,9 @@ def main():
                 model_name=args.model,
             )
         finally:
-            # Cleanup
             os.unlink(temp_prompt.name)
             shutil.rmtree(temp_dir)
     else:
-        # Original mode: prompt file + trajectory directory
         results = run_judge_from_files(
             prompt_path=args.prompt,
             trajectories_dir=args.traj_dir,
@@ -653,7 +652,6 @@ def main():
             model_name=args.model,
         )
 
-    # Pretty-print JSON with indentation for readability
     out = json.dumps(results, ensure_ascii=False, indent=2)
     print(out)
 
