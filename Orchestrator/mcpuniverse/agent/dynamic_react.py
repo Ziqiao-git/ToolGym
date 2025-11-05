@@ -77,7 +77,7 @@ class DynamicReActAgent(ReAct):
                     self.loaded_servers.add(server_name)  # Track as loaded
                     self._logger.info(f"✓ Pre-loaded server: {server_name}")
 
-    async def _load_server_on_demand(self, server_name: str) -> bool:
+    async def _load_server_on_demand(self, server_name: str) -> tuple[bool, str]:
         """
         Load an MCP server dynamically if not already loaded.
 
@@ -85,16 +85,16 @@ class DynamicReActAgent(ReAct):
             server_name: Name of the server to load
 
         Returns:
-            True if server was loaded successfully, False otherwise
+            Tuple of (success: bool, error_reason: str)
         """
         # Already loaded
         if server_name in self.loaded_servers:
-            return True
+            return (True, "")
 
         # Server config not found
         if server_name not in self.server_configs:
             self._logger.warning(f"⚠ No configuration found for server: {server_name}")
-            return False
+            return (False, "server_not_in_configs")
 
         try:
             self._logger.info(f"🔄 Dynamically loading server: {server_name}")
@@ -120,11 +120,24 @@ class DynamicReActAgent(ReAct):
             self.dynamically_loaded_servers.add(server_name)  # Track as dynamically loaded
             self._logger.info(f"✅ Loaded {len(tools)} tools from {server_name}")
 
-            return True
+            return (True, "")
 
         except Exception as e:
+            error_msg = str(e)
+            error_type = type(e).__name__
             self._logger.error(f"✗ Failed to load server {server_name}: {e}")
-            return False
+
+            # Categorize error type
+            if "403" in error_msg or "Forbidden" in error_msg:
+                return (False, f"http_403_forbidden: {error_msg[:100]}")
+            elif "404" in error_msg or "Not Found" in error_msg:
+                return (False, f"http_404_not_found: {error_msg[:100]}")
+            elif "timeout" in error_msg.lower():
+                return (False, f"connection_timeout: {error_msg[:100]}")
+            elif "connection" in error_msg.lower() or "network" in error_msg.lower():
+                return (False, f"connection_error: {error_msg[:100]}")
+            else:
+                return (False, f"{error_type}: {error_msg[:100]}")
 
     async def call_tool(
         self,
@@ -145,6 +158,7 @@ class DynamicReActAgent(ReAct):
         tool_call = None
         server_loaded_dynamically = False
 
+        load_error_reason = None
         try:
             if isinstance(llm_response, str):
                 _response = llm_response.strip().strip('`').strip()
@@ -161,8 +175,9 @@ class DynamicReActAgent(ReAct):
                 # Try to load server if not already loaded
                 if server_name not in self.loaded_servers:
                     self._logger.info(f"📡 Server {server_name} not loaded, attempting dynamic load...")
-                    success = await self._load_server_on_demand(server_name)
+                    success, error_reason = await self._load_server_on_demand(server_name)
                     server_loaded_dynamically = success
+                    load_error_reason = error_reason if not success else None
 
                     if not success:
                         # Return error as tool result
@@ -170,7 +185,7 @@ class DynamicReActAgent(ReAct):
                         return CallToolResult(
                             content=[TextContent(
                                 type="text",
-                                text=f"Error: Server '{server_name}' could not be loaded. Make sure it's in the server configs."
+                                text=f"Error: Server '{server_name}' could not be loaded. Reason: {error_reason}"
                             )]
                         )
 
@@ -204,8 +219,12 @@ class DynamicReActAgent(ReAct):
                 "result_preview": str(result)[:200] if result else None,
             }
 
+            # Add server load failure reason if applicable
+            if load_error_reason:
+                trajectory_entry["load_error"] = load_error_reason
+                trajectory_entry["status"] = "server_load_failed"
             # Add error info if tool call failed
-            if error:
+            elif error:
                 trajectory_entry["status"] = "error"
                 trajectory_entry["error"] = error
             else:

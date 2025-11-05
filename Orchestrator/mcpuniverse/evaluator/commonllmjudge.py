@@ -507,6 +507,37 @@ def llm_as_judge_score(
 # Pipeline from files only
 # =========================
 
+def extract_actual_tools_from_trajectory(traj_obj: Dict[str, Any]) -> List[Dict[str, str]]:
+    """
+    Extract the actual tools used from the trajectory.
+    Returns list of {"server": str, "tool": str}
+    """
+    actual_tools = []
+    rt = (traj_obj.get("reasoning_trace") or [])
+
+    for item in rt:
+        ttype = (item.get("type") or "").strip().lower()
+        content = (item.get("content") or "")
+
+        if ttype == "action" and content:
+            # Extract server and tool from action format like "server/tool"
+            if "/" in content:
+                parts = content.split("/", 1)
+                if len(parts) == 2:
+                    actual_tools.append({
+                        "server": parts[0].strip(),
+                        "tool": parts[1].strip()
+                    })
+            else:
+                # Just tool name without server
+                actual_tools.append({
+                    "server": "",
+                    "tool": content.strip()
+                })
+
+    return actual_tools
+
+
 def _values_from_prompt_and_traj(query: str, traj_obj: Dict[str, Any], task_id: str, reference_tools: List[Dict[str, Any]]) -> Dict[str, Any]:
     exe = traj_obj.get("execution", {}) or {}
     final_resp = exe.get("final_response", "")
@@ -514,6 +545,9 @@ def _values_from_prompt_and_traj(query: str, traj_obj: Dict[str, Any], task_id: 
     history_text = build_history_from_reasoning_trace(traj_obj)
     cleaned_history = _clean_history_before_summary(history_text)
     summarized_history = cleaned_history
+
+    # Extract actual tools used
+    actual_tools = extract_actual_tools_from_trajectory(traj_obj)
 
     meta = {
         "task_id": task_id,
@@ -528,6 +562,7 @@ def _values_from_prompt_and_traj(query: str, traj_obj: Dict[str, Any], task_id: 
         "history": summarized_history,
         "final_answer": final_resp,
         "reference_tools": reference_tools or [],
+        "actual_tools": actual_tools,
     }
 
 
@@ -576,6 +611,8 @@ def run_judge_from_files(
         results.append({
             "task_id": task_id,
             "query": q,
+            "reference_tools": ref_tools,
+            "actual_tools": pack.get("actual_tools", []),
             "binary": obj.get("binary"),
             "score": obj.get("score"),
             "task_fulfillment": obj.get("task_fulfillment"),

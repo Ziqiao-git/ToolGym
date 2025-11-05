@@ -64,10 +64,10 @@ Run multiple queries sequentially from a JSON file (useful for benchmarking):
 cd /Users/xiziqiao/Documents/MCP-Research/MCP-R
 
 # Run all queries in the file
-bash evaluation/run_benchmark.sh mcp_generate/requests/generated_queries.json
+bash runtime/run_benchmark.sh mcp_generate/requests/generated_queries.json
 
 # Example with different query file
-bash evaluation/run_benchmark.sh mcp_generate/requests/my_queries.json
+bash runtime/run_benchmark.sh mcp_generate/requests/my_queries.json
 ```
 
 **Input JSON Format:**
@@ -281,7 +281,9 @@ python Orchestrator/mcpuniverse/evaluator/commonllmjudge.py \
 
 **Arguments:**
 - `--trajectory`: Path to single trajectory file (auto-extracts query from metadata)
+  - **Note**: Single trajectory mode will have **empty reference_tools** in output
 - `--prompt`: Path to prompt JSON file with queries (for batch mode)
+  - **Required for reference_tools**: Only batch mode includes reference_tools from the prompt file
 - `--traj_dir`: Directory containing trajectory files (default: `trajectories`)
 - `--model`: LLM model for evaluation (default: `openai/gpt-4o-mini`)
   - Available: `openai/gpt-4o-mini`, `openai/gpt-4o`, `anthropic/claude-3.5-sonnet`, etc.
@@ -302,6 +304,14 @@ python Orchestrator/mcpuniverse/evaluator/commonllmjudge.py \
   {
     "task_id": "trajectory_20251101_143915",
     "query": "Find research papers about small LLMs...",
+    "reference_tools": [
+      {"server": "arxiv", "tool": "search_papers", "why": "To search for papers"},
+      {"server": "semantic-scholar", "tool": "get_paper_details", "why": "To get details"}
+    ],
+    "actual_tools": [
+      {"server": "arxiv", "tool": "search_papers"},
+      {"server": "semantic-scholar", "tool": "get_paper_details"}
+    ],
     "binary": true,
     "score": 0.82,
     "task_fulfillment": 0.85,
@@ -314,10 +324,165 @@ python Orchestrator/mcpuniverse/evaluator/commonllmjudge.py \
 ]
 ```
 
+**Key Fields:**
+- `reference_tools`: Ground truth tools from query generation (what tools *should* be used)
+  - Only populated in batch mode with `--prompt` flag
+  - Empty `[]` in single trajectory mode
+- `actual_tools`: Tools the agent actually called during execution
+  - Extracted from trajectory's `reasoning_trace`
+- `tool_choice` score: Evaluates alignment between reference_tools and actual_tools
+
 **Environment Variables Required:**
 ```bash
 export OPENAI_API_KEY="your-openrouter-api-key"
 export OPENAI_BASE_URL="https://openrouter.ai/api/v1"
+```
+
+---
+
+## Trajectory Structure and Debugging
+
+### Understanding Trajectory Files
+
+Trajectory files (`trajectories/trajectory_*.json`) capture the complete execution trace of the agent, including all reasoning steps, tool calls, and results.
+
+#### Key Trajectory Sections
+
+**1. Metadata**
+```json
+{
+  "metadata": {
+    "timestamp": "2025-11-05T12:13:56.778120",
+    "query": "What's the weather in New York?",
+    "model": "anthropic/claude-3.5-sonnet",
+    "max_iterations": 10
+  }
+}
+```
+
+**2. Reasoning Trace**
+Contains the agent's step-by-step thought process:
+```json
+{
+  "reasoning_trace": [
+    {"type": "thought", "content": "I need to search for weather tools..."},
+    {"type": "action", "content": "Using tool `search_tools` in server `meta-mcp`"},
+    {"type": "action input", "content": "{'query': 'weather', 'top_k': 5}"},
+    {"type": "result", "content": "Found 5 relevant tools..."}
+  ]
+}
+```
+
+**3. Execution Summary**
+Contains tool call details and statistics:
+```json
+{
+  "execution": {
+    "final_response": "The current weather in New York is...",
+    "tool_calls": [
+      {
+        "type": "tool_call",
+        "server": "meta-mcp",
+        "tool": "search_tools",
+        "arguments": {"query": "weather", "top_k": 5},
+        "dynamically_loaded": false,
+        "duration_seconds": 3.2,
+        "status": "success"
+      }
+    ],
+    "total_tool_calls": 4,
+    "tool_calls_with_dynamic_load": 1
+  }
+}
+```
+
+**4. Server Loading Statistics**
+```json
+{
+  "servers": {
+    "initially_loaded": ["meta-mcp"],
+    "dynamically_loaded": ["@smithery-ai/national-weather-service"],
+    "total_servers_used": 2,
+    "dynamically_loaded_count": 1
+  }
+}
+```
+
+#### Server Load Failure Tracking
+
+**New in November 2025:** Trajectories now include detailed error categorization when MCP servers fail to load dynamically.
+
+**Failure Categories:**
+- `server_not_in_configs`: Server exists in tool index but not in `remote_server_configs.json`
+- `http_403_forbidden`: Server blocked by authentication/firewall (e.g., Cloudflare protection)
+- `http_404_not_found`: Server URL returns 404 Not Found
+- `connection_timeout`: Server connection timed out
+- `connection_error`: Network/connection error
+- `[ExceptionType]`: Other errors with exception type
+
+**Example of Failed Tool Call:**
+```json
+{
+  "type": "tool_call",
+  "server": "com.tableall/mcp",
+  "tool": "search_restaurants",
+  "arguments": {"prefecture": "Tokyo"},
+  "status": "server_load_failed",
+  "load_error": "server_not_in_configs",
+  "result_preview": "Error: Server 'com.tableall/mcp' could not be loaded. Reason: server_not_in_configs",
+  "dynamically_loaded": false,
+  "duration_seconds": 0.15
+}
+```
+
+**Debugging Common Issues:**
+
+1. **`server_not_in_configs`**:
+   - Server was validated and indexed but not added to `remote_server_configs.json`
+   - Fix: Add server config to `MCP_INFO_MGR/mcp_data/usable/remote_server_configs.json`
+
+2. **`http_403_forbidden`**:
+   - Server blocked by Cloudflare or requires authentication
+   - Example: `com.windowsforum/mcp-server` (Cloudflare protected)
+   - Usually cannot be fixed without server owner intervention
+
+3. **`http_404_not_found`**:
+   - Server URL is incorrect or server no longer exists
+   - Fix: Update server URL or remove from index
+
+4. **`connection_timeout`/`connection_error`**:
+   - Network issues or server temporarily down
+   - Retry or investigate network connectivity
+
+**Analyzing Trajectories for Failures:**
+```bash
+# Find all trajectories with server load failures
+cd /Users/xiziqiao/Documents/MCP-Research/MCP-R
+grep -l "server_load_failed" trajectories/*.json
+
+# Count failure types
+grep -h "load_error" trajectories/*.json | sort | uniq -c
+
+# Extract specific failure reasons
+python3 << 'EOF'
+import json
+import glob
+from collections import Counter
+
+failures = Counter()
+for traj_file in glob.glob("trajectories/*.json"):
+    with open(traj_file) as f:
+        traj = json.load(f)
+        for call in traj.get("execution", {}).get("tool_calls", []):
+            if call.get("status") == "server_load_failed":
+                error = call.get("load_error", "unknown")
+                error_type = error.split(":")[0]
+                failures[error_type] += 1
+
+print("\nServer Load Failure Summary:")
+for error_type, count in failures.most_common():
+    print(f"  {error_type}: {count}")
+EOF
 ```
 
 ---
@@ -444,7 +609,7 @@ python mcp_generate/query_generate.py \
   --num-queries 50
 
 # Step 2: Run agent on all queries (saves trajectories)
-bash evaluation/run_benchmark.sh mcp_generate/prompt/benchmark_tasks.json
+bash runtime/run_benchmark.sh mcp_generate/prompt/benchmark_tasks.json
 
 # Step 3: Evaluate all trajectories with LLM judge
 export PYTHONPATH="/Users/xiziqiao/Documents/MCP-Research/MCP-R/Orchestrator:$PYTHONPATH"
