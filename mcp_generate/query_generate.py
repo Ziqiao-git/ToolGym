@@ -41,29 +41,99 @@ MAX_CONCURRENT = 5  # Maximum concurrent API calls
 # -------- 改动 1：SYSTEM_PROMPT（新增 reference_tools 要求） --------
 SYSTEM_PROMPT = """You are an expert at creating natural, realistic user queries that involve research or multi-step tasks.
 
-Goal: Given a list of available MCP servers, generate 1 natural language query that users might realistically ask, where answering would naturally involve using information from different sources.
+Goal:
+Given a list of available MCP servers, generate ONE realistic, multi-step natural language query that users might actually ask, where solving it would require combining information or functions from different MCP servers.
 
-Additionally, return a short list of reference tools the agent would likely use to answer the query. IMPORTANT:
-- Only choose tools that appear in the provided servers_summary (use the exact server/tool names).
-- Pick 2–4 tools MAX that are most relevant to solve the query end-to-end.
-- For each tool, include a one-sentence rationale ("why").
-- Do NOT invent tools or servers.
+In servers_summary, each entry follows this format:
+<server_namespace>/<server_name>/<tool_name>: <tool_description>
 
-Requirements for the query:
-- Natural, fluent, genuinely useful; sounds like a real user request
-- Involves research, comparison, or connecting different types of information
-- Be concrete and specific, but avoid meta/instructional phrasing
-- Output must be a valid JSON object with fields:
-  - "query": string
-  - "reference_tools": array of { "server": string, "tool": string, "why": string }
+Additionally, return a short list of reference tools that the agent would likely use to answer the query.
 
-Examples of natural queries:
-- "What are the latest developments in AI regulation and which companies are most affected?"
-- "Find recent machine learning projects on GitHub and tell me what problems they solve"
-- "What's the weather like in Seattle and are there any tech events happening there?"
-- "Show me trending Python projects and explain what makes them popular"
+IMPORTANT SELECTION RULES:
+- Only use tools that appear in the provided servers_summary (use exact names).
+- Pick 2–4 tools MAX.
+- ✅ Each selected tool MUST come from a **different MCP server namespace**.
+- The “server” field refers to the **ignore the last path components** (e.g., `plainyogurt21/clintrials-mcp`).
+- ❌ You may NOT include multiple tools whose server prefix (the part before the third “/”) is the same.
+- Example of NOT allowed:
+  1. 
+  - plainyogurt21/clintrials-mcp/search_trials_by_condition
+  - plainyogurt21/clintrials-mcp/get_trial_details_batched
+  (⛔ Both share the same server prefix `plainyogurt21/clintrials-mcp`, only count for one distinct server, but we need at lest 2 distinct servers)
+  2. 
+  - plainyogurt21/clintrials-mcp
+  - plainyogurt21/clintrials-mcp
+  (⛔ Both share the same server prefix `plainyogurt21/clintrials-mcp`, only count for one distinct server, but we need at lest 2 distinct servers)
+  3. 
+  - plainyogurt21/clintrials-mcp
+  - plainyogurt21/clintrials-mcp/get_trial_details_batched
+  (⛔ Both share the same server prefix `plainyogurt21/clintrials-mcp`, only count for one distinct server, but we need at lest 2 distinct servers)
+- Example of allowed:
+  - plainyogurt21/clintrials-mcp/search_trials_by_condition
+  - smithery-ai/national-weather-service/get_weather_forecast
+  (✅ Different server prefixes)
+  - plainyogurt21/clintrials-mcp
+  - smithery-ai/national-weather-service
+  (✅ Different server prefixes)
 
-Make the query natural, diverse, and genuinely useful; choose only the most relevant tools from the list.
+Each selected tool must serve a distinct, complementary role in the overall workflow.
+
+For each tool, include:
+- "server": the MCP server prefix only (the first two parts, e.g., `plainyogurt21/clintrials-mcp`)
+- "tool": the tool name (the third part)
+- "why": a one-sentence rationale
+
+⚠️ **CONTENT RESTRICTIONS**
+- Never include personal, financial, medical, or confidential data:
+  - No credit cards, bank accounts, passwords, private health info, or PII.
+- Keep all queries feasible within public, safe contexts (e.g., news, research, weather, travel, tech, public APIs).
+- Avoid speculative or illegal content.
+- Avoid medical/clinical trial scenarios unless they are open, public, and anonymized datasets.
+
+QUERY REQUIREMENTS:
+- Must sound natural, fluent, and genuinely useful.
+- Must require combining information or operations from tools in *different MCP servers* (distinct prefixes).
+- Each tool must add unique, necessary information to the overall task.
+- Be specific, concrete, and realistic.
+- Avoid meta or instructional phrasing.
+- The task should make sense as something a real person or researcher might request.
+
+OUTPUT FORMAT:
+Return a valid JSON object:
+{
+  "query": "<the realistic user query>",
+  "reference_tools": [
+    { "server": "<server_namespace/server_name>", "tool": "<tool_name>", "why": "<short rationale>" },
+    ...
+  ]
+}
+
+❌ DO NOT repeat the same 'server' prefix across different entries.
+❌ DO NOT output servers like "@smithery-ai/national-weather-service/get_weather_forecast" in the "server" field, since @smithery-ai/national-weather-service is server name and get_weather_forecast is tool name.
+✅ The "server" field should stop at the server name level (e.g., "@smithery-ai/national-weather-service").
+
+---
+
+### ✅ SELF-CHECK BEFORE RETURN
+Before producing final JSON:
+1. Extract all `server` prefixes (the first two path parts).  
+2. Verify that there are **at least two distinct servers** among them.  
+   - If fewer than two unique servers → **rewrite the query** and **reselect tools** until this condition is met.  
+3. Ensure all servers are distinct and exist in the provided list.  
+4. Ensure the query avoids personal/financial/medical data.  
+5. Ensure output strictly follows JSON schema above.  
+
+Only output once all checks pass.
+
+---
+
+Examples of good queries:
+- "Find open datasets on air pollution from NASA and correlate them with recent city-level weather forecasts to understand smog patterns."
+- "Compare top trending AI GitHub projects with recent funding announcements from venture databases."
+- "Retrieve tourism trends from an analytics API and cross-check upcoming weather forecasts to recommend the best destinations for next month."
+
+Make sure all reference tools come from distinct MCP servers (different prefixes before the third '/').
+
 """
 
 # SYSTEM_PROMPT = """You create concrete, realistic, English benchmark questions for MCP servers.
@@ -128,9 +198,9 @@ Make the query natural, diverse, and genuinely useful; choose only the most rele
 
 
 USER_PROMPT_TEMPLATE = """Here are the available MCP servers grouped by domain:
-
+servers_summary:
 {servers_summary}
-
+For each server, the format is: server_name/tool_name: tool_description. Did not include tool name in server name for output
 Generate 1 natural, realistic user query that people would actually ask.
 This query should naturally involve researching or combining information from different sources.
 
