@@ -195,7 +195,8 @@ def build_history_from_reasoning_trace(traj_obj: Dict[str, Any]) -> str:
             except Exception:
                 pass
             try:
-                v = ast.literal_eval(txt)
+                import ast as _ast
+                v = _ast.literal_eval(txt)
                 return v
             except Exception:
                 return s
@@ -301,16 +302,16 @@ def _clean_history_before_summary(raw_history: str) -> str:
 
 
 # =========================
-# Rubric (updated for reference_tools)
+# Rubric (FOUR dimensions + reasons)
 # =========================
 
-LLM_JUDGE_TEMPLATE = """You are a **strict and conservative** evaluator of multi-step, tool-using ReAct agents.
-Your role is to score the quality of reasoning and tool use across multiple dimensions.
+LLM_JUDGE_TEMPLATE = """You are a strict and conservative evaluator of multi-step, tool-using ReAct agents.
+Score across FOUR dimensions that diagnose where to improve and help query generation.
 
-🔒 Important:
-- **Perfect 10s should be rare (<10%)**.
-- Start from 8 and deduct points for any uncertainty, redundancy, or lack of verification.
-- Be conservative: if unsure between two scores, choose the lower.
+🔒 Policy
+- Perfect 10s are rare (<10%).
+- Start from 8, deduct for uncertainty, missing verification, redundancy.
+- If unsure between two scores, choose the lower.
 
 ------------------------------------------------------------
 META:
@@ -319,7 +320,7 @@ META:
 TASK:
 {task_json}
 
-REFERENCE_TOOLS (expected/allowed baseline):
+REFERENCE_TOOLS (expected/allowed):
 {reference_tools_json}
 
 HISTORY:
@@ -329,65 +330,61 @@ FINAL_ANSWER:
 {final_answer_text}
 
 ------------------------------------------------------------
-EVALUATION RUBRIC (each 0–10, integers only):
+EVALUATION RUBRIC (each 0–10, integers only)
 
-1) Task Fulfillment (0–10)
-   - 10 = completely and unambiguously answers the question in correct format.
-   - 8–9 = mostly correct but small detail/format missing.
-   - 6–7 = partial completion or unclear.
-   - ≤5 = wrong type, empty, or irrelevant.
+1) Task Alignment (0–10)
+   Does the final answer satisfy the task intent/constraints and requested format?
+   10 = fully satisfies task & constraints with correct format;
+   8–9 = minor omission/format gap;
+   6–7 = partially meets task; unclear/incomplete;
+   ≤5 = misses task intent or violates explicit constraints.
 
-2) Grounding (0–10)
-   - 10 = every claim is directly supported by tool results; no speculation.
-   - 8–9 = mostly supported, but 1–2 claims lack explicit evidence.
-   - 6–7 = several claims not grounded.
-   - ≤5 = hallucinated or contradicts evidence.
+2) Grounding & Evidence (0–10)
+   Are claims supported by tool outputs (verbatim fields/values/quotes)?
+   10 = all key claims grounded; no speculation;
+   8–9 = mostly grounded, 1–2 claims not explicit;
+   6–7 = several ungrounded claims;
+   ≤5 = hallucinated or contradicts tool evidence.
 
-3) Tool Choice (0–10)
-   - Evaluate **alignment to REFERENCE_TOOLS** where applicable.
-   - 10 = selects appropriate tools that directly address the task **and** matches the REFERENCE_TOOLS list unless a clearly justified deviation is demonstrated (e.g., better alternative with explicit evidence of suitability).
-   - 8–9 = minor redundancy or omits one reference tool without strong impact; or deviates with partial justification.
-   - 6–7 = several irrelevant or missing calls; poor alignment with reference tools or unjustified deviation.
-   - ≤5 = no necessary tools used when needed; largely ignores reference tools without justification.
+3) Tool Planning & Selection (0–10)
+   Did the agent select the right tool(s) and order, aligned with REFERENCE_TOOLS unless a clearly better justified alternative is used?
+   10 = correct tools/sequence; justified deviations;
+   8–9 = minor redundancy/omission with little impact;
+   6–7 = noticeable mismatch (wrong/extra/missing tools);
+   ≤5 = ignored necessary tools or planned poorly.
 
-4) Tool Execution (0–10)
-   - 10 = all tool calls succeeded and outputs used effectively.
-   - 8–9 = minor misuse or ignored part of result.
-   - 6–7 = several tool calls unused or failed.
-   - ≤5 = major execution errors or ignored outputs.
-
-5) Requirement Satisfaction / Constraint Coverage (0–10)
-   - 10 = explicitly checks and meets all constraints or conditions in TASK
-         (e.g., correct number of items, distance/time limits, etc.).
-   - 8–9 = likely meets most constraints but without explicit verification.
-   - 6–7 = partial or uncertain constraint satisfaction.
-   - ≤5 = violates or ignores explicit constraints.
+4) Execution & Recovery (0–10)
+   Did calls succeed, parameters match schema, errors get diagnosed/retried/fallback correctly, and outputs get used?
+   10 = clean execution; robust error handling; outputs used effectively;
+   8–9 = small misuse or ignored part of outputs;
+   6–7 = several failed/unused calls or weak recovery;
+   ≤5 = major execution errors; no recovery.
 
 ------------------------------------------------------------
 OVERALL SCORE
-overall_score = (task_fulfillment + grounding + tool_choice
-                 + tool_execution + requirement_satisfaction) / 50.
+overall_score = (task_alignment + grounding + tool_planning + execution_recovery) / 40.
 Round to two decimals. Must be in [0,1].
 
-------------------------------------------------------------
 BINARY DECISION
 "success" if overall_score >= {pass_threshold:.2f}, else "failure".
 
 ------------------------------------------------------------
 OUTPUT FORMAT
-Return STRICT JSON:
+Return STRICT JSON ONLY:
 {{
-  "task_fulfillment": <int 0-10>,
+  "task_alignment": <int 0-10>,
   "grounding": <int 0-10>,
-  "tool_choice": <int 0-10>,
-  "tool_execution": <int 0-10>,
-  "requirement_satisfaction": <int 0-10>,
+  "tool_planning": <int 0-10>,
+  "execution_recovery": <int 0-10>,
   "overall_score": <float 0-1>,
-  "explanation": "<brief reason>",
-  "binary": "success" or "failure"
+  "binary": "success" or "failure",
+  "reasons": {{
+    "task_alignment": "<1-3 concise sentences>",
+    "grounding": "<1-3 concise sentences>",
+    "tool_planning": "<1-3 concise sentences>",
+    "execution_recovery": "<1-3 concise sentences>"
+  }}
 }}
-
-Return ONLY the JSON object — no prose or commentary.
 """
 
 
@@ -428,7 +425,7 @@ def llm_as_judge_score(
         prompt=prompt,
         system_prompt=(
             "You are an impartial evaluator judging the quality of an AI agent's multi-server, tool-based task execution. "
-            "Return ONLY a valid JSON object with your scores and explanation."
+            "Return ONLY a valid JSON object with your scores, reasons, and binary decision."
         ),
         temperature=temperature,
         max_tokens=max_completion_tokens,
@@ -441,12 +438,12 @@ def llm_as_judge_score(
         return {
             "score": 0.0,
             "binary": "failure",
+            "reasons": {},
             "explanation": "Judge model did not return valid JSON.",
-            "task_fulfillment": None,
+            "task_alignment": None,
             "grounding": None,
-            "tool_choice": None,
-            "tool_execution": None,
-            "requirement_satisfaction": None,
+            "tool_planning": None,
+            "execution_recovery": None,
             "raw_judge_output": raw,
         }
 
@@ -462,17 +459,17 @@ def llm_as_judge_score(
         return val
 
     subs = {
-        "task_fulfillment": _coerce_0_10(parsed.get("task_fulfillment")),
+        "task_alignment": _coerce_0_10(parsed.get("task_alignment")),
         "grounding": _coerce_0_10(parsed.get("grounding")),
-        "tool_choice": _coerce_0_10(parsed.get("tool_choice")),
-        "tool_execution": _coerce_0_10(parsed.get("tool_execution")),
-        "requirement_satisfaction": _coerce_0_10(parsed.get("requirement_satisfaction")),
+        "tool_planning": _coerce_0_10(parsed.get("tool_planning")),
+        "execution_recovery": _coerce_0_10(parsed.get("execution_recovery")),
     }
 
     def _avg_subscores_to_overall(d: Dict[str, Optional[float]]) -> Optional[float]:
         vals = [v for v in d.values() if v is not None]
         if not vals:
             return None
+        # Four dimensions, each 0-10; overall in [0,1]
         return (sum(vals) / len(vals)) / 10.0
 
     try:
@@ -488,17 +485,30 @@ def llm_as_judge_score(
     if binary not in ("success", "failure"):
         binary = "success" if overall >= pass_threshold else "failure"
 
-    explanation = parsed.get("explanation", "")
+    reasons = parsed.get("reasons", {})
+    if not isinstance(reasons, dict):
+        reasons = {}
+
+    # Keep 'explanation' for backward compatibility with any callers
+    explanation = ""
+    # Optionally synthesize a short explanation from reasons if needed
+    if not explanation and reasons:
+        try:
+            explanation = " | ".join(
+                f"{k}: {str(v)}" for k, v in reasons.items() if v
+            )[:1000]
+        except Exception:
+            explanation = ""
 
     return {
         "score": overall,
         "binary": binary,
+        "reasons": reasons,
         "explanation": explanation,
-        "task_fulfillment": subs["task_fulfillment"],
+        "task_alignment": subs["task_alignment"],
         "grounding": subs["grounding"],
-        "tool_choice": subs["tool_choice"],
-        "tool_execution": subs["tool_execution"],
-        "requirement_satisfaction": subs["requirement_satisfaction"],
+        "tool_planning": subs["tool_planning"],
+        "execution_recovery": subs["execution_recovery"],
         "raw_judge_output": raw,
     }
 
@@ -615,11 +625,11 @@ def run_judge_from_files(
             "actual_tools": pack.get("actual_tools", []),
             "binary": obj.get("binary"),
             "score": obj.get("score"),
-            "task_fulfillment": obj.get("task_fulfillment"),
+            "task_alignment": obj.get("task_alignment"),
             "grounding": obj.get("grounding"),
-            "tool_choice": obj.get("tool_choice"),
-            "tool_execution": obj.get("tool_execution"),
-            "requirement_satisfaction": obj.get("requirement_satisfaction"),
+            "tool_planning": obj.get("tool_planning"),
+            "execution_recovery": obj.get("execution_recovery"),
+            "reasons": obj.get("reasons", {}),
             "explanation": obj.get("explanation"),
         })
     return results
@@ -630,7 +640,7 @@ def run_judge_from_files(
 # =========================
 
 def main():
-    parser = argparse.ArgumentParser(description="Judge from NEW prompt.json format + trajectories/*.json (reasoning_trace only; supports reference_tools)")
+    parser = argparse.ArgumentParser(description="Judge from NEW prompt.json format + trajectories/*.json (reasoning_trace only; supports reference_tools; FOUR-dimension rubric)")
     parser.add_argument("--prompt", default="prompt.json", help="path to NEW-format prompt.json")
     parser.add_argument("--traj_dir", default="trajectories", help="directory of trajectory_*.json")
     parser.add_argument("--trajectory", default="", help="evaluate single trajectory file (auto-extracts query)")

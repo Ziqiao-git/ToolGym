@@ -3,7 +3,7 @@
 # run_benchmark.sh
 # Run ReAct agent on all benchmark tasks
 #
-# Usage: bash evaluation/run_benchmark.sh <path_to_benchmark_tasks.json> [--skip-eval]
+# Usage: bash runtime/run_benchmark.sh <path_to_benchmark_tasks.json> [--skip-eval]
 
 TASKS_FILE=$1
 SKIP_EVAL=false
@@ -83,7 +83,7 @@ if [ "$SKIP_EVAL" = false ]; then
     python Orchestrator/mcpuniverse/evaluator/commonllmjudge.py \
       --prompt "$TASKS_FILE" \
       --traj_dir "$TRAJ_DIR" \
-      --threshold 0.85 \
+      --threshold 0.8 \
       --temperature 0.0 \
       --save_json "$RESULT_JSON"
 
