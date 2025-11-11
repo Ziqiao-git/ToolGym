@@ -6,9 +6,13 @@ This document contains all the Python commands and scripts for the MCP Research 
 1. [Agent Execution](#agent-execution)
    - [Single-Turn Agent](#run-react-agent-with-dynamic-tool-discovery)
    - [Multi-Turn Agent](#run-multi-turn-conversational-agent)
+   - [Goal-Oriented Agent](#run-goal-oriented-conversational-agent)
    - [Batch Execution](#run-batch-queries-from-json-file)
 2. [Tool Testing](#tool-testing)
 3. [Query Generation](#query-generation)
+   - [Single-Turn Queries](#generate-natural-language-queries)
+   - [Multi-Turn Seeds](#generate-multi-turn-seed-queries)
+   - [Goal-Oriented Seeds](#generate-goal-oriented-seed-queries)
 4. [Trajectory Evaluation](#trajectory-evaluation)
 5. [Data Filtering](#data-filtering)
 6. [FAISS Index Building](#faiss-index-building)
@@ -165,6 +169,118 @@ python runtime/run_multiturn_agent.py \
 **See Also:**
 - Full specification: `docs/MULTI_TURN_AGENT_SPEC.md`
 - Multi-turn query generation: [Generate Multi-Turn Seed Queries](#generate-multi-turn-seed-queries)
+
+---
+
+### Run Goal-Oriented Conversational Agent
+
+Run a goal-driven multi-turn conversation where the simulated user has a hidden goal that guides follow-up questions:
+
+```bash
+cd /Users/xiziqiao/Documents/MCP-Research/MCP-R
+
+# Basic usage with query + goal
+python runtime/run_goaloriented_agent.py \
+  "What are the upcoming events in Bodrum?" \
+  --goal "I'm planning a weekend trip to Bodrum and need to know what events are happening, what the weather will be like, where to eat, and where to stay." \
+  --persona curious_researcher
+
+# From seeds file (recommended)
+python runtime/run_goaloriented_agent.py \
+  --seeds mcp_generate/requests/goaloriented_seeds_test.json \
+  --persona curious_researcher \
+  --max-turns 8 \
+  --save-trajectory
+
+# Custom models and settings
+python runtime/run_goaloriented_agent.py \
+  --seeds mcp_generate/requests/goaloriented_seeds.json \
+  --persona thorough_analyst \
+  --model "anthropic/claude-3.5-sonnet" \
+  --user-model "anthropic/claude-3.5-sonnet" \
+  --max-iterations 10 \
+  --save-trajectory
+```
+
+**Arguments:**
+- `query`: Initial seed query (required if not using --seeds)
+- `--goal`: User's hidden goal (required if not using --seeds)
+- `--seeds`: JSON file with seed queries and goals
+- `--persona`: Simulated user persona (default: `curious_researcher`)
+- `--max-turns`: Maximum conversation turns (overrides persona default)
+- `--model`: LLM model for agent (default: `anthropic/claude-3.5-sonnet`)
+- `--user-model`: LLM model for simulated user (default: `anthropic/claude-3.5-sonnet`)
+- `--max-iterations`: Maximum agent reasoning steps per turn (default: 10)
+- `--save-trajectory`: Save conversation trajectory to `trajectories/goaloriented/`
+
+**Output:**
+- Console: Full conversation with goal progress tracking
+- Trajectory files (if `--save-trajectory`): `trajectories/goaloriented/goal_TIMESTAMP.json`
+
+**Goal-Oriented Trajectory Structure:**
+```json
+{
+  "metadata": {
+    "seed_query": "What events are in Bodrum?",
+    "user_goal": "I'm planning a trip and need events, weather, restaurants, hotels.",
+    "sub_goals": [
+      "Find upcoming events in Bodrum",
+      "Check weather forecast",
+      "Get restaurant recommendations",
+      "Find hotel options"
+    ],
+    "goal_completion_rate": 0.75,
+    "goal_achieved": false,
+    "persona": "curious_researcher",
+    "timestamp": "2025-11-11T20:00:00.000000"
+  },
+  "turns": [
+    {
+      "turn_number": 1,
+      "query": "What events are in Bodrum?",
+      "agent_response": "...",
+      "tool_calls": [...],
+      "completed_sub_goals": ["Find upcoming events in Bodrum"],
+      "remaining_sub_goals": ["Check weather forecast", "Get restaurant recommendations", "Find hotel options"],
+      "goal_progress": 0.25,
+      "satisfaction_level": 0.7,
+      "user_decision": "continue"
+    }
+  ],
+  "summary": {
+    "total_turns": 4,
+    "final_satisfaction": 0.85,
+    "goal_completion_rate": 0.75
+  }
+}
+```
+
+**Key Differences from Multi-Turn Agent:**
+- **Hidden Goal**: User has a specific goal driving the conversation
+- **Sub-Goal Tracking**: Goal is decomposed into measurable sub-goals
+- **Progress-Based Evaluation**: Satisfaction considers goal progress + tool usage + quality
+- **Goal-Driven Follow-Ups**: Questions work toward completing remaining sub-goals
+- **Goal-Based Termination**: Conversation ends when goal achieved (even if early)
+
+**Example Workflow:**
+
+User Goal: "I'm planning a trip to Bodrum and need events, weather, restaurants, hotels"
+
+Sub-goals automatically decomposed:
+1. Find upcoming events in Bodrum
+2. Check weather forecast for Bodrum
+3. Get restaurant recommendations
+4. Find hotel options
+
+Conversation:
+- **Turn 1**: "What events are in Bodrum?" → ✅ Sub-goal 1 complete (25% progress)
+- **Turn 2**: "What's the weather like?" → ✅ Sub-goal 2 complete (50% progress)
+- **Turn 3**: "Can you recommend restaurants?" → ✅ Sub-goal 3 complete (75% progress)
+- **Turn 4**: "Where can I find hotels?" → ✅ Sub-goal 4 complete (100% progress)
+- **Result**: Goal achieved, conversation terminates with high satisfaction
+
+**See Also:**
+- Goal-oriented query generation: [Generate Goal-Oriented Seed Queries](#generate-goal-oriented-seed-queries)
 
 ---
 
@@ -399,6 +515,91 @@ python runtime/run_multiturn_agent.py \
   --seeds mcp_generate/requests/multiturn_seeds.json \
   --persona curious_researcher \
   --max-turns 5 \
+  --save-trajectory
+```
+
+---
+
+### Generate Goal-Oriented Seed Queries
+
+Generate seed queries WITH GOALS for goal-oriented conversations:
+
+```bash
+cd /Users/xiziqiao/Documents/MCP-Research/MCP-R
+
+# Generate goal-oriented seed queries
+python mcp_generate/query_generate_goaloriented.py \
+  --in MCP_INFO_MGR/mcp_data/indexed/tool_descriptions.ndjson \
+  --out mcp_generate/requests/goaloriented_seeds.json \
+  --num-queries 20
+
+# Generate with custom model
+python mcp_generate/query_generate_goaloriented.py \
+  --in MCP_INFO_MGR/mcp_data/indexed/tool_descriptions.ndjson \
+  --out mcp_generate/requests/goaloriented_seeds_100.json \
+  --num-queries 100 \
+  --model "anthropic/claude-3.5-sonnet"
+```
+
+**Arguments:**
+- `--in`: Input NDJSON file with tool descriptions
+- `--out`: Output JSON file for seed queries with goals
+- `--num-queries`: Number of goal-oriented seeds to generate (default: 50)
+- `--tools-per-prompt`: Number of tools to sample per prompt (default: 50)
+- `--model`: LLM model for generation (default: `openai/gpt-4o-mini`)
+
+**Output:** JSON file with seed queries and goals:
+```json
+{
+  "metadata": {
+    "total_items": 20,
+    "servers_count": 15,
+    "generation_method": "async_goaloriented_seeds",
+    "model": "openai/gpt-4o-mini"
+  },
+  "items": [
+    {
+      "query": "What events are happening in Bodrum in 2025?",
+      "goal": "I'm planning a trip to Bodrum in 2025 and need to find events, check the weather, explore local restaurants, and identify suitable hotels.",
+      "reference_tools": [
+        {
+          "server": "@ebartan/bodrum-mcp-2025",
+          "tool": "getBodrumEvents",
+          "why": "To find upcoming events, festivals, and activities in Bodrum."
+        },
+        {
+          "server": "@ebartan/bodrum-mcp-2025",
+          "tool": "getBodrumWeather",
+          "why": "To check typical weather conditions for Bodrum by season."
+        }
+      ],
+      "goal_category": "trip_planning",
+      "complexity": "medium"
+    }
+  ]
+}
+```
+
+**Goal Categories:**
+- `trip_planning`: Events + weather + restaurants + hotels
+- `research`: Papers + methods + researchers + trends
+- `investment_decision`: Price + news + financials + competitors
+- `product_comparison`: Reviews + specs + prices + availability
+- `problem_diagnosis`: Causes + solutions + similar issues + verification
+- `event_discovery`: Events + topics + tickets + speakers
+
+**Goal Characteristics:**
+- Broader than the seed query (requires multiple steps)
+- Measurable (clear when complete)
+- Achievable through available MCP tools
+- Decomposes into 3-6 sub-goals
+
+**Use with Goal-Oriented Agent:**
+```bash
+python runtime/run_goaloriented_agent.py \
+  --seeds mcp_generate/requests/goaloriented_seeds.json \
+  --persona curious_researcher \
+  --max-turns 8 \
   --save-trajectory
 ```
 
@@ -927,4 +1128,4 @@ python -m MCP_INFO_MGR.semantic_search.build_search_index --input MCP_INFO_MGR/m
 
 ---
 
-*Last updated: 2025-11-11*
+*Last updated: 2025-11-11 (Added goal-oriented agent)*
