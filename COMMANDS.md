@@ -4,6 +4,9 @@ This document contains all the Python commands and scripts for the MCP Research 
 
 ## Table of Contents
 1. [Agent Execution](#agent-execution)
+   - [Single-Turn Agent](#run-react-agent-with-dynamic-tool-discovery)
+   - [Multi-Turn Agent](#run-multi-turn-conversational-agent)
+   - [Batch Execution](#run-batch-queries-from-json-file)
 2. [Tool Testing](#tool-testing)
 3. [Query Generation](#query-generation)
 4. [Trajectory Evaluation](#trajectory-evaluation)
@@ -53,6 +56,115 @@ python runtime/run_react_agent.py \
 - Agent's reasoning and actions in console
 - Final response
 - Trajectory JSON file (if `--save-trajectory` used)
+
+---
+
+### Run Multi-Turn Conversational Agent
+
+Run an interactive multi-turn conversation with a simulated user that evaluates responses and asks follow-up questions:
+
+```bash
+cd /Users/xiziqiao/Documents/MCP-Research/MCP-R
+
+# Basic usage with default persona
+python runtime/run_multiturn_agent.py "What are the upcoming events in Bodrum?"
+
+# With specific persona
+python runtime/run_multiturn_agent.py \
+  "Find research papers about small language models" \
+  --persona curious_researcher \
+  --max-turns 5
+
+# Save trajectory
+python runtime/run_multiturn_agent.py \
+  "What's the weather in Seattle?" \
+  --persona thorough_analyst \
+  --save-trajectory
+
+# Custom model and settings
+python runtime/run_multiturn_agent.py \
+  "Search for information about D&D spells" \
+  --persona skeptical_user \
+  --model "anthropic/claude-3.5-sonnet" \
+  --user-model "anthropic/claude-3.5-sonnet" \
+  --max-turns 8 \
+  --max-iterations 10 \
+  --save-trajectory
+
+# Run multiple seed queries from file
+python runtime/run_multiturn_agent.py \
+  --seeds mcp_generate/requests/multiturn_seeds_test.json \
+  --persona curious_researcher \
+  --max-turns 5 \
+  --save-trajectory
+```
+
+**Arguments:**
+- `query`: Initial query (required if not using --seeds)
+- `--seeds`: JSON file with multiple seed queries to run
+- `--persona`: Simulated user persona (default: `curious_researcher`)
+  - `curious_researcher`: Asks detailed follow-up questions, explores deeply
+  - `impatient_user`: Gets frustrated quickly, expects concise answers
+  - `thorough_analyst`: Methodical, wants complete information
+  - `casual_user`: Relaxed conversation style, moderate depth
+  - `skeptical_user`: Questions results, wants verification
+- `--max-turns`: Maximum conversation turns (default: 5)
+- `--model`: LLM model for agent (default: `anthropic/claude-3.5-sonnet`)
+- `--user-model`: LLM model for simulated user (default: `anthropic/claude-3.5-sonnet`)
+- `--max-iterations`: Maximum agent reasoning steps per turn (default: 10)
+- `--save-trajectory`: Save conversation trajectory to `trajectories/multiturn/`
+
+**Output:**
+- Console: Full conversation with agent responses and user feedback
+- Trajectory files (if `--save-trajectory`): `trajectories/multiturn/multiturn_XXX_TIMESTAMP.json`
+
+**Multi-Turn Trajectory Structure:**
+```json
+{
+  "metadata": {
+    "initial_query": "What are D&D spells for sorcerers?",
+    "persona": "curious_researcher",
+    "max_turns": 5,
+    "timestamp": "2025-11-10T15:34:27.123456"
+  },
+  "turns": [
+    {
+      "turn_number": 1,
+      "query": "What are D&D spells for sorcerers?",
+      "agent_response": "...",
+      "tool_calls": [...],
+      "tool_results": [...],
+      "available_servers": ["meta-mcp", "dnd-tools"],
+      "available_tool_count": 15,
+      "user_decision": "continue",
+      "satisfaction_level": 0.75,
+      "user_reasoning": "Good start but need more details...",
+      "follow_up_intent": "Ask about specific spell levels"
+    }
+  ],
+  "summary": {
+    "total_turns": 3,
+    "termination_reason": "satisfied",
+    "final_satisfaction": 0.85,
+    "servers_used": ["meta-mcp", "dnd-tools", "spell-database"],
+    "total_tool_calls": 12
+  }
+}
+```
+
+**Key Multi-Turn Features:**
+- **Tool Exploration**: Simulated user encourages agent to discover NEW tools each turn via meta-mcp
+- **Satisfaction Tracking**: User evaluates each response and assigns satisfaction score (0.0-1.0)
+- **Critical Evaluation**: User checks if agent used tools vs internal knowledge
+  - No tools used → satisfaction ≤ 0.4
+  - Mixed tool results with internal knowledge → satisfaction ≤ 0.4
+  - Proper tool usage → normal satisfaction (0.6-1.0)
+- **Dynamic Termination**: Conversation ends when user is satisfied or frustrated
+- **Fresh Agent per Conversation**: Each conversation gets a new agent instance to avoid async issues
+
+**See Also:**
+- Full specification: `docs/MULTI_TURN_AGENT_SPEC.md`
+- Multi-turn query generation: [Generate Multi-Turn Seed Queries](#generate-multi-turn-seed-queries)
 
 ---
 
@@ -190,7 +302,7 @@ python test_all_tools.py \
 
 ### Generate Natural Language Queries
 
-Generate test queries for benchmarking:
+Generate test queries for single-turn benchmarking:
 
 ```bash
 cd /Users/xiziqiao/Documents/MCP-Research/MCP-R
@@ -221,6 +333,73 @@ python mcp_generate/query_generate.py \
   },
   "queries": ["query1", "query2", ...]
 }
+```
+
+---
+
+### Generate Multi-Turn Seed Queries
+
+Generate seed queries optimized for multi-turn conversations:
+
+```bash
+cd /Users/xiziqiao/Documents/MCP-Research/MCP-R
+
+# Generate multi-turn seed queries
+python mcp_generate/query_generate_multiturn.py \
+  --in MCP_INFO_MGR/mcp_data/indexed/tool_descriptions.ndjson \
+  --out mcp_generate/requests/multiturn_seeds.json \
+  --num-queries 20
+
+# Generate with custom model
+python mcp_generate/query_generate_multiturn.py \
+  --in MCP_INFO_MGR/mcp_data/indexed/tool_descriptions.ndjson \
+  --out mcp_generate/requests/multiturn_seeds_100.json \
+  --num-queries 100 \
+  --model "anthropic/claude-3.5-sonnet"
+```
+
+**Arguments:**
+- `--in`: Input NDJSON file with tool descriptions
+- `--out`: Output JSON file for seed queries
+- `--num-queries`: Number of seed queries to generate (default: 20)
+- `--model`: LLM model for generation (default: `anthropic/claude-3.5-sonnet`)
+
+**Output:** JSON file with seed queries (same format as single-turn):
+```json
+{
+  "metadata": {
+    "total_items": 20,
+    "servers_count": 307,
+    "generation_method": "async_multiturn_seeds"
+  },
+  "items": [
+    {
+      "query": "What are the upcoming events in Bodrum?",
+      "reference_tools": [
+        {
+          "server": "@ebartan/bodrum-mcp-2025",
+          "tool": "getBodrumEvents",
+          "why": "To find events in Bodrum"
+        }
+      ]
+    }
+  ]
+}
+```
+
+**Multi-Turn Query Characteristics:**
+- Open-ended questions that naturally lead to follow-ups
+- Designed to encourage tool exploration across turns
+- Avoid queries that can be fully answered in one turn
+- Focus on domains with multiple related MCP servers
+
+**Use with Multi-Turn Agent:**
+```bash
+python runtime/run_multiturn_agent.py \
+  --seeds mcp_generate/requests/multiturn_seeds.json \
+  --persona curious_researcher \
+  --max-turns 5 \
+  --save-trajectory
 ```
 
 ---
@@ -748,4 +927,4 @@ python -m MCP_INFO_MGR.semantic_search.build_search_index --input MCP_INFO_MGR/m
 
 ---
 
-*Last updated: 2025-10-29*
+*Last updated: 2025-11-11*
