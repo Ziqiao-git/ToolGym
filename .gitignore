@@ -54,6 +54,9 @@ trajectories/*.json
 *.log
 .DS_Store
 
+# Image files
+*.png
+
 # Model caches
 models/
 .cache/
