@@ -29,6 +29,8 @@ import sys
 import json
 import asyncio
 import argparse
+import re
+
 from pathlib import Path
 from typing import Dict, List, Optional
 from datetime import datetime
@@ -194,6 +196,52 @@ class GoalTrajectory:
 # ============================================================================
 # Goal Tracker
 # ============================================================================
+def _load_first_json_obj(text: str):
+    """从任意文本中提取第一个完整顶层 JSON 对象并反序列化。
+    兼容 ```json ... ``` 和 ``` ... ``` 包裹，以及前后多余文字。"""
+    s = text.strip()
+
+    # 去掉代码块包裹
+    if s.startswith("```"):
+        # 优先处理 ```json ... ```
+        if s.startswith("```json"):
+            s = s.split("```json", 1)[1]
+        else:
+            s = s.split("```", 1)[1]
+        # 截到下一个 ```
+        s = s.split("```", 1)[0].strip()
+
+    # 从 s 中找第一个完整的 {...}
+    depth = 0
+    start = -1
+    in_str = False
+    escape = False
+    for i, ch in enumerate(s):
+        if in_str:
+            if escape:
+                escape = False
+            elif ch == '\\':
+                escape = True
+            elif ch == '"':
+                in_str = False
+            continue
+        else:
+            if ch == '"':
+                in_str = True
+                continue
+            if ch == '{':
+                if depth == 0:
+                    start = i
+                depth += 1
+            elif ch == '}':
+                if depth > 0:
+                    depth -= 1
+                    if depth == 0 and start != -1:
+                        block = s[start:i+1]
+                        return json.loads(block)
+
+    # 如果没找到顶层 JSON，直接尝试原文
+    return json.loads(s)
 
 class GoalTracker:
     """Tracks sub-goal completion throughout conversation."""
@@ -252,13 +300,7 @@ Output format (strict JSON):
             response = await self.llm.generate_async(messages)
 
             # Try to parse JSON from response
-            content = response.strip()
-            if content.startswith("```json"):
-                content = content.split("```json")[1].split("```")[0].strip()
-            elif content.startswith("```"):
-                content = content.split("```")[1].split("```")[0].strip()
-
-            data = json.loads(content)
+            data = _load_first_json_obj(response)
             self.sub_goals = data.get("sub_goals", [])
             self.remaining = self.sub_goals.copy()
             return self.sub_goals
@@ -311,7 +353,7 @@ A sub-goal is NOT completed if:
 
 Output format (strict JSON):
 {{
-  "completed_this_turn": ["Sub-goal 1", "Sub-goal 2"],
+  "completed_this_turn": ["exact sub-goal text", "..."],
   "reasoning": "Brief explanation of what was completed and why"
 }}"""
 
@@ -320,16 +362,8 @@ Output format (strict JSON):
             response = await self.llm.generate_async(messages)
 
             # Parse JSON
-            content = response.strip()
-            if content.startswith("```json"):
-                content = content.split("```json")[1].split("```")[0].strip()
-            elif content.startswith("```"):
-                content = content.split("```")[1].split("```")[0].strip()
-
-            data = json.loads(content)
+            data = _load_first_json_obj(response)
             completed_this_turn = data.get("completed_this_turn", [])
-
-            # Update tracking
             for sg in completed_this_turn:
                 if sg in self.remaining:
                     self.remaining.remove(sg)
@@ -531,13 +565,7 @@ Evaluate the agent's response now."""
             response = await self.llm.generate_async(messages)
 
             # Parse JSON
-            content = response.strip()
-            if content.startswith("```json"):
-                content = content.split("```json")[1].split("```")[0].strip()
-            elif content.startswith("```"):
-                content = content.split("```")[1].split("```")[0].strip()
-
-            decision = json.loads(content)
+            decision = _load_first_json_obj(response)
 
             # Validate required fields
             if "decision" not in decision:
