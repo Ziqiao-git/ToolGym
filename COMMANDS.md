@@ -1009,6 +1009,188 @@ export OPENAI_BASE_URL="https://openrouter.ai/api/v1"
 
 ---
 
+### Step-by-Step Evaluation (NEW)
+
+Evaluate each reasoning step individually in addition to holistic evaluation. This mode evaluates whether each step contributes toward the ultimate goal.
+
+#### Basic Step-by-Step Evaluation
+
+```bash
+cd /Users/xiziqiao/Documents/MCP-Research/MCP-R
+export PYTHONPATH="/Users/xiziqiao/Documents/MCP-Research/MCP-R/Orchestrator:$PYTHONPATH"
+
+# Evaluate single trajectory with step-by-step analysis
+python Orchestrator/mcpuniverse/evaluator/commonllmjudge.py \
+  --trajectory trajectories/trajectory_20251106_140812.json \
+  --step-by-step \
+  --model openai/gpt-4o-mini
+
+# Save results to file
+python Orchestrator/mcpuniverse/evaluator/commonllmjudge.py \
+  --trajectory trajectories/trajectory_20251106_140812.json \
+  --step-by-step \
+  --model openai/gpt-4o-mini \
+  --save_json evaluation/step_by_step_results.json
+
+# Use different judge model
+python Orchestrator/mcpuniverse/evaluator/commonllmjudge.py \
+  --trajectory trajectories/trajectory_20251106_140812.json \
+  --step-by-step \
+  --model anthropic/claude-3.5-sonnet \
+  --save_json evaluation/step_by_step_claude.json
+```
+
+**What it does:**
+- Evaluates EACH reasoning step individually (Thought → Action → Result)
+- Checks if each step progresses toward answering the user's query
+- Provides both step-by-step evaluation AND holistic evaluation
+- Each step is evaluated with full awareness of previous steps
+
+**Step-by-Step Evaluation Dimensions (4 dimensions per step):**
+
+1. **Thought Quality** (0-10): Clarity and reasoning quality
+2. **Action Appropriateness** (0-10): Was the action/tool choice appropriate?
+3. **Result Utilization** (0-10): How well was the tool result used?
+4. **Progress Toward Goal** (0-10): **MOST CRITICAL** - Does this step move closer to answering the query?
+   - 10 = Essential step, directly advances toward goal
+   - 8-9 = Helpful step, clearly contributes
+   - 6-7 = Marginal progress
+   - 4-5 = Minimal progress, mostly redundant
+   - 0-3 = No progress, wrong direction
+
+**Step Score Calculation:**
+```
+step_score = (thought_quality + action_appropriateness + result_utilization + progress_toward_goal) / 40.0
+```
+
+**Output Format (Step-by-Step Mode):**
+```json
+{
+  "query": "Can you find current trending games on Steam?",
+  "holistic_evaluation": {
+    "score": 0.82,
+    "task_fulfillment": 0.85,
+    "grounding": 0.90,
+    "tool_choice": 0.80,
+    "tool_execution": 0.75,
+    "requirement_satisfaction": 0.80,
+    "explanation": "Overall trajectory evaluation..."
+  },
+  "step_by_step_evaluation": {
+    "total_steps": 3,
+    "average_step_score": 0.78,
+    "steps": [
+      {
+        "step_number": 1,
+        "thought": "I need to search for tools related to Steam games...",
+        "action": "search_tools",
+        "action_input": "{'query': 'steam games', 'top_k': 10}",
+        "tool_result": "Found 10 relevant tools...",
+        "evaluation": {
+          "thought_quality": 8,
+          "action_appropriateness": 9,
+          "result_utilization": 7,
+          "progress_toward_goal": 9,
+          "step_score": 0.825,
+          "progress_explanation": "Essential first step - searching for relevant tools is necessary to find Steam-related functionality."
+        }
+      },
+      {
+        "step_number": 2,
+        "thought": "Now I'll use the steam_trending tool...",
+        "action": "steam_trending",
+        "action_input": "{'category': 'popular'}",
+        "tool_result": "[List of trending games...]",
+        "evaluation": {
+          "thought_quality": 9,
+          "action_appropriateness": 10,
+          "result_utilization": 8,
+          "progress_toward_goal": 10,
+          "step_score": 0.925,
+          "progress_explanation": "Critical step - directly retrieves trending games data, exactly what the query asked for."
+        }
+      }
+    ]
+  }
+}
+```
+
+**Key Features:**
+
+- **Context Awareness**: Each step evaluation includes:
+  - ULTIMATE GOAL (user's query) prominently displayed
+  - All previous steps (thought, action, result truncated to 200 chars)
+  - Current step details (result truncated to 500 chars)
+
+- **Progress-Oriented**: Primary focus on whether each step advances toward the goal
+  - Detects redundant steps that don't contribute
+  - Identifies tangential explorations
+  - Rewards essential steps highly
+
+- **Combined Output**: Get both perspectives
+  - Step-by-step: Micro-level analysis of reasoning quality
+  - Holistic: Macro-level assessment of overall success
+
+**When to Use Step-by-Step:**
+
+✅ **Use when:**
+- Debugging agent reasoning issues
+- Understanding why an agent succeeded/failed at each step
+- Analyzing efficiency of multi-step trajectories
+- Identifying redundant or unnecessary steps
+- Training data curation for agent fine-tuning
+
+❌ **Skip when:**
+- Only need final answer quality (use holistic mode)
+- Processing large batches (step-by-step is slower)
+- Cost-sensitive evaluation (2x LLM calls vs holistic)
+
+**Performance Notes:**
+- **Time**: ~2x slower than holistic-only mode (evaluates each step + holistic)
+- **Cost**: Higher LLM API costs (N step evaluations + 1 holistic evaluation)
+- **Output Size**: Larger JSON files with per-step details
+
+**Arguments:**
+- `--step-by-step`: Enable step-by-step evaluation (default: False)
+- `--trajectory`: Path to single trajectory file (required)
+- `--model`: LLM judge model (default: `openai/gpt-4o-mini`)
+- `--temperature`: LLM temperature (default: 0.0)
+- `--threshold`: Pass/fail threshold (default: 0.85)
+- `--save_json`: Output file path (optional, prints to stdout if omitted)
+
+**Example Workflow:**
+
+```bash
+# 1. Run agent and save trajectory
+python runtime/run_react_agent.py \
+  "Find trending Steam games" \
+  --save-trajectory
+
+# 2. Evaluate with step-by-step analysis
+export PYTHONPATH="/Users/xiziqiao/Documents/MCP-Research/MCP-R/Orchestrator:$PYTHONPATH"
+python Orchestrator/mcpuniverse/evaluator/commonllmjudge.py \
+  --trajectory trajectories/trajectory_20251113_HHMMSS.json \
+  --step-by-step \
+  --model openai/gpt-4o-mini \
+  --save_json evaluation/step_analysis.json
+
+# 3. Analyze results
+python -c "
+import json
+with open('evaluation/step_analysis.json') as f:
+    result = json.load(f)[0]
+    steps = result['step_by_step_evaluation']['steps']
+    print(f'Average Step Score: {result[\"step_by_step_evaluation\"][\"average_step_score\"]:.2f}')
+    print(f'Holistic Score: {result[\"holistic_evaluation\"][\"score\"]:.2f}')
+    print(f'\nStep-by-Step Breakdown:')
+    for step in steps:
+        eval_data = step['evaluation']
+        print(f\"  Step {step['step_number']}: {eval_data['step_score']:.2f} (Progress: {eval_data['progress_toward_goal']}/10)\")
+"
+```
+
+---
+
 ## Trajectory Structure and Debugging
 
 ### Understanding Trajectory Files
