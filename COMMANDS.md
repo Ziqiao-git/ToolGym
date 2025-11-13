@@ -14,9 +14,13 @@ This document contains all the Python commands and scripts for the MCP Research 
    - [Multi-Turn Seeds](#generate-multi-turn-seed-queries)
    - [Goal-Oriented Seeds](#generate-goal-oriented-seed-queries)
 4. [Trajectory Evaluation](#trajectory-evaluation)
-5. [Data Filtering](#data-filtering)
-6. [FAISS Index Building](#faiss-index-building)
-7. [Analysis Scripts](#analysis-scripts)
+5. [Data Collection and Pipeline](#data-collection-and-pipeline)
+   - [Complete Recrawl Workflow](#complete-recrawl-workflow-automated)
+6. [Data Filtering](#data-filtering)
+   - [Filter Remote MCP Servers](#filter-remote-mcp-servers)
+   - [Filter Working Tools](#filter-working-tools)
+7. [FAISS Index Building](#faiss-index-building)
+8. [Analysis Scripts](#analysis-scripts)
 
 ---
 
@@ -411,6 +415,291 @@ python test_all_tools.py \
 ```
 
 **This is much faster than re-testing!** It checks if "successful" responses actually contain errors.
+
+### Tool Testing Pipeline (Complete Methodology)
+
+Testing MCP tools requires a **4-stage pipeline** because tools need active server connections and proper authentication. This section explains why testing is complex and how to run the full pipeline.
+
+#### Why Tool Testing Is Complex
+
+Unlike static code testing, MCP tools require:
+1. **Live server connections** - Servers must be reachable via HTTPS/SSE
+2. **Authentication** - Most servers require Smithery API keys
+3. **Dynamic schemas** - Tool arguments vary per server, must be generated
+4. **Timeout handling** - Servers can be slow or unresponsive
+5. **Quality evaluation** - Technical success ≠ useful results
+
+**Time Estimate:** 4-6 hours for ~740 remote servers (30-60s per server for fetching + testing)
+
+#### Stage 1: Generate Server Configurations
+
+**Purpose:** Create MCP-Universe configuration entries for Smithery remote servers.
+
+**Why needed:** MCPManager requires specific config structure with authentication. Since all Smithery remote servers follow a standard URL pattern (`https://server.smithery.ai/{qualifiedName}/mcp`), we can generate configs directly.
+
+```bash
+cd /Users/xiziqiao/Documents/MCP-Research/MCP-R
+
+python MCP_INFO_MGR/generate_smithery_configs.py \
+  --input mcp_data/raw/smithery_remote_servers.ndjson \
+  --output MCP_INFO_MGR/mcp_data/usable/remote_server_configs.json
+```
+
+**Arguments:**
+- `--input`: NDJSON file with remote servers (from filter_remote_servers.py)
+- `--output`: Output JSON file with server configs
+- `--api-key-variable`: Environment variable for API key (default: SMITHERY_API_KEY)
+
+**What it does:**
+- Reads remote servers from filtered list
+- Generates standard Smithery URLs for each server
+- Injects `{{SMITHERY_API_KEY}}` placeholders into URLs
+- Creates `streamable_http` config entries for MCPManager
+
+**Output format:**
+```json
+{
+  "exa": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/exa/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  }
+}
+```
+
+**Time:** ~1-2 seconds (fast, just JSON processing)
+
+**Note:** For Smithery servers, we skip the reachability check because:
+1. All servers use the same URL pattern
+2. Unreachable servers will fail during tool fetching (next stage)
+3. Saves ~2 hours compared to pre-checking each server
+
+#### Stage 2: Fetch Tool Descriptions
+
+**Purpose:** Connect to each server and retrieve full tool schemas (name, description, inputSchema).
+
+**Why needed:** Tool testing requires schemas to generate valid test arguments. This stage also serves as a reachability check - servers that are offline will fail here.
+
+```bash
+cd /Users/xiziqiao/Documents/MCP-Research/MCP-R
+
+python MCP_INFO_MGR/fetch_tool_descriptions.py \
+  --input mcp_data/raw/smithery_remote_servers.ndjson \
+  --config MCP_INFO_MGR/mcp_data/usable/remote_server_configs.json \
+  --output MCP_INFO_MGR/mcp_data/indexed/tool_descriptions.ndjson \
+  --retry-failed 2 \
+  --retry-timeout 60
+```
+
+**Arguments:**
+- `--input`: Remote servers NDJSON (used to get server names)
+- `--config`: Server configs from stage 1
+- `--output`: Output NDJSON file with tool descriptions
+- `--retry-failed`: Number of retry attempts for failed servers (default: 2)
+- `--retry-timeout`: Timeout for retries in seconds (default: 60)
+- `--no-auto-retry`: Disable automatic retry
+- `--retry-only`: Only retry failed servers from existing output file
+
+**What it does:**
+- Connects to each server using MCPManager
+- Calls `client.list_tools()` to fetch tool metadata
+- Retries failed servers with increasing timeouts
+- Writes results incrementally (one server per line)
+- **Time:** ~30-60 seconds per server × 740 servers = ~4-6 hours
+
+**Output format:**
+```json
+{
+  "qualifiedName": "exa",
+  "status": "ok",
+  "toolCount": 3,
+  "tools": [
+    {
+      "name": "search",
+      "description": "Search the web with Exa",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "query": {"type": "string", "description": "Search query"}
+        },
+        "required": ["query"]
+      }
+    }
+  ],
+  "timestamp": "2025-11-11T20:00:00.000000"
+}
+```
+
+**Retry-only mode** (faster when you have existing results):
+```bash
+# Only retry failed servers, skip re-processing successful ones
+python MCP_INFO_MGR/fetch_tool_descriptions.py \
+  --retry-only \
+  --retry-failed 3 \
+  --retry-timeout 90
+```
+
+#### Stage 3: Test All Tools
+
+**Purpose:** Actually invoke each tool with test arguments to verify functionality.
+
+**Why needed:** Having a tool schema doesn't mean the tool works. This stage tests execution.
+
+```bash
+cd /Users/xiziqiao/Documents/MCP-Research/MCP-R/MCP_INFO_MGR
+
+# Fast mode: Simple heuristic arguments (no LLM)
+python test_all_tools.py \
+  --output tool_test_results_simple.json
+
+# LLM mode: Realistic arguments generated by LLM
+python test_all_tools.py \
+  --use-llm \
+  --model "openai/gpt-4o-mini" \
+  --output tool_test_results_llm.json
+
+# Full evaluation mode: LLM arguments + quality evaluation
+python test_all_tools.py \
+  --evaluate-with-llm \
+  --model "openai/gpt-4o-mini" \
+  --judge-model "openai/gpt-4o-mini" \
+  --output tool_test_results_evaluated.json
+
+# Trial run (first 10 servers)
+python test_all_tools.py \
+  --use-llm \
+  --limit 10 \
+  --output trial_results.json
+```
+
+**Testing Modes:**
+
+1. **Simple Mode (default)**: Fast technical testing
+   - Generates basic arguments from schema (e.g., "test query" for string params)
+   - Tests technical execution only (does tool run without errors?)
+   - **Time:** ~3 seconds per tool
+   - **Use case:** Quick verification that tools execute
+
+2. **LLM Mode (`--use-llm`)**: Realistic arguments
+   - Uses LLM to generate meaningful test arguments
+   - Still only checks technical success (no quality evaluation)
+   - **Time:** ~5 seconds per tool (includes LLM API call)
+   - **Use case:** Testing with realistic data
+
+3. **LLM Evaluation Mode (`--evaluate-with-llm`)**: Quality assessment
+   - Generates realistic arguments (like LLM mode)
+   - Uses LLM judge to evaluate response quality
+   - Detects false positives (tool executes but returns errors)
+   - **Time:** ~10 seconds per tool (2 LLM calls: generation + evaluation)
+   - **Use case:** Finding truly working tools
+
+**What it does:**
+- Loads tool descriptions from stage 2
+- For each tool:
+  1. Generates test arguments (simple or LLM-based)
+  2. Connects to server and invokes tool
+  3. Records status (success/failed/timeout/connection_failed)
+  4. Optionally evaluates response quality with LLM
+- Writes results to JSON file
+
+**Output format:**
+```json
+{
+  "timestamp": "2025-11-11T20:00:00.000000",
+  "total_tests": 1500,
+  "results": [
+    {
+      "server": "exa",
+      "tool": "search",
+      "description": "Search the web with Exa",
+      "status": "success",
+      "test_arguments": {"query": "latest AI news"},
+      "response": {"results": [...]},
+      "test_mode": "llm",
+      "llm_evaluation": {
+        "success": true,
+        "overall_score": 0.85,
+        "explanation": "Tool executed successfully and returned relevant results"
+      }
+    }
+  ]
+}
+```
+
+**Rate Limiting:**
+- Built-in rate limiter: 30 requests/minute to avoid API throttling
+- Automatic retries with exponential backoff
+
+**LLM Evaluation Criteria:**
+
+Mark as **FAILURE** (tool is broken) only if:
+- HTTP errors (404, 500, etc.) in response
+- Exceptions or error messages
+- "Tool not configured" or "setup required"
+- Completely empty response when data is expected
+- Connection/timeout errors
+
+Mark as **SUCCESS** (tool is usable) if:
+- Tool executed and returned any data (even if suboptimal)
+- Search returned results (even if not perfectly relevant)
+- Tool returned "no results found" (tool works, just no data)
+- Response has valid structure with empty/null values
+
+**Focus:** Technical errors, NOT result quality or relevance.
+
+#### Complete Pipeline Example (Simplified for Smithery)
+
+```bash
+#!/bin/bash
+# Complete tool testing pipeline for Smithery servers
+
+cd /Users/xiziqiao/Documents/MCP-Research/MCP-R
+
+# Stage 1: Generate configs (<1 minute)
+echo "Stage 1/3: Generating server configs..."
+python MCP_INFO_MGR/generate_smithery_configs.py \
+  --input mcp_data/raw/smithery_remote_servers.ndjson \
+  --output MCP_INFO_MGR/mcp_data/usable/remote_server_configs.json
+
+# Stage 2: Fetch tool descriptions (~4-6 hours with retries)
+echo "Stage 2/3: Fetching tool descriptions..."
+python MCP_INFO_MGR/fetch_tool_descriptions.py \
+  --input mcp_data/raw/smithery_remote_servers.ndjson \
+  --config MCP_INFO_MGR/mcp_data/usable/remote_server_configs.json \
+  --output MCP_INFO_MGR/mcp_data/indexed/tool_descriptions.ndjson
+
+# Stage 3: Test tools (~2-3 hours with LLM mode)
+echo "Stage 3/3: Testing all tools..."
+cd MCP_INFO_MGR
+python test_all_tools.py \
+  --use-llm \
+  --model "openai/gpt-4o-mini" \
+  --output tool_test_results.json
+
+echo "Pipeline complete!"
+```
+
+**Total Time:** ~4-6 hours for full pipeline with 740 remote servers
+
+**Key Simplifications for Smithery:**
+- ✅ Skip reachability check - saves ~2 hours
+- ✅ Direct config generation using standard URL pattern
+- ✅ Reachability verified during tool fetching (servers that are offline fail there)
+
+**Optimization Tips:**
+
+1. **Use `--limit` for testing:** Test first 10-20 servers to verify setup
+2. **Stages 1-2 only run once:** Results can be reused for multiple test runs
+3. **Use `--retry-only`:** If stage 2 fails partway, retry only failed servers
+4. **Simple mode first:** Run fast test, then use `--evaluate-existing` for quality check
+5. **Parallel execution:** Split servers into batches and run in parallel (advanced)
+
+**Required Environment Variables:**
+- `SMITHERY_API_KEY`: Required for all stages
+- `OPENAI_API_KEY` or `OPENROUTER_API_KEY`: Required for LLM modes
+- `OPENAI_BASE_URL` or `OPENROUTER_BASE_URL`: Optional, for custom endpoints
 
 ---
 
@@ -867,7 +1156,82 @@ EOF
 
 ---
 
+## Data Collection and Pipeline
+
+### Complete Recrawl Workflow (Automated)
+
+Run the complete pipeline from Smithery crawling to FAISS index building in one script:
+
+```bash
+cd /Users/xiziqiao/Documents/MCP-Research/MCP-R
+
+# Run automated recrawl workflow
+bash MCP_INFO_MGR/recrawl_workflow.sh
+```
+
+**What it does:**
+1. **Crawl Smithery Registry** - Fetch all MCP servers from Smithery API
+2. **Filter Remote Servers** - Keep only remote MCPs (exclude local stdio servers)
+3. **Fetch Tool Descriptions** - Get tool schemas from remote servers
+4. **Test Tools** (optional) - Verify tool reachability and functionality
+5. **Filter Working Tools** (optional) - Remove broken tools based on tests
+6. **Build FAISS Index** - Create semantic search index for tool discovery
+7. **Summary Statistics** - Display counts and file sizes
+
+**Interactive prompts:**
+- You'll be asked if you want to test all tools (Step 4)
+- Testing can take 30-60 minutes depending on number of servers
+- You can skip testing and just rebuild indexes with existing data
+
+**Output files:**
+- `mcp_data/raw/smithery_servers.ndjson` - All servers from Smithery
+- `mcp_data/raw/smithery_remote_servers.ndjson` - Remote servers only
+- `mcp_data/indexed/tool_descriptions.ndjson` - Tool schemas
+- `MCP_INFO_MGR/semantic_search/index.faiss` - FAISS index
+
+**When to use:**
+- After Smithery registry updates with new servers
+- When you want to refresh your local tool database
+- Before generating new queries for benchmarks
+
+---
+
 ## Data Filtering
+
+### Filter Remote MCP Servers
+
+Filter Smithery servers to keep only remote MCPs (accessible via SSE endpoints):
+
+```bash
+cd /Users/xiziqiao/Documents/MCP-Research/MCP-R
+
+# Basic filtering
+python MCP_INFO_MGR/filter_remote_servers.py \
+  --input mcp_data/raw/smithery_servers.ndjson \
+  --output mcp_data/raw/smithery_remote_servers.ndjson
+
+# With detailed statistics
+python MCP_INFO_MGR/filter_remote_servers.py \
+  --input mcp_data/raw/smithery_servers.ndjson \
+  --output mcp_data/raw/smithery_remote_servers.ndjson \
+  --stats
+```
+
+**What it does:**
+- Filters servers where `"remote": true` (accessible via HTTPS/SSE)
+- Excludes local stdio servers (`"remote": false`)
+- Typical results: ~72% remote servers (654/903 as of 2025-11-11)
+
+**Output:**
+- `smithery_remote_servers.ndjson`: Filtered remote servers only
+- Console statistics showing counts and percentages
+
+**When to use:**
+- After recrawling Smithery registry data
+- Before processing tool descriptions (use filtered data as input)
+- To focus on remotely accessible MCPs only
+
+---
 
 ### Filter Working Tools
 

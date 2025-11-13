@@ -1,938 +1,14 @@
 {
-  "@2511319/context7": {
+  "exa": {
     "streamable_http": {
-      "url": "https://server.smithery.ai/@2511319/context7/mcp?api_key={{SMITHERY_API_KEY}}",
+      "url": "https://server.smithery.ai/exa/mcp?api_key={{SMITHERY_API_KEY}}",
       "headers": {}
     },
     "env": {}
   },
-  "@82deutschmark/chlorpromazine-mcp": {
+  "@LinkupPlatform/linkup-mcp-server": {
     "streamable_http": {
-      "url": "https://server.smithery.ai/@82deutschmark/chlorpromazine-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@AITutor3/icn-mcp": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@AITutor3/icn-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@Aas-ee/open-websearch": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@Aas-ee/open-websearch/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@AbdallahAHO/lokalise-mcp": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@AbdallahAHO/lokalise-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@AdityaRapid/strapi_mcps": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@AdityaRapid/strapi_mcps/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@Alexander-Herranz/coinmarketcap-mcp": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@Alexander-Herranz/coinmarketcap-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@Aman-Amith-Shastry/scientific_computation_mcp": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@Aman-Amith-Shastry/scientific_computation_mcp/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@BadRooBot/blacklotus_mcp": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@BadRooBot/blacklotus_mcp/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@BadRooBot/test_m": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@BadRooBot/test_m/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@BarnacleLabs/chimera-mcp-smithery": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@BarnacleLabs/chimera-mcp-smithery/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@BlackSand-Software/hubspot-mcp": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@BlackSand-Software/hubspot-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@Bzcasper/say-hello-smithery-mcp": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@Bzcasper/say-hello-smithery-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@Calel33/ordiscan-mcp-v1": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@Calel33/ordiscan-mcp-v1/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@CaullenOmdahl/tailwind-svelte-assistant": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@CaullenOmdahl/tailwind-svelte-assistant/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@DidierRLopes/openbb-docs-mcp": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@DidierRLopes/openbb-docs-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@DynamicEndpoints/documentation-mcp-using-pocketbase": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@DynamicEndpoints/documentation-mcp-using-pocketbase/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@DynamicEndpoints/m365-core-mcp": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@DynamicEndpoints/m365-core-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@DynamicEndpoints/mesh-scanner": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@DynamicEndpoints/mesh-scanner/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@DynamicEndpoints/power-bi-mcp": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@DynamicEndpoints/power-bi-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@DynamicEndpoints/powershell-exec-mcp-server": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@DynamicEndpoints/powershell-exec-mcp-server/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@DynamicEndpoints/process_mapper_2025": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@DynamicEndpoints/process_mapper_2025/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@DynamicEndpoints/psadt-mcp": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@DynamicEndpoints/psadt-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@EenticE/scaffold": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@EenticE/scaffold/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@Ejb503/systemprompt-mcp-taskchecker": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@Ejb503/systemprompt-mcp-taskchecker/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@EthanHenrickson/math-mcp": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@EthanHenrickson/math-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@ExpertVagabond/solana-mcp-server": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@ExpertVagabond/solana-mcp-server/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@FVEFWFE/attio-mcp-server": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@FVEFWFE/attio-mcp-server/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@FaresYoussef94/aws-knowledge-mcp": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@FaresYoussef94/aws-knowledge-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@GDanksAnchor/mcp": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@GDanksAnchor/mcp/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@General-Analysis/mcp-guard": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@General-Analysis/mcp-guard/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@GigaChatTester/hubspot-mcp": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@GigaChatTester/hubspot-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@HelloGGX/shadcn-vue-mcp": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@HelloGGX/shadcn-vue-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@IndianAppGuy/magicslide-mcp": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@IndianAppGuy/magicslide-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@Isaac-theori/vulnerable-mcp-server": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@Isaac-theori/vulnerable-mcp-server/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@JoelRevLai/prova": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@JoelRevLai/prova/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@JunoJunHyun/festival-finder-mcp": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@JunoJunHyun/festival-finder-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@KISOpenAPI/kis-code-assistant-mcp": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@KISOpenAPI/kis-code-assistant-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@Kanta-Inc/kanta-mcp-server": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@Kanta-Inc/kanta-mcp-server/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@Kashyap-AI-ML-Solutions/webex-messaging-mcp-server": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@Kashyap-AI-ML-Solutions/webex-messaging-mcp-server/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@Kryptoskatt/mcp-server": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@Kryptoskatt/mcp-server/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@Liam8/free-coin-price-mcp": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@Liam8/free-coin-price-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@Linell/grimoire-mcp": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@Linell/grimoire-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@M1Vision/twenty-mcp": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@M1Vision/twenty-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@MR901/mcp-plots": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@MR901/mcp-plots/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@Michael98671/agentbay": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@Michael98671/agentbay/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@MisterSandFR/supabase-mcp-selfhosted": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@MisterSandFR/supabase-mcp-selfhosted/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@Myangsun/loc-memory-server": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@Myangsun/loc-memory-server/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@N3N-Seoul/n3n-milvus-mcp-server": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@N3N-Seoul/n3n-milvus-mcp-server/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@N3N-Seoul/n3n-search-mcp-server": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@N3N-Seoul/n3n-search-mcp-server/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@OEvortex/ddg_search": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@OEvortex/ddg_search/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@Open-Scout/mcp": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@Open-Scout/mcp/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@PV-Bhat/vibe-check-mcp-server": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@PV-Bhat/vibe-check-mcp-server/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@PabloLec/keyprobe-mcp": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@PabloLec/keyprobe-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@Parichay-Pothepalli/financial-research-mcp": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@Parichay-Pothepalli/financial-research-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@PhilemonChiro/supabase-mcp-cloud-and-selfhosted": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@PhilemonChiro/supabase-mcp-cloud-and-selfhosted/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@ProfessionalWiki/mediawiki-mcp-server": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@ProfessionalWiki/mediawiki-mcp-server/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@Puthin7778/plantops-mcp": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@Puthin7778/plantops-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@Quegenx/wapulse-whatsapp-mcp": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@Quegenx/wapulse-whatsapp-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@RamboRogers/fal-image-video-mcp": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@RamboRogers/fal-image-video-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@SHAY5555-gif/chrome-devtools-mcp-2": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@SHAY5555-gif/chrome-devtools-mcp-2/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@ShresthaAnkit/mcpserver": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@ShresthaAnkit/mcpserver/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@SiliconValleyInsight/amazon-product-search": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@SiliconValleyInsight/amazon-product-search/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@SmartManoj/smithery-fastmcp-example": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@SmartManoj/smithery-fastmcp-example/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@SpaceStation09/news-feed-python": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@SpaceStation09/news-feed-python/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@SpaceStation09/relate-account-mcp-python": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@SpaceStation09/relate-account-mcp-python/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@Stevekaplanai/promptforge-mcp-server": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@Stevekaplanai/promptforge-mcp-server/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@TanukiMCP/taskmaster": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@TanukiMCP/taskmaster/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@Trashwbin/streamable-demo": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@Trashwbin/streamable-demo/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@Trashwbin/streamable-demo1": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@Trashwbin/streamable-demo1/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@Turf-Tech/turf-mcp-server": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@Turf-Tech/turf-mcp-server/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@Vaibahv1306Rapid/sample_mcp": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@Vaibahv1306Rapid/sample_mcp/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@Vivek-k3/modelsplus": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@Vivek-k3/modelsplus/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@Wajahat-bitsol/jira-mcp-smithery": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@Wajahat-bitsol/jira-mcp-smithery/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@WordDirectory/directory": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@WordDirectory/directory/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@Ymuberra/geo-news-mcp": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@Ymuberra/geo-news-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@ZacharyHampton/homeharvest-mcp": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@ZacharyHampton/homeharvest-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@aakashns/duediligencemcp": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@aakashns/duediligencemcp/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@abdqum/supabase-mcp-selfhosted": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@abdqum/supabase-mcp-selfhosted/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@adamamer20/paper-search-mcp-openai": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@adamamer20/paper-search-mcp-openai/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@aerialcombat/say-hello-smithery-sample": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@aerialcombat/say-hello-smithery-sample/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@afarhadi99/spaces-download-mcp": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@afarhadi99/spaces-download-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@ahmed2real/thinkzone": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@ahmed2real/thinkzone/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@akilat-spec/tt-leave-manager-mcp": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@akilat-spec/tt-leave-manager-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@albertlieyingadrian/example-mcp": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@albertlieyingadrian/example-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@alex-llm/attack-mcp-server": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@alex-llm/attack-mcp-server/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@alphago2580/naramarketmcp": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@alphago2580/naramarketmcp/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@amalinakurniasari/conduit": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@amalinakurniasari/conduit/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@amalinakurniasari/figmamcp": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@amalinakurniasari/figmamcp/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@anirbanbasu/frankfurtermcp": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@anirbanbasu/frankfurtermcp/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@anirbanbasu/pymcp": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@anirbanbasu/pymcp/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@aniruddha-adhikary/gahmen-mcp": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@aniruddha-adhikary/gahmen-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@anusha5191/aicollectivetest": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@anusha5191/aicollectivetest/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@asumollo/symfp-gen": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@asumollo/symfp-gen/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@atimevil/mcp-kali-server": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@atimevil/mcp-kali-server/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@barryyip0625/mcp-discord": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@barryyip0625/mcp-discord/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@benbonn/utapimcp": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@benbonn/utapimcp/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@bh-rat/context-awesome": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@bh-rat/context-awesome/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@bhushangitfull/file-mcp-smith": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@bhushangitfull/file-mcp-smith/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@big-saltedfish/mcp-browser": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@big-saltedfish/mcp-browser/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@birdwell/runescape-wiki-mcp": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@birdwell/runescape-wiki-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@blockscout/mcp-server": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@blockscout/mcp-server/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@call518/mcp-mysql-ops": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@call518/mcp-mysql-ops/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@calvernaz/alphavantage": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@calvernaz/alphavantage/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@cantian-ai/bazi-mcp": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@cantian-ai/bazi-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@catwhisperingninja/uniswap-trader-mcp": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@catwhisperingninja/uniswap-trader-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@cdmarshall14/hubspot-mcp": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@cdmarshall14/hubspot-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@cdmarshall14/hubspot-mcp-2": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@cdmarshall14/hubspot-mcp-2/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@cfocoder/financial-modeling-prep-mcp-server": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@cfocoder/financial-modeling-prep-mcp-server/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@choudhary-github/learning-mcp": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@choudhary-github/learning-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@christos/eoa": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@christos/eoa/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@chuhuoyuan/cloudflare": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@chuhuoyuan/cloudflare/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@clarkemn/prisma-cloud-docs-mcp-server": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@clarkemn/prisma-cloud-docs-mcp-server/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@code-rabi/littlesis-mcp": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@code-rabi/littlesis-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@coinranking/coinranking-mcp": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@coinranking/coinranking-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@cpretzinger/ai-assistant-simple": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@cpretzinger/ai-assistant-simple/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@cristianoaredes/mcp-mobile-server": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@cristianoaredes/mcp-mobile-server/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@csrdltte/mcp-smooth": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@csrdltte/mcp-smooth/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@cuongpo/aptos-mcp-so": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@cuongpo/aptos-mcp-so/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@cuongpo/coti-mcp-1": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@cuongpo/coti-mcp-1/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@cuongpo/hyperion-mcp-server": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@cuongpo/hyperion-mcp-server/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@cuongpo/rootstock-mcp-test": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@cuongpo/rootstock-mcp-test/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@cuongpo/sei-dex-mcp": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@cuongpo/sei-dex-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@cyong80/subway-mcp": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@cyong80/subway-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@danix800/smithery-hello": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@danix800/smithery-hello/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@davibauer/coti-mcp": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@davibauer/coti-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@david-choi-querypie/david-mcp": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@david-choi-querypie/david-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@david-choi-querypie/david-mcp5": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@david-choi-querypie/david-mcp5/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@deeppath-ai/mcp-crew-risk": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@deeppath-ai/mcp-crew-risk/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@deeppath-ai/mcp-marketing-site": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@deeppath-ai/mcp-marketing-site/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@deeppath-ai/mcp-system-infra": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@deeppath-ai/mcp-system-infra/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@degenpilot404/yap_mcp": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@degenpilot404/yap_mcp/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@demomagic/duckchain-mcp": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@demomagic/duckchain-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@dmasdfg8/test": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@dmasdfg8/test/mcp?api_key={{SMITHERY_API_KEY}}",
+      "url": "https://server.smithery.ai/@LinkupPlatform/linkup-mcp-server/mcp?api_key={{SMITHERY_API_KEY}}",
       "headers": {}
     },
     "env": {}
@@ -944,226 +20,72 @@
     },
     "env": {}
   },
-  "@dotgc/duediligencemcp": {
+  "@smithery/toolbox": {
     "streamable_http": {
-      "url": "https://server.smithery.ai/@dotgc/duediligencemcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "url": "https://server.smithery.ai/@smithery/toolbox/mcp?api_key={{SMITHERY_API_KEY}}",
       "headers": {}
     },
     "env": {}
   },
-  "@dravidsajinraj-iex/cms-mcp": {
+  "@microsoft/learn_mcp": {
     "streamable_http": {
-      "url": "https://server.smithery.ai/@dravidsajinraj-iex/cms-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "url": "https://server.smithery.ai/@microsoft/learn_mcp/mcp?api_key={{SMITHERY_API_KEY}}",
       "headers": {}
     },
     "env": {}
   },
-  "@dravidsajinraj-iex/file-extractor-mcp": {
+  "@SHAY5555-gif/chrome-devtools-mcp-2": {
     "streamable_http": {
-      "url": "https://server.smithery.ai/@dravidsajinraj-iex/file-extractor-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "url": "https://server.smithery.ai/@SHAY5555-gif/chrome-devtools-mcp-2/mcp?api_key={{SMITHERY_API_KEY}}",
       "headers": {}
     },
     "env": {}
   },
-  "@ebartan/bodrum-belediyesi": {
+  "@blockscout/mcp-server": {
     "streamable_http": {
-      "url": "https://server.smithery.ai/@ebartan/bodrum-belediyesi/mcp?api_key={{SMITHERY_API_KEY}}",
+      "url": "https://server.smithery.ai/@blockscout/mcp-server/mcp?api_key={{SMITHERY_API_KEY}}",
       "headers": {}
     },
     "env": {}
   },
-  "@ebartan/bodrum-mcp-2025": {
+  "brave": {
     "streamable_http": {
-      "url": "https://server.smithery.ai/@ebartan/bodrum-mcp-2025/mcp?api_key={{SMITHERY_API_KEY}}",
+      "url": "https://server.smithery.ai/brave/mcp?api_key={{SMITHERY_API_KEY}}",
       "headers": {}
     },
     "env": {}
   },
-  "@emmanuel/apiworlddemoweather": {
+  "@bhushangitfull/file-mcp-smith": {
     "streamable_http": {
-      "url": "https://server.smithery.ai/@emmanuel/apiworlddemoweather/mcp?api_key={{SMITHERY_API_KEY}}",
+      "url": "https://server.smithery.ai/@bhushangitfull/file-mcp-smith/mcp?api_key={{SMITHERY_API_KEY}}",
       "headers": {}
     },
     "env": {}
   },
-  "@emmanuel/ll8": {
+  "@mem0ai/mem0-memory-mcp": {
     "streamable_http": {
-      "url": "https://server.smithery.ai/@emmanuel/ll8/mcp?api_key={{SMITHERY_API_KEY}}",
+      "url": "https://server.smithery.ai/@mem0ai/mem0-memory-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
       "headers": {}
     },
     "env": {}
   },
-  "@emmanuel/test-ll8": {
+  "@letta-ai/memory-mcp": {
     "streamable_http": {
-      "url": "https://server.smithery.ai/@emmanuel/test-ll8/mcp?api_key={{SMITHERY_API_KEY}}",
+      "url": "https://server.smithery.ai/@letta-ai/memory-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
       "headers": {}
     },
     "env": {}
   },
-  "@etweisberg/mlb-mcp": {
+  "@isnow890/naver-search-mcp": {
     "streamable_http": {
-      "url": "https://server.smithery.ai/@etweisberg/mlb-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "url": "https://server.smithery.ai/@isnow890/naver-search-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
       "headers": {}
     },
     "env": {}
   },
-  "@fahadBSTech/mcp-gmail-sender": {
+  "@browserbasehq/mcp-browserbase": {
     "streamable_http": {
-      "url": "https://server.smithery.ai/@fahadBSTech/mcp-gmail-sender/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@fiber-ai/mcp": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@fiber-ai/mcp/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@figstra/recodeqr-mcp": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@figstra/recodeqr-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@figstra/usewebhook-mcp": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@figstra/usewebhook-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@fletton/cut_text": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@fletton/cut_text/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@flight505/mcp_dincoder": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@flight505/mcp_dincoder/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@fozagtx/somnia-mcp": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@fozagtx/somnia-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@funkytownk/mcp_analysis": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@funkytownk/mcp_analysis/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@funkytownk/mcp_call_analysis": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@funkytownk/mcp_call_analysis/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@funkytownk/mcp_sales_analysis": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@funkytownk/mcp_sales_analysis/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@gen-pdf/mcp": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@gen-pdf/mcp/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@geobio/context7": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@geobio/context7/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@githru/githru-mcp-v1": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@githru/githru-mcp-v1/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@glassBead-tc/research-orchestration": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@glassBead-tc/research-orchestration/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@goldk3y/chainlink-mcp-server": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@goldk3y/chainlink-mcp-server/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@guanqun-yang/mcp-server-arithmetic": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@guanqun-yang/mcp-server-arithmetic/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@guanqun-yang/mcp-server-r-counter": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@guanqun-yang/mcp-server-r-counter/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@guanqun-yang/mcp-server-read-file": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@guanqun-yang/mcp-server-read-file/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@guanqun-yang/mcp-server-reverse-sentence": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@guanqun-yang/mcp-server-reverse-sentence/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@gul-tekinmuhendislik/gul-tekin-muhedislik-mcp": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@gul-tekinmuhendislik/gul-tekin-muhedislik-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@gvzq/flight-mcp": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@gvzq/flight-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@halismertkir/academik-tinder": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@halismertkir/academik-tinder/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@halismertkir/game-trends-mcp": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@halismertkir/game-trends-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "url": "https://server.smithery.ai/@browserbasehq/mcp-browserbase/mcp?api_key={{SMITHERY_API_KEY}}",
       "headers": {}
     },
     "env": {}
@@ -1175,23 +97,401 @@
     },
     "env": {}
   },
-  "@haojiasheng/add-number-mcp": {
+  "@smithery-ai/fetch": {
     "streamable_http": {
-      "url": "https://server.smithery.ai/@haojiasheng/add-number-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "url": "https://server.smithery.ai/@smithery-ai/fetch/mcp?api_key={{SMITHERY_API_KEY}}",
       "headers": {}
     },
     "env": {}
   },
-  "@hithereiamaliff/mcp-datagovmy": {
+  "deepwiki": {
     "streamable_http": {
-      "url": "https://server.smithery.ai/@hithereiamaliff/mcp-datagovmy/mcp?api_key={{SMITHERY_API_KEY}}",
+      "url": "https://server.smithery.ai/deepwiki/mcp?api_key={{SMITHERY_API_KEY}}",
       "headers": {}
     },
     "env": {}
   },
-  "@hjsh200219/fortuneteller": {
+  "@luminati-io/brightdata-mcp": {
     "streamable_http": {
-      "url": "https://server.smithery.ai/@hjsh200219/fortuneteller/mcp?api_key={{SMITHERY_API_KEY}}",
+      "url": "https://server.smithery.ai/@luminati-io/brightdata-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@ref-tools/ref-tools-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@ref-tools/ref-tools-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "supabase": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/supabase/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@smithery-ai/slack": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@smithery-ai/slack/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@upstash/context7-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@upstash/context7-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@wfyi-joy/pdf-reader-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@wfyi-joy/pdf-reader-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@geobio/context7": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@geobio/context7/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@Kastalien-Research/clear-thought-two": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@Kastalien-Research/clear-thought-two/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@infranodus/mcp-server-infranodus": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@infranodus/mcp-server-infranodus/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@EthanHenrickson/math-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@EthanHenrickson/math-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@Liam8/free-coin-price-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@Liam8/free-coin-price-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@msaltnet/excel-search-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@msaltnet/excel-search-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@token-metrics/mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@token-metrics/mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "linear": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/linear/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@zwldarren/akshare-one-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@zwldarren/akshare-one-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@waldzellai/clear-thought": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@waldzellai/clear-thought/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "notion": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/notion/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@aahl/mcp-aktools": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@aahl/mcp-aktools/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@shinzo-labs/gmail-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@shinzo-labs/gmail-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@OEvortex/ddg_search": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@OEvortex/ddg_search/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@xinkuang/china-stock-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@xinkuang/china-stock-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@EduBase/MCP": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@EduBase/MCP/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@sylweriusz/mcp-neo4j-memory-server": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@sylweriusz/mcp-neo4j-memory-server/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@halismertkir/game-trends-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@halismertkir/game-trends-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@smithery-ai/national-weather-service": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@smithery-ai/national-weather-service/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "supermemory": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/supermemory/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@HelloGGX/shadcn-vue-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@HelloGGX/shadcn-vue-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@arjunkmrm/perplexity-search": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@arjunkmrm/perplexity-search/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@gvzq/flight-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@gvzq/flight-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@shinzo-labs/coinmarketcap-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@shinzo-labs/coinmarketcap-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@shinzo-labs/hubspot-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@shinzo-labs/hubspot-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@ScrapeGraphAI/scrapegraph-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@ScrapeGraphAI/scrapegraph-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@smithery-ai/google-maps": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@smithery-ai/google-maps/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@smithery-ai/server-sequential-thinking": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@smithery-ai/server-sequential-thinking/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@IlyaGusev/academia_mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@IlyaGusev/academia_mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@punitarani/fli": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@punitarani/fli/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@lecigarevolant/arxiv-mcp-server-gpt": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@lecigarevolant/arxiv-mcp-server-gpt/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@IndianAppGuy/magicslide-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@IndianAppGuy/magicslide-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@adamamer20/paper-search-mcp-openai": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@adamamer20/paper-search-mcp-openai/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@kwp-lab/rss-reader-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@kwp-lab/rss-reader-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@anirbanbasu/pymcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@anirbanbasu/pymcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@parallel/search": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@parallel/search/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@enriquedlh97/playwright-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@enriquedlh97/playwright-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@smithery-ai/github": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@smithery-ai/github/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@Nekzus/npm-sentinel-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@Nekzus/npm-sentinel-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "vercel-domains": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/vercel-domains/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@makafeli/n8n-workflow-builder": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@makafeli/n8n-workflow-builder/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@GigaChatTester/github": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@GigaChatTester/github/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@PV-Bhat/vibe-check-mcp-server": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@PV-Bhat/vibe-check-mcp-server/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@DynamicEndpoints/powershell-exec-mcp-server": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@DynamicEndpoints/powershell-exec-mcp-server/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@isdaniel/mcp_weather_server": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@isdaniel/mcp_weather_server/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@Quegenx/wapulse-whatsapp-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@Quegenx/wapulse-whatsapp-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@jjyaoao/weather-mcp-server": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@jjyaoao/weather-mcp-server/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@mochow13/google-scholar-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@mochow13/google-scholar-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@TanukiMCP/taskmaster": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@TanukiMCP/taskmaster/mcp?api_key={{SMITHERY_API_KEY}}",
       "headers": {}
     },
     "env": {}
@@ -1203,65 +503,23 @@
     },
     "env": {}
   },
-  "@huangmy157/ddd": {
+  "@pinion05/supabase-mcp-lite": {
     "streamable_http": {
-      "url": "https://server.smithery.ai/@huangmy157/ddd/mcp?api_key={{SMITHERY_API_KEY}}",
+      "url": "https://server.smithery.ai/@pinion05/supabase-mcp-lite/mcp?api_key={{SMITHERY_API_KEY}}",
       "headers": {}
     },
     "env": {}
   },
-  "@huangtan007/smithery-hello": {
+  "@linxule/lotus-wisdom-mcp": {
     "streamable_http": {
-      "url": "https://server.smithery.ai/@huangtan007/smithery-hello/mcp?api_key={{SMITHERY_API_KEY}}",
+      "url": "https://server.smithery.ai/@linxule/lotus-wisdom-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
       "headers": {}
     },
     "env": {}
   },
-  "@hydavinci/chromium-commits": {
+  "@yuna0x0/anilist-mcp": {
     "streamable_http": {
-      "url": "https://server.smithery.ai/@hydavinci/chromium-commits/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@hydavinci/formula-1-schedule": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@hydavinci/formula-1-schedule/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@hydavinci/uml_diagram": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@hydavinci/uml_diagram/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@iamfaham/investor-data-deploy-mcp": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@iamfaham/investor-data-deploy-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@ibrahimsaleem/pentestthinkingmcp": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@ibrahimsaleem/pentestthinkingmcp/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@icons8community/icons8mpc": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@icons8community/icons8mpc/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@ilyashikalov/sls-pg5": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@ilyashikalov/sls-pg5/mcp?api_key={{SMITHERY_API_KEY}}",
+      "url": "https://server.smithery.ai/@yuna0x0/anilist-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
       "headers": {}
     },
     "env": {}
@@ -1273,93 +531,191 @@
     },
     "env": {}
   },
-  "@infobip/plantuml-mcp-server": {
+  "@pinkpixel-dev/web-scout-mcp": {
     "streamable_http": {
-      "url": "https://server.smithery.ai/@infobip/plantuml-mcp-server/mcp?api_key={{SMITHERY_API_KEY}}",
+      "url": "https://server.smithery.ai/@pinkpixel-dev/web-scout-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
       "headers": {}
     },
     "env": {}
   },
-  "@iosif2/opendata-mcp": {
+  "@rafaljanicki/x-twitter-mcp-server": {
     "streamable_http": {
-      "url": "https://server.smithery.ai/@iosif2/opendata-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "url": "https://server.smithery.ai/@rafaljanicki/x-twitter-mcp-server/mcp?api_key={{SMITHERY_API_KEY}}",
       "headers": {}
     },
     "env": {}
   },
-  "@isabelayepes/weather": {
+  "@cantian-ai/bazi-mcp": {
     "streamable_http": {
-      "url": "https://server.smithery.ai/@isabelayepes/weather/mcp?api_key={{SMITHERY_API_KEY}}",
+      "url": "https://server.smithery.ai/@cantian-ai/bazi-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
       "headers": {}
     },
     "env": {}
   },
-  "@itskaransingh/mcp-server": {
+  "@goldk3y/google-calendar-mcp": {
     "streamable_http": {
-      "url": "https://server.smithery.ai/@itskaransingh/mcp-server/mcp?api_key={{SMITHERY_API_KEY}}",
+      "url": "https://server.smithery.ai/@goldk3y/google-calendar-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
       "headers": {}
     },
     "env": {}
   },
-  "@ivoryttang/chemistry_mcp": {
+  "@ubn-dev/mcp_calculator": {
     "streamable_http": {
-      "url": "https://server.smithery.ai/@ivoryttang/chemistry_mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "url": "https://server.smithery.ai/@ubn-dev/mcp_calculator/mcp?api_key={{SMITHERY_API_KEY}}",
       "headers": {}
     },
     "env": {}
   },
-  "@jackedelic/mcp-discord": {
+  "@coinranking/coinranking-mcp": {
     "streamable_http": {
-      "url": "https://server.smithery.ai/@jackedelic/mcp-discord/mcp?api_key={{SMITHERY_API_KEY}}",
+      "url": "https://server.smithery.ai/@coinranking/coinranking-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
       "headers": {}
     },
     "env": {}
   },
-  "@jacksmith3888/wuwa-mcp-server": {
+  "@JedPattersonn/whoop-mcp": {
     "streamable_http": {
-      "url": "https://server.smithery.ai/@jacksmith3888/wuwa-mcp-server/mcp?api_key={{SMITHERY_API_KEY}}",
+      "url": "https://server.smithery.ai/@JedPattersonn/whoop-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
       "headers": {}
     },
     "env": {}
   },
-  "@jalpp/chessagine-mcp": {
+  "@kkjdaniel/bgg-mcp": {
     "streamable_http": {
-      "url": "https://server.smithery.ai/@jalpp/chessagine-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "url": "https://server.smithery.ai/@kkjdaniel/bgg-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
       "headers": {}
     },
     "env": {}
   },
-  "@janwilmake/competitive-analysis-demo": {
+  "@SiliconValleyInsight/amazon-product-search": {
     "streamable_http": {
-      "url": "https://server.smithery.ai/@janwilmake/competitive-analysis-demo/mcp?api_key={{SMITHERY_API_KEY}}",
+      "url": "https://server.smithery.ai/@SiliconValleyInsight/amazon-product-search/mcp?api_key={{SMITHERY_API_KEY}}",
       "headers": {}
     },
     "env": {}
   },
-  "@janwilmake/x-search-mcp": {
+  "@Ymuberra/geo-news-mcp": {
     "streamable_http": {
-      "url": "https://server.smithery.ai/@janwilmake/x-search-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "url": "https://server.smithery.ai/@Ymuberra/geo-news-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
       "headers": {}
     },
     "env": {}
   },
-  "@jayozer/outscraper-mcp": {
+  "@DeniseLewis200081/rail": {
     "streamable_http": {
-      "url": "https://server.smithery.ai/@jayozer/outscraper-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "url": "https://server.smithery.ai/@DeniseLewis200081/rail/mcp?api_key={{SMITHERY_API_KEY}}",
       "headers": {}
     },
     "env": {}
   },
-  "@jekakos/mcp-user-data-enrichment": {
+  "@dravidsajinraj-iex/file-extractor-mcp": {
     "streamable_http": {
-      "url": "https://server.smithery.ai/@jekakos/mcp-user-data-enrichment/mcp?api_key={{SMITHERY_API_KEY}}",
+      "url": "https://server.smithery.ai/@dravidsajinraj-iex/file-extractor-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
       "headers": {}
     },
     "env": {}
   },
-  "@jennyyyyyy7528-cell/weathermcpserverhw3": {
+  "@ttpears/mcp-mysql": {
     "streamable_http": {
-      "url": "https://server.smithery.ai/@jennyyyyyy7528-cell/weathermcpserverhw3/mcp?api_key={{SMITHERY_API_KEY}}",
+      "url": "https://server.smithery.ai/@ttpears/mcp-mysql/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@huangtan007/smithery-hello": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@huangtan007/smithery-hello/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@su-record/hi-ai": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@su-record/hi-ai/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@aamangeldi/dad-jokes-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@aamangeldi/dad-jokes-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@whit3rabbit/specforged": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@whit3rabbit/specforged/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@figstra/usewebhook-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@figstra/usewebhook-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@aryankeluskar/canvas-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@aryankeluskar/canvas-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@rvibek/mcp_unhcr": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@rvibek/mcp_unhcr/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@GDanksAnchor/mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@GDanksAnchor/mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@ShresthaAnkit/mcpserver": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@ShresthaAnkit/mcpserver/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@sunub/obsidian-mcp-server": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@sunub/obsidian-mcp-server/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@etweisberg/mlb-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@etweisberg/mlb-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@parallel/tasks": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@parallel/tasks/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@inventech-solution/facebook-ads-mcp-server": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@inventech-solution/facebook-ads-mcp-server/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@rishipradeep-think41/google-calendar-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@rishipradeep-think41/google-calendar-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
       "headers": {}
     },
     "env": {}
@@ -1371,9 +727,478 @@
     },
     "env": {}
   },
-  "@jjlabsio/korea-stock-mcp": {
+  "@synthetic-ci/vibe-marketing": {
     "streamable_http": {
-      "url": "https://server.smithery.ai/@jjlabsio/korea-stock-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "url": "https://server.smithery.ai/@synthetic-ci/vibe-marketing/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@sunhye/mcp-test-search": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@sunhye/mcp-test-search/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@smithery/skills": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@smithery/skills/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@atimevil/mcp-kali-server": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@atimevil/mcp-kali-server/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@aniruddha-adhikary/gahmen-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@aniruddha-adhikary/gahmen-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@maxvint/mcp-crypto-research": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@maxvint/mcp-crypto-research/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@brianirish/laravel-mcp-companion": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@brianirish/laravel-mcp-companion/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@fahadBSTech/clockify-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@fahadBSTech/clockify-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@DynamicEndpoints/m365-core-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@DynamicEndpoints/m365-core-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@cristianoaredes/mcp-mobile-server": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@cristianoaredes/mcp-mobile-server/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@Parichay-Pothepalli/financial-research-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@Parichay-Pothepalli/financial-research-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@V-Sekai-fire/sympy-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@V-Sekai-fire/sympy-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@Hint-Services/mcp-limitless": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@Hint-Services/mcp-limitless/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@plainyogurt21/clintrials-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@plainyogurt21/clintrials-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@just-record/mcpserver-test": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@just-record/mcpserver-test/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@discoverelearning/surna-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@discoverelearning/surna-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@calvernaz/alphavantage": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@calvernaz/alphavantage/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@bh-rat/context-awesome": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@bh-rat/context-awesome/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@gen-pdf/mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@gen-pdf/mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@cyong80/subway-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@cyong80/subway-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@Myangsun/loc-memory-server": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@Myangsun/loc-memory-server/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@jacksmith3888/wuwa-mcp-server": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@jacksmith3888/wuwa-mcp-server/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@Turf-Tech/turf-mcp-server": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@Turf-Tech/turf-mcp-server/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@TitanSneaker/paper-search-mcp-openai-v2": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@TitanSneaker/paper-search-mcp-openai-v2/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@pma1999/boe": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@pma1999/boe/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@Junwoo-Seo-1998/boj-mcp-server": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@Junwoo-Seo-1998/boj-mcp-server/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@dravidsajinraj-iex/code-runner-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@dravidsajinraj-iex/code-runner-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@truss44/mcp-crypto-price": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@truss44/mcp-crypto-price/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@Artin0123/gemini-image-mcp-server": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@Artin0123/gemini-image-mcp-server/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@codebyyassine/discordselfbot-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@codebyyassine/discordselfbot-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@SarthakS97/sheeter-mcp-server": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@SarthakS97/sheeter-mcp-server/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@lieyanqzu/ygocdb-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@lieyanqzu/ygocdb-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@wowjinxy/mcp-discord": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@wowjinxy/mcp-discord/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@eliu243/oura-mcp-server": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@eliu243/oura-mcp-server/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@hjsh200219/fortuneteller": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@hjsh200219/fortuneteller/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@sunhye/mcp-korea-weather": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@sunhye/mcp-korea-weather/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@tfscharff/doi-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@tfscharff/doi-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@alex-llm/attack-mcp-server": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@alex-llm/attack-mcp-server/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@aicastle-school/stock-price": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@aicastle-school/stock-price/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@Chaeyun06/naver-maps-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@Chaeyun06/naver-maps-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@hollaugo/tutorials": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@hollaugo/tutorials/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@liuliang520530/taoke-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@liuliang520530/taoke-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@coyaSONG/youtube-mcp-server": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@coyaSONG/youtube-mcp-server/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@seahbk1006/seahboonkeong-chat-opendosm": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@seahbk1006/seahboonkeong-chat-opendosm/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@INSIDE-HAIR/mcp-google-meet-and-calendar": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@INSIDE-HAIR/mcp-google-meet-and-calendar/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@xja1023789-collab/scrapermcp_el": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@xja1023789-collab/scrapermcp_el/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@keithah/hostex-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@keithah/hostex-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@chug2k/gemini-imagen4": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@chug2k/gemini-imagen4/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@renCosta2025/context7fork": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@renCosta2025/context7fork/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@hydavinci/chromium-commits": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@hydavinci/chromium-commits/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@rabqatab/lexlink-ko-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@rabqatab/lexlink-ko-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@icons8community/icons8mpc": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@icons8community/icons8mpc/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@SmartManoj/telegram-bot-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@SmartManoj/telegram-bot-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@cfocoder/financial-modeling-prep-mcp-server": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@cfocoder/financial-modeling-prep-mcp-server/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@nihalxkumar/arch-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@nihalxkumar/arch-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@atiprashant/buyhatke-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@atiprashant/buyhatke-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@Hint-Services/obsidian-github-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@Hint-Services/obsidian-github-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@akilat-spec/tt-leave-manager-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@akilat-spec/tt-leave-manager-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@afarhadi99/spaces-download-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@afarhadi99/spaces-download-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@MajesteitBart/writer_mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@MajesteitBart/writer_mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@abdqum/supabase-mcp-selfhosted": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@abdqum/supabase-mcp-selfhosted/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@ZacharyHampton/homeharvest-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@ZacharyHampton/homeharvest-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@CaullenOmdahl/nextjs-react-tailwind-assistant": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@CaullenOmdahl/nextjs-react-tailwind-assistant/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@Vivek-k3/modelsplus": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@Vivek-k3/modelsplus/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@cuongpo/neo-defi-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@cuongpo/neo-defi-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@keithah/monarchmoney-ts-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@keithah/monarchmoney-ts-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@steadwing/mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@steadwing/mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@saidsef/mcp-github-pr-issue-analyser": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@saidsef/mcp-github-pr-issue-analyser/mcp?api_key={{SMITHERY_API_KEY}}",
       "headers": {}
     },
     "env": {}
@@ -1381,6 +1206,2309 @@
   "@jweingardt12/mlb_mcp": {
     "streamable_http": {
       "url": "https://server.smithery.ai/@jweingardt12/mlb_mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@huuthangntk/dokploy-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@huuthangntk/dokploy-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@Hint-Services/mcp-todoist": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@Hint-Services/mcp-todoist/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@DidierRLopes/openbb-docs-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@DidierRLopes/openbb-docs-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@amalinakurniasari/figmamcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@amalinakurniasari/figmamcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@alperenkocyigit/call-for-papers-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@alperenkocyigit/call-for-papers-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@danilonovaisv/n8n-workflow-builder-gpt2": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@danilonovaisv/n8n-workflow-builder-gpt2/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@cuongpo/hyperion-mcp-server": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@cuongpo/hyperion-mcp-server/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@kodey-ai/salesforce-mcp-minimal": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@kodey-ai/salesforce-mcp-minimal/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@momo590/mcp-sse-immolog": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@momo590/mcp-sse-immolog/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@flight505/mcp_dincoder": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@flight505/mcp_dincoder/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@DynamicEndpoints/documentation-mcp-using-pocketbase": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@DynamicEndpoints/documentation-mcp-using-pocketbase/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@sitebay/sitebay-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@sitebay/sitebay-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@almogqwinz/mcp-amadeus-api": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@almogqwinz/mcp-amadeus-api/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@simonfraserduncan/echo-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@simonfraserduncan/echo-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@evenli01/fileops-server": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@evenli01/fileops-server/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@vimtor/things-3": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@vimtor/things-3/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@rfdez/pvpc-mcp-server": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@rfdez/pvpc-mcp-server/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "pocketbase-server": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/pocketbase-server/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@Hint-Services/mcp-trello": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@Hint-Services/mcp-trello/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@pdv/hot100": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@pdv/hot100/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@Kashyab19/google-calendar-mcp-server": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@Kashyab19/google-calendar-mcp-server/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@Mahad-007/ai_learning_coach-lumi": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@Mahad-007/ai_learning_coach-lumi/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@Wajahat-bitsol/jira-mcp-smithery": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@Wajahat-bitsol/jira-mcp-smithery/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@AbdallahAHO/lokalise-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@AbdallahAHO/lokalise-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@cpretzinger/ai-assistant-simple": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@cpretzinger/ai-assistant-simple/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@seocylucky/githru-vscode-ext": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@seocylucky/githru-vscode-ext/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@kirha-ai/kirha-crypto": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@kirha-ai/kirha-crypto/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@2511319/context7": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@2511319/context7/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@ebartan/bodrum-belediyesi": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@ebartan/bodrum-belediyesi/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@M1Vision/fal-ai-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@M1Vision/fal-ai-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@vijitdaroch/financial-modeling-prep-mcp-server": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@vijitdaroch/financial-modeling-prep-mcp-server/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@magemaclean/azure-devops-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@magemaclean/azure-devops-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@tech-ibaad/e2b-remote-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@tech-ibaad/e2b-remote-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@hithereiamaliff/mcp-datagovmy": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@hithereiamaliff/mcp-datagovmy/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@tbitu/tartunlp-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@tbitu/tartunlp-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@lieyanqzu/sbwsz-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@lieyanqzu/sbwsz-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@sally-labs/sally-ai-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@sally-labs/sally-ai-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@uzaysozen/imdb-mcp-server": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@uzaysozen/imdb-mcp-server/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@githru/githru-mcp-v1": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@githru/githru-mcp-v1/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@FVEFWFE/attio-mcp-server": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@FVEFWFE/attio-mcp-server/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@ramadasmr/networkcalc-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@ramadasmr/networkcalc-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@call518/mcp-mysql-ops": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@call518/mcp-mysql-ops/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@Puthin7778/plantops-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@Puthin7778/plantops-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@maxbeech/athenic": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@maxbeech/athenic/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@NosytLabs/presearch-search-api-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@NosytLabs/presearch-search-api-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@demomagic/mineru-mcp-server": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@demomagic/mineru-mcp-server/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@horizondatawave/hdw-mcp-server": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@horizondatawave/hdw-mcp-server/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@drdudda-org/my-little-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@drdudda-org/my-little-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@PuroDelphi/mcpfirebird": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@PuroDelphi/mcpfirebird/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@leandrogavidia/vechain-mcp-server": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@leandrogavidia/vechain-mcp-server/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@deeppath-ai/mcp-crew-risk": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@deeppath-ai/mcp-crew-risk/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@hwruchan/smus": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@hwruchan/smus/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@shoumikdc/arxiv-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@shoumikdc/arxiv-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@asumollo/symfp-gen": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@asumollo/symfp-gen/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@vuvuvu/streamersonglist-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@vuvuvu/streamersonglist-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@sideffect263/nmap-mcp-server": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@sideffect263/nmap-mcp-server/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@kodey-ai/seamless-ai-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@kodey-ai/seamless-ai-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@emmanuel/apiworlddemoweather": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@emmanuel/apiworlddemoweather/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@arjunkmrm/tic-tac-toe": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@arjunkmrm/tic-tac-toe/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@BlackSand-Software/hubspot-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@BlackSand-Software/hubspot-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@Svgverseai/svgverseai-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@Svgverseai/svgverseai-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@gilberth/enhanced-homeassistant-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@gilberth/enhanced-homeassistant-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@BarnacleLabs/chimera-mcp-smithery": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@BarnacleLabs/chimera-mcp-smithery/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@Parc-Dev/todo-mcp-server": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@Parc-Dev/todo-mcp-server/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@DynamicEndpoints/etsy-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@DynamicEndpoints/etsy-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@SpaceStation09/news-feed-python": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@SpaceStation09/news-feed-python/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@alexcz-a11y/jina-httpstreamable": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@alexcz-a11y/jina-httpstreamable/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@skr-cloudify/repomix-cloud": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@skr-cloudify/repomix-cloud/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@Leghis/smart-thinking": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@Leghis/smart-thinking/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@Open-Scout/mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@Open-Scout/mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@bielacki/igdb-mcp-server": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@bielacki/igdb-mcp-server/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@alexcz-a11y/tessie-mcp-fixx": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@alexcz-a11y/tessie-mcp-fixx/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@DynamicEndpoints/psadt-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@DynamicEndpoints/psadt-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@RectiFlex/centerassist-mcp-cp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@RectiFlex/centerassist-mcp-cp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@code-rabi/littlesis-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@code-rabi/littlesis-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@danix800/smithery-hello": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@danix800/smithery-hello/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@Calel33/ordiscan-mcp-v1": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@Calel33/ordiscan-mcp-v1/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@Alexander-Herranz/coinmarketcap-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@Alexander-Herranz/coinmarketcap-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@aakashns/duediligencemcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@aakashns/duediligencemcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@jekakos/mcp-user-data-enrichment": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@jekakos/mcp-user-data-enrichment/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@SerPepe/bera-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@SerPepe/bera-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@kodey-ai/mapwise-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@kodey-ai/mapwise-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@w4yn3sh33n/testmcpserver": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@w4yn3sh33n/testmcpserver/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@donghunee/my-first-mcp2": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@donghunee/my-first-mcp2/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@AdityaRapid/strapi_mcps": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@AdityaRapid/strapi_mcps/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@motorboy1/my-mcp-server": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@motorboy1/my-mcp-server/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@gurdasnijor/my-smithery-app": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@gurdasnijor/my-smithery-app/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@donghunee/my-first-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@donghunee/my-first-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@goldk3y/chainlink-mcp-server": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@goldk3y/chainlink-mcp-server/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@skymoore/grokipedia-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@skymoore/grokipedia-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@pilsang.park/ppark_test": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@pilsang.park/ppark_test/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@catwhisperingninja/uniswap-trader-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@catwhisperingninja/uniswap-trader-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@hithereiamaliff/mcp-nextcloud": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@hithereiamaliff/mcp-nextcloud/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@gilberth/mcp-cloudflare": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@gilberth/mcp-cloudflare/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@ma-za-kpe/voicesphere-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@ma-za-kpe/voicesphere-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@slhad/aha-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@slhad/aha-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@gul-tekinmuhendislik/gul-tekin-muhedislik-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@gul-tekinmuhendislik/gul-tekin-muhedislik-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@82deutschmark/chlorpromazine-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@82deutschmark/chlorpromazine-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@Sallvainian/ngss-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@Sallvainian/ngss-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@skavinvarnan/finance-calculator": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@skavinvarnan/finance-calculator/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@birdwell/runescape-wiki-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@birdwell/runescape-wiki-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@ebartan/bodrum-mcp-2025": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@ebartan/bodrum-mcp-2025/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@Parc-Dev/task-breakdown-server": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@Parc-Dev/task-breakdown-server/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@cuongpo/coti-mcp-1": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@cuongpo/coti-mcp-1/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@markchiang/herb-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@markchiang/herb-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@ahmed2real/thinkzone": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@ahmed2real/thinkzone/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@Vaibahv1306Rapid/sample_mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@Vaibahv1306Rapid/sample_mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@emmanuel/test-ll8": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@emmanuel/test-ll8/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@Trashwbin/streamable-demo1": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@Trashwbin/streamable-demo1/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@spyfree/mingli-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@spyfree/mingli-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@leandrogavidia/marinade-finance-mcp-server": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@leandrogavidia/marinade-finance-mcp-server/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@cdmarshall14/hubspot-mcp-2": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@cdmarshall14/hubspot-mcp-2/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@jyotsnaagrawal-sys/centerassist-mcp-new": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@jyotsnaagrawal-sys/centerassist-mcp-new/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@anusha5191/aicollectivetest": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@anusha5191/aicollectivetest/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@RonsDad/mcp-browserbase": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@RonsDad/mcp-browserbase/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@portel-dev/ncp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@portel-dev/ncp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@fozagtx/somnia-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@fozagtx/somnia-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@mefta.sadat2/pcexpress": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@mefta.sadat2/pcexpress/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@DynamicEndpoints/process_mapper_2025": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@DynamicEndpoints/process_mapper_2025/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@Waldzell-Agentics/mcp-server": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@Waldzell-Agentics/mcp-server/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@data-mindset/sts-faker-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@data-mindset/sts-faker-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@BigVik193/reddit-user-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@BigVik193/reddit-user-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@degenpilot404/yap_mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@degenpilot404/yap_mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@emirks/yokatlas-mcp-typescript": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@emirks/yokatlas-mcp-typescript/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@mrodasensio/aicol": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@mrodasensio/aicol/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@samedii/pixellab": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@samedii/pixellab/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@GigaChatTester/hubspot-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@GigaChatTester/hubspot-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@IoanaCristescu15/arxiv-latex-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@IoanaCristescu15/arxiv-latex-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@ChiR24/unreal_mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@ChiR24/unreal_mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@jgordini/rcmcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@jgordini/rcmcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@browserous/browserous": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@browserous/browserous/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@johankreivi/c7httpserver": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@johankreivi/c7httpserver/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@PabloLec/keyprobe-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@PabloLec/keyprobe-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@Kanta-Inc/kanta-mcp-server": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@Kanta-Inc/kanta-mcp-server/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@midopa-dept/my-mcp-server": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@midopa-dept/my-mcp-server/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@brnbco/ai-smithery-egmcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@brnbco/ai-smithery-egmcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@Createitv/hubspot-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@Createitv/hubspot-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@aixsignal/aix-smithly": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@aixsignal/aix-smithly/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@arturwyroslak/ai-agent-generator-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@arturwyroslak/ai-agent-generator-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@emmanuel/ll8": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@emmanuel/ll8/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@aixsignal/smithly-aixsignal-x": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@aixsignal/smithly-aixsignal-x/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@feeefapp/mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@feeefapp/mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@Counterbalance-Economics/retellai-mcp-server": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@Counterbalance-Economics/retellai-mcp-server/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@Ejb503/systemprompt-mcp-taskchecker": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@Ejb503/systemprompt-mcp-taskchecker/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@guanqun-yang/mcp-server-arithmetic": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@guanqun-yang/mcp-server-arithmetic/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@benbonn/utapimcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@benbonn/utapimcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@faithk7/gmail-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@faithk7/gmail-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@code-rabi/mews-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@code-rabi/mews-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@khromov/svelte-llm-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@khromov/svelte-llm-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@cuongpo/rootstock-mcp-test": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@cuongpo/rootstock-mcp-test/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@jirispilka/actors-mcp-server": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@jirispilka/actors-mcp-server/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@arhgap11b/appsdk-universal-menu": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@arhgap11b/appsdk-universal-menu/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@janwilmake/x-search-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@janwilmake/x-search-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@SpaceStation09/relate-account-mcp-python": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@SpaceStation09/relate-account-mcp-python/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@zeta-chain/cli": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@zeta-chain/cli/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@funkytownk/mcp_sales_analysis": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@funkytownk/mcp_sales_analysis/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@windopper/mcp-takeoff": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@windopper/mcp-takeoff/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@danilonovaisv/n8n-workflow-builder-gpt": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@danilonovaisv/n8n-workflow-builder-gpt/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@funkytownk/mcp_analysis": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@funkytownk/mcp_analysis/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@donghunee/my-first-mcp-server": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@donghunee/my-first-mcp-server/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@funkytownk/mcp_call_analysis": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@funkytownk/mcp_call_analysis/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@deeppath-ai/mcp-system-infra": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@deeppath-ai/mcp-system-infra/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@florentine-ai/mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@florentine-ai/mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@iamfaham/investor-data-deploy-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@iamfaham/investor-data-deploy-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@r6654kumar/bargainbites_restaurant2_mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@r6654kumar/bargainbites_restaurant2_mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@Junwoo-Seo-1998/ssafy-bob-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@Junwoo-Seo-1998/ssafy-bob-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@yuna0x0/hackmd-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@yuna0x0/hackmd-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@Isaac-theori/vulnerable-mcp-server": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@Isaac-theori/vulnerable-mcp-server/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@adr1en360/farmerconnect-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@adr1en360/farmerconnect-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@turnono/sevenpace-mcp-server": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@turnono/sevenpace-mcp-server/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@waldzellai/exa-mcp-server-websets": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@waldzellai/exa-mcp-server-websets/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@cdmarshall14/hubspot-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@cdmarshall14/hubspot-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@plainly-videos/mcp-server": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@plainly-videos/mcp-server/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@DynamicEndpoints/espn-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@DynamicEndpoints/espn-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@AsimRauf1997/currency-exchange-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@AsimRauf1997/currency-exchange-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@sjhangiani12/citibike_mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@sjhangiani12/citibike_mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@deeppath-ai/mcp-marketing-site": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@deeppath-ai/mcp-marketing-site/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@oharkins/weatherxm-mcp-server": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@oharkins/weatherxm-mcp-server/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@cristianoaredes/mcp-dadosbr": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@cristianoaredes/mcp-dadosbr/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@lebrackyt/playlistable": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@lebrackyt/playlistable/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@jessicayanwang/test": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@jessicayanwang/test/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@libralm-ai/libralm_mcp_server": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@libralm-ai/libralm_mcp_server/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@aahl/mcp-notify": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@aahl/mcp-notify/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@keithah/plex-mcp-account-finder": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@keithah/plex-mcp-account-finder/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@V-Sekai-fire/minizinc-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@V-Sekai-fire/minizinc-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@mingdaocloud/mcp-mingdao": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@mingdaocloud/mcp-mingdao/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@rrq974kf/my-mcp-server-251027": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@rrq974kf/my-mcp-server-251027/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@synaptic-ai-consulting/nouri": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@synaptic-ai-consulting/nouri/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@mike/courier": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@mike/courier/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@devbrother2024/my-mcp-server-251027": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@devbrother2024/my-mcp-server-251027/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@pma1999/cgpj-server": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@pma1999/cgpj-server/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@samihalawa/manus-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@samihalawa/manus-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@SmartManoj/smithery-sample": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@SmartManoj/smithery-sample/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@dravidsajinraj-iex/cms-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@dravidsajinraj-iex/cms-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@ivoryttang/chemistry_mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@ivoryttang/chemistry_mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@jennyyyyyy7528-cell/weathermcpserverhw3": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@jennyyyyyy7528-cell/weathermcpserverhw3/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@mazah81-gif/my-mcp-server-2025_02": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@mazah81-gif/my-mcp-server-2025_02/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@cuongpo/sei-dex-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@cuongpo/sei-dex-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@brandonbosco/sigao-scf-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@brandonbosco/sigao-scf-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@Seojiyoung/my-mcp-server-251027": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@Seojiyoung/my-mcp-server-251027/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@SauravPahadia/oura-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@SauravPahadia/oura-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@kazumah1/smithery": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@kazumah1/smithery/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@ctaylor86/rendi-mcp-server": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@ctaylor86/rendi-mcp-server/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@KallivdH/ns-mcp-server": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@KallivdH/ns-mcp-server/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@infobip-mcp/search": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@infobip-mcp/search/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@eliu243/oura-mcp-server-2": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@eliu243/oura-mcp-server-2/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@call518/mcp-postgresql-ops": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@call518/mcp-postgresql-ops/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@chirpon9/riot-docs-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@chirpon9/riot-docs-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@santiago.blanco.vilchez/asd": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@santiago.blanco.vilchez/asd/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@uvidswqkscr89/leiga_mcp_smithery": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@uvidswqkscr89/leiga_mcp_smithery/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@guangxiangdebizi/url2qr-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@guangxiangdebizi/url2qr-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@santiago.blanco.vilchez/santiago-cpa": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@santiago.blanco.vilchez/santiago-cpa/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@oxylabs/oxylabs-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@oxylabs/oxylabs-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@gigachadtrey/websimm": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@gigachadtrey/websimm/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@santiago.blanco.vilchez/la-final": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@santiago.blanco.vilchez/la-final/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@cuongpo/aptos-mcp-so": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@cuongpo/aptos-mcp-so/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@ari.badernatal/sideways": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@ari.badernatal/sideways/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@imleokkkk/mcp-test": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@imleokkkk/mcp-test/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@fiber-ai/mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@fiber-ai/mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@pinion05/entrust-gemini-cli": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@pinion05/entrust-gemini-cli/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@kamath/mention-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@kamath/mention-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@marktoda/astrotask": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@marktoda/astrotask/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@riditaatexos/mcpjoke": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@riditaatexos/mcpjoke/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@santiago.blanco.vilchez/cpa-esteban": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@santiago.blanco.vilchez/cpa-esteban/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@ThrownLemon/medical-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@ThrownLemon/medical-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@EenticE/scaffold": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@EenticE/scaffold/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@YachtsyAI/yachtsy-mcp-server": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@YachtsyAI/yachtsy-mcp-server/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@aerialcombat/say-hello-smithery-sample": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@aerialcombat/say-hello-smithery-sample/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@harn1shmodi/vsguard": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@harn1shmodi/vsguard/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@banjtheman/vibe_tide_mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@banjtheman/vibe_tide_mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@isnow890/data4library-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@isnow890/data4library-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@Trashwbin/streamable-demo": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@Trashwbin/streamable-demo/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@dotgc/duediligencemcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@dotgc/duediligencemcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@JunoJunHyun/festival-finder-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@JunoJunHyun/festival-finder-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@haojiasheng/add-number-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@haojiasheng/add-number-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@sunhye/mcp-korea-weather1": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@sunhye/mcp-korea-weather1/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@Bzcasper/say-hello-smithery-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@Bzcasper/say-hello-smithery-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@sandriaas/mcp-server-gsc-0": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@sandriaas/mcp-server-gsc-0/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@WordDirectory/directory": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@WordDirectory/directory/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@TakoData/tako-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@TakoData/tako-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@amalinakurniasari/conduit": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@amalinakurniasari/conduit/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@serkan-ozal/driflyte-mcp-server": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@serkan-ozal/driflyte-mcp-server/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@mrugankpednekar/mcp-optimizer": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@mrugankpednekar/mcp-optimizer/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@dot-Justin/poke-image-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@dot-Justin/poke-image-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@ilyashikalov/sls-pg5": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@ilyashikalov/sls-pg5/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@harshapalnati/raworc-mcpserver": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@harshapalnati/raworc-mcpserver/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@nickthelegend/test-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@nickthelegend/test-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@falcosan/mcp-siex": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@falcosan/mcp-siex/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@csrdltte/mcp-smooth": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@csrdltte/mcp-smooth/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@General-Analysis/mcp-guard": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@General-Analysis/mcp-guard/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@N3N-Seoul/n3n-search-mcp-server": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@N3N-Seoul/n3n-search-mcp-server/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@smithery-ai/cookbook-py-custom-container": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@smithery-ai/cookbook-py-custom-container/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@kamath/agentmail-mcps": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@kamath/agentmail-mcps/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@ljj6496/test_smithery": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@ljj6496/test_smithery/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@team-upgrade/smithery-notion-docs": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@team-upgrade/smithery-notion-docs/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@markchiang/agent-press": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@markchiang/agent-press/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@magenie33/quality-dimension-generator": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@magenie33/quality-dimension-generator/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@concavegit/app-store-connect-mcp-server": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@concavegit/app-store-connect-mcp-server/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@keithah/stripe-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@keithah/stripe-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@hollaugo/financial-research-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@hollaugo/financial-research-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@exa-labs/websets-mcp-server": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@exa-labs/websets-mcp-server/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@chloemulti1-hue/my-mcp-server-251027": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@chloemulti1-hue/my-mcp-server-251027/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@JMoak/chrono-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@JMoak/chrono-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@Nealmalhotra/poke-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@Nealmalhotra/poke-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@francis-ros/rostro-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@francis-ros/rostro-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@keithah/seam-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@keithah/seam-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@seahbk1006/seahboonkeong-chat-bnmapi": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@seahbk1006/seahboonkeong-chat-bnmapi/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@tobinsouth/smithery-authkit": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@tobinsouth/smithery-authkit/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@fozagtx/solanaaiterminal": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@fozagtx/solanaaiterminal/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@MR901/mcp-plots": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@MR901/mcp-plots/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@huuthangntk/claude-vision-mcp-server": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@huuthangntk/claude-vision-mcp-server/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@jayozer/outscraper-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@jayozer/outscraper-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@guanqun-yang/mcp-server-reverse-sentence": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@guanqun-yang/mcp-server-reverse-sentence/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@oh-seok-ju/hello-mcp-test2": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@oh-seok-ju/hello-mcp-test2/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@llnOrmll/world-bank-data-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@llnOrmll/world-bank-data-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@hwruchan/chanmcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@hwruchan/chanmcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@Phionx/mcp-hello-server": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@Phionx/mcp-hello-server/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@samuelvinay91/testrail-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@samuelvinay91/testrail-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@kiyoung8/share_2025_simulationmcp_wsc": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@kiyoung8/share_2025_simulationmcp_wsc/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@halismertkir/academik-tinder": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@halismertkir/academik-tinder/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@Young-Keun-LEE/mju-crawler-mcpserver": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@Young-Keun-LEE/mju-crawler-mcpserver/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@michalis.koutridis/diavgeia-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@michalis.koutridis/diavgeia-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@amankale376/profile-researcher": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@amankale376/profile-researcher/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@Stevekaplanai/promptforge-mcp-server": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@Stevekaplanai/promptforge-mcp-server/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@LAbreuBroadvoice/mcptypescript000": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@LAbreuBroadvoice/mcptypescript000/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@devbrother2024/typescript-mcp-server-boilerplate": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@devbrother2024/typescript-mcp-server-boilerplate/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@plainyogurt21/fda-drugs-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@plainyogurt21/fda-drugs-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@chuhuoyuan/cloudflare": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@chuhuoyuan/cloudflare/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@keithah/gumroad-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@keithah/gumroad-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@kamath/pls-work": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@kamath/pls-work/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@kimnerd-dev/notion-mcp-server": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@kimnerd-dev/notion-mcp-server/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@dravidsajinraj-iex/ai-diagram-generator-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@dravidsajinraj-iex/ai-diagram-generator-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@clado-ai/search-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@clado-ai/search-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@JoelRevLai/prova": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@JoelRevLai/prova/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@mayla-debug/mcp-google-calendar2": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@mayla-debug/mcp-google-calendar2/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@gamzadongza/danbooru-turso-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@gamzadongza/danbooru-turso-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@ssdavidai/mem0-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@ssdavidai/mem0-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@guanqun-yang/mcp-server-read-file": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@guanqun-yang/mcp-server-read-file/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@https-eduardo/clockify-mcp-server": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@https-eduardo/clockify-mcp-server/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@Auxin-io/python-code-generator": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@Auxin-io/python-code-generator/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@rkdlrl/mcp-takeoff": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@rkdlrl/mcp-takeoff/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@HitmanLy007/gmail-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@HitmanLy007/gmail-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@CHIBOLAR/jira_mcp_sprinthealth": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@CHIBOLAR/jira_mcp_sprinthealth/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@Motaboy96/google-calendar-mcp-": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@Motaboy96/google-calendar-mcp-/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@yuhuison/mediawiki-mcp-server-auth": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@yuhuison/mediawiki-mcp-server-auth/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@yusufsenyer/augment-agent": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@yusufsenyer/augment-agent/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@guanqun-yang/mcp-server-r-counter": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@guanqun-yang/mcp-server-r-counter/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@Aman-Amith-Shastry/scientific_computation": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@Aman-Amith-Shastry/scientific_computation/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@mochow13/ticketmaster-mcp-server": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@mochow13/ticketmaster-mcp-server/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@Kryptoskatt/mcp-server": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@Kryptoskatt/mcp-server/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@bergeramit/bergeramit-hw3-tech": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@bergeramit/bergeramit-hw3-tech/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@itskaransingh/mcp-server": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@itskaransingh/mcp-server/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@DynamicEndpoints/mesh-scanner": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@DynamicEndpoints/mesh-scanner/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@Xxx00xxX33/mcp-server-browserbase": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@Xxx00xxX33/mcp-server-browserbase/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@minionszyw/bazi": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@minionszyw/bazi/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@turnono/datacommons-mcp-server": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@turnono/datacommons-mcp-server/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@rdassignies/openlegi": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@rdassignies/openlegi/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@hydavinci/uml_diagram": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@hydavinci/uml_diagram/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@rftsngl/newsmcp_mediastackapi": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@rftsngl/newsmcp_mediastackapi/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@PixdataOrg/coderide": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@PixdataOrg/coderide/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@Quegenx/sunday-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@Quegenx/sunday-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@joshp-f/e2b-remote-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@joshp-f/e2b-remote-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@santiago.blanco.vilchez/aaa": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@santiago.blanco.vilchez/aaa/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@hithereiamaliff/typebot-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@hithereiamaliff/typebot-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@david-choi-querypie/david-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@david-choi-querypie/david-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@Koozow/hubspot-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@Koozow/hubspot-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@AmitJaison/slotmachine": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@AmitJaison/slotmachine/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@boma086/mcp-open-project": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@boma086/mcp-open-project/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@demomagic/dune-mcp-server": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@demomagic/dune-mcp-server/mcp?api_key={{SMITHERY_API_KEY}}",
       "headers": {}
     },
     "env": {}
@@ -1399,275 +3527,9 @@
     },
     "env": {}
   },
-  "@kamath/graphing-calculator": {
+  "@sachicali/youtube-mcp-chi": {
     "streamable_http": {
-      "url": "https://server.smithery.ai/@kamath/graphing-calculator/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@kamath/mention-mcp": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@kamath/mention-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@kamath/pls-work": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@kamath/pls-work/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@kazumah1/smithery": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@kazumah1/smithery/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@kennyckk/mcp_hkbus": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@kennyckk/mcp_hkbus/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@kesslerio/attio-mcp-server": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@kesslerio/attio-mcp-server/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@khizar-anjum/courtlistener-mcp": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@khizar-anjum/courtlistener-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@kimnerd-dev/notion-mcp-server": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@kimnerd-dev/notion-mcp-server/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@kirha-ai/kirha-crypto": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@kirha-ai/kirha-crypto/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@kodey-ai/mapwise-mcp": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@kodey-ai/mapwise-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@kwp-lab/rss-reader-mcp": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@kwp-lab/rss-reader-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@leandrogavidia/vechain-mcp-server": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@leandrogavidia/vechain-mcp-server/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@leaper-mcp/leaper-mcp-proxy": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@leaper-mcp/leaper-mcp-proxy/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@lecigarevolant/arxiv-mcp-server-gpt": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@lecigarevolant/arxiv-mcp-server-gpt/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@lekt9/sift": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@lekt9/sift/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@libra850/obsidian-mcp-server": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@libra850/obsidian-mcp-server/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@lieyanqzu/sbwsz-mcp": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@lieyanqzu/sbwsz-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@ljj6496/test_smithery": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@ljj6496/test_smithery/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@manasp21/eventhorizon": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@manasp21/eventhorizon/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@manasp21/rabi-mcp": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@manasp21/rabi-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@markchiang/agent-press": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@markchiang/agent-press/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@markchiang/herb-mcp": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@markchiang/herb-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@marktoda/astrotask": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@marktoda/astrotask/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@maxvint/mcp-crypto-research": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@maxvint/mcp-crypto-research/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@mayla-debug/mcp-google-calendar2": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@mayla-debug/mcp-google-calendar2/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@mdornich/google-drive-mcp2": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@mdornich/google-drive-mcp2/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@mefta.sadat2/pcexpress": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@mefta.sadat2/pcexpress/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@mfukushim/map-traveler-mcp": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@mfukushim/map-traveler-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@microsoft/learn_mcp": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@microsoft/learn_mcp/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@mike/courier": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@mike/courier/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@mochow13/ticketmaster-mcp-server": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@mochow13/ticketmaster-mcp-server/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@momo590/mcp-sse-immolog": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@momo590/mcp-sse-immolog/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@mrodasensio/aicol": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@mrodasensio/aicol/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@msaltnet/excel-search-mcp": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@msaltnet/excel-search-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@nickthelegend/test-mcp": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@nickthelegend/test-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@nssachin/mcp-demo": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@nssachin/mcp-demo/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@oh-seok-ju/hello-mcp-test2": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@oh-seok-ju/hello-mcp-test2/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@oxylabs/oxylabs-mcp": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@oxylabs/oxylabs-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@pdv/hot100": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@pdv/hot100/mcp?api_key={{SMITHERY_API_KEY}}",
+      "url": "https://server.smithery.ai/@sachicali/youtube-mcp-chi/mcp?api_key={{SMITHERY_API_KEY}}",
       "headers": {}
     },
     "env": {}
@@ -1679,149 +3541,16 @@
     },
     "env": {}
   },
-  "@pilsang.park/ppark_test": {
+  "@freebreaker/selfhosted-supabase": {
     "streamable_http": {
-      "url": "https://server.smithery.ai/@pilsang.park/ppark_test/mcp?api_key={{SMITHERY_API_KEY}}",
+      "url": "https://server.smithery.ai/@freebreaker/selfhosted-supabase/mcp?api_key={{SMITHERY_API_KEY}}",
       "headers": {}
     },
     "env": {}
   },
-  "@pinion05/entrust-gemini-cli": {
+  "@pierre/snapcall-test": {
     "streamable_http": {
-      "url": "https://server.smithery.ai/@pinion05/entrust-gemini-cli/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@pinkpixel-dev/web-scout-mcp": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@pinkpixel-dev/web-scout-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@plainyogurt21/clintrials-mcp": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@plainyogurt21/clintrials-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@r6654kumar/bargainbites_restaurant2_mcp": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@r6654kumar/bargainbites_restaurant2_mcp/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@rafaljanicki/x-twitter-mcp-server": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@rafaljanicki/x-twitter-mcp-server/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@ramadasmr/networkcalc-mcp": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@ramadasmr/networkcalc-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@ref-tools/ref-tools-mcp": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@ref-tools/ref-tools-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@renCosta2025/context7fork": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@renCosta2025/context7fork/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@rfdez/pvpc-mcp-server": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@rfdez/pvpc-mcp-server/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@riditaatexos/mcpjoke": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@riditaatexos/mcpjoke/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@rishipradeep-think41/google-drive-mcp": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@rishipradeep-think41/google-drive-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@rkdlrl/mcp-takeoff": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@rkdlrl/mcp-takeoff/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@sachicali/youtube-mcp-chi": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@sachicali/youtube-mcp-chi/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@saidsef/mcp-github-pr-issue-analyser": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@saidsef/mcp-github-pr-issue-analyser/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@santiago.blanco.vilchez/asd": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@santiago.blanco.vilchez/asd/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@santiago.blanco.vilchez/cpa-esteban": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@santiago.blanco.vilchez/cpa-esteban/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@santiago.blanco.vilchez/la-final": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@santiago.blanco.vilchez/la-final/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@santiago.blanco.vilchez/santiago-cpa": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@santiago.blanco.vilchez/santiago-cpa/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@sasabasara/where_is_my_train_mcp": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@sasabasara/where_is_my_train_mcp/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@seahbk1006/seahboonkeong-chat-opendosm": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@seahbk1006/seahboonkeong-chat-opendosm/mcp?api_key={{SMITHERY_API_KEY}}",
+      "url": "https://server.smithery.ai/@pierre/snapcall-test/mcp?api_key={{SMITHERY_API_KEY}}",
       "headers": {}
     },
     "env": {}
@@ -1833,6 +3562,223 @@
     },
     "env": {}
   },
+  "@BadRooBot/test_m": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@BadRooBot/test_m/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@david-choi-querypie/david-mcp5": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@david-choi-querypie/david-mcp5/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@llsrrll96/my-mcp-server": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@llsrrll96/my-mcp-server/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@mrseanchow/cowsay-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@mrseanchow/cowsay-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@SmartManoj/smithery_migrate_stdio_to_http": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@SmartManoj/smithery_migrate_stdio_to_http/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@jefferythewind/warpgbm-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@jefferythewind/warpgbm-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@sunggyeong/cohobby-datalookup": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@sunggyeong/cohobby-datalookup/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@barryyip0625/mcp-discord": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@barryyip0625/mcp-discord/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@NitayRabi/fitbit-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@NitayRabi/fitbit-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@openai-agent-school/mcp-server": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@openai-agent-school/mcp-server/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@keremurat/json": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@keremurat/json/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@mr-nishanth/dowhistle-mcp-server": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@mr-nishanth/dowhistle-mcp-server/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@AITutor3/icn-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@AITutor3/icn-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@antivirusakash/open-imagegen-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@antivirusakash/open-imagegen-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@N3N-Seoul/n3n-milvus-mcp-server": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@N3N-Seoul/n3n-milvus-mcp-server/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@TriangleLabs/mcp-ui": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@TriangleLabs/mcp-ui/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@janwilmake/competitive-analysis-demo": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@janwilmake/competitive-analysis-demo/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@pierre/snapcall-test2": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@pierre/snapcall-test2/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@RamboRogers/fal-image-video-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@RamboRogers/fal-image-video-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@michelle/caffeinated-wardrobe": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@michelle/caffeinated-wardrobe/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@erniesg/twin": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@erniesg/twin/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@cloud101.kr/cloud101kr": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@cloud101.kr/cloud101kr/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@kodey-ai/upload-post-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@kodey-ai/upload-post-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@eliu243/oura-mcp-server-eliu": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@eliu243/oura-mcp-server-eliu/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@akilat-spec/leave-manager-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@akilat-spec/leave-manager-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@SmartManoj/smithery-fastmcp-example": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@SmartManoj/smithery-fastmcp-example/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@akilat-spec/mcp-host-tt-leave-manager-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@akilat-spec/mcp-host-tt-leave-manager-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@libra850/obsidian-mcp-server": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@libra850/obsidian-mcp-server/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@ExaltedTrou6/b24-mcp-dev": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@ExaltedTrou6/b24-mcp-dev/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@deltafantazulu/recon": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@deltafantazulu/recon/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@nssachin/mcp-demo": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@nssachin/mcp-demo/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
   "@seizedata/trx-categorization-mcp": {
     "streamable_http": {
       "url": "https://server.smithery.ai/@seizedata/trx-categorization-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
@@ -1840,107 +3786,51 @@
     },
     "env": {}
   },
-  "@shinzo-labs/coinmarketcap-mcp": {
+  "@bencousins22/tab-mcp": {
     "streamable_http": {
-      "url": "https://server.smithery.ai/@shinzo-labs/coinmarketcap-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "url": "https://server.smithery.ai/@bencousins22/tab-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
       "headers": {}
     },
     "env": {}
   },
-  "@shinzo-labs/gmail-mcp": {
+  "@BadRooBot/my_test_mcp": {
     "streamable_http": {
-      "url": "https://server.smithery.ai/@shinzo-labs/gmail-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "url": "https://server.smithery.ai/@BadRooBot/my_test_mcp/mcp?api_key={{SMITHERY_API_KEY}}",
       "headers": {}
     },
     "env": {}
   },
-  "@simonfraserduncan/echo-mcp": {
+  "@tanwenxin/mail-126-mcp": {
     "streamable_http": {
-      "url": "https://server.smithery.ai/@simonfraserduncan/echo-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "url": "https://server.smithery.ai/@tanwenxin/mail-126-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
       "headers": {}
     },
     "env": {}
   },
-  "@sitebay/sitebay-mcp": {
+  "@karan.v/rube-mcp": {
     "streamable_http": {
-      "url": "https://server.smithery.ai/@sitebay/sitebay-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "url": "https://server.smithery.ai/@karan.v/rube-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
       "headers": {}
     },
     "env": {}
   },
-  "@skavinvarnan/finance-calculator": {
+  "@rsafaya/uk-aml-mcp": {
     "streamable_http": {
-      "url": "https://server.smithery.ai/@skavinvarnan/finance-calculator/mcp?api_key={{SMITHERY_API_KEY}}",
+      "url": "https://server.smithery.ai/@rsafaya/uk-aml-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
       "headers": {}
     },
     "env": {}
   },
-  "@skr-cloudify/repomix-cloud": {
+  "@SmartManoj/smithery-fastmcp-quickstart": {
     "streamable_http": {
-      "url": "https://server.smithery.ai/@skr-cloudify/repomix-cloud/mcp?api_key={{SMITHERY_API_KEY}}",
+      "url": "https://server.smithery.ai/@SmartManoj/smithery-fastmcp-quickstart/mcp?api_key={{SMITHERY_API_KEY}}",
       "headers": {}
     },
     "env": {}
   },
-  "@smithery-ai/cookbook-py-custom-container": {
+  "@onurgu/art-events": {
     "streamable_http": {
-      "url": "https://server.smithery.ai/@smithery-ai/cookbook-py-custom-container/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@smithery-ai/cookbook-ts-custom-container": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@smithery-ai/cookbook-ts-custom-container/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@smithery-ai/cookbook-ts-smithery-cli": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@smithery-ai/cookbook-ts-smithery-cli/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@smithery-ai/fetch": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@smithery-ai/fetch/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@smithery-ai/github": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@smithery-ai/github/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@smithery-ai/national-weather-service": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@smithery-ai/national-weather-service/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@smithery-ai/server-sequential-thinking": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@smithery-ai/server-sequential-thinking/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@smithery/toolbox": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@smithery/toolbox/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@su-record/hi-ai": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@su-record/hi-ai/mcp?api_key={{SMITHERY_API_KEY}}",
+      "url": "https://server.smithery.ai/@onurgu/art-events/mcp?api_key={{SMITHERY_API_KEY}}",
       "headers": {}
     },
     "env": {}
@@ -1952,163 +3842,16 @@
     },
     "env": {}
   },
-  "@sunhye/mcp-korea-weather1": {
+  "@christos/eoa": {
     "streamable_http": {
-      "url": "https://server.smithery.ai/@sunhye/mcp-korea-weather1/mcp?api_key={{SMITHERY_API_KEY}}",
+      "url": "https://server.smithery.ai/@christos/eoa/mcp?api_key={{SMITHERY_API_KEY}}",
       "headers": {}
     },
     "env": {}
   },
-  "@sunhye/mcp-test-search": {
+  "@Arctusol/mcp-zoho-books": {
     "streamable_http": {
-      "url": "https://server.smithery.ai/@sunhye/mcp-test-search/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@sylweriusz/mcp-neo4j-memory-server": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@sylweriusz/mcp-neo4j-memory-server/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@tharuneshwar-s/auditron-soc-mcp-server": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@tharuneshwar-s/auditron-soc-mcp-server/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@tobinsouth/smithery-authkit": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@tobinsouth/smithery-authkit/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@truss44/mcp-crypto-price": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@truss44/mcp-crypto-price/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@ttpears/gitlab-mcp": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@ttpears/gitlab-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@turnono/sevenpace-mcp-server": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@turnono/sevenpace-mcp-server/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@ubn-dev/mcp_calculator": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@ubn-dev/mcp_calculator/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@upstash/context7-mcp": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@upstash/context7-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@vijitdaroch/financial-modeling-prep-mcp-server": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@vijitdaroch/financial-modeling-prep-mcp-server/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@vimtor/things-3": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@vimtor/things-3/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@vuvuvu/streamersonglist-mcp": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@vuvuvu/streamersonglist-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@waldzellai/clear-thought": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@waldzellai/clear-thought/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@waldzellai/exa-mcp-docs": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@waldzellai/exa-mcp-docs/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@wgong/sqlite-mcp-server": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@wgong/sqlite-mcp-server/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@whit3rabbit/specforged": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@whit3rabbit/specforged/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@windopper/mcp-takeoff": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@windopper/mcp-takeoff/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@wowjinxy/mcp-discord": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@wowjinxy/mcp-discord/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@xinkuang/china-stock-mcp": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@xinkuang/china-stock-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@xja1023789-collab/scrapermcp_el": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@xja1023789-collab/scrapermcp_el/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@yoriichi-07/multi_orchestrator_mcp": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@yoriichi-07/multi_orchestrator_mcp/mcp?api_key={{SMITHERY_API_KEY}}",
-      "headers": {}
-    },
-    "env": {}
-  },
-  "@yusufsenyer/augment-agent": {
-    "streamable_http": {
-      "url": "https://server.smithery.ai/@yusufsenyer/augment-agent/mcp?api_key={{SMITHERY_API_KEY}}",
+      "url": "https://server.smithery.ai/@Arctusol/mcp-zoho-books/mcp?api_key={{SMITHERY_API_KEY}}",
       "headers": {}
     },
     "env": {}
@@ -2120,23 +3863,758 @@
     },
     "env": {}
   },
-  "@zwldarren/akshare-one-mcp": {
+  "@figstra/recodeqr-mcp": {
     "streamable_http": {
-      "url": "https://server.smithery.ai/@zwldarren/akshare-one-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "url": "https://server.smithery.ai/@figstra/recodeqr-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
       "headers": {}
     },
     "env": {}
   },
-  "deepwiki": {
+  "@yongkangc/scry-mcp-raw-js": {
     "streamable_http": {
-      "url": "https://server.smithery.ai/deepwiki/mcp?api_key={{SMITHERY_API_KEY}}",
+      "url": "https://server.smithery.ai/@yongkangc/scry-mcp-raw-js/mcp?api_key={{SMITHERY_API_KEY}}",
       "headers": {}
     },
     "env": {}
   },
-  "exa": {
+  "@mrugankpednekar/bill_splitter_mcp": {
     "streamable_http": {
-      "url": "https://server.smithery.ai/exa/mcp?api_key={{SMITHERY_API_KEY}}",
+      "url": "https://server.smithery.ai/@mrugankpednekar/bill_splitter_mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@adler0311/mcp-edgartools-lite": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@adler0311/mcp-edgartools-lite/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@samihalawa/next-js-mcp-server": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@samihalawa/next-js-mcp-server/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@huangmy157/ddd": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@huangmy157/ddd/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@manasp21/eventhorizon": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@manasp21/eventhorizon/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@ThierryThevenet/talao": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@ThierryThevenet/talao/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@ttpears/gitlab-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@ttpears/gitlab-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@aws/docs": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@aws/docs/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@Michael98671/agentbay": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@Michael98671/agentbay/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@vinodkrishnan92/kelilabs-first-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@vinodkrishnan92/kelilabs-first-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@Travis3699/neo4jmcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@Travis3699/neo4jmcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@vinodkrishnan92/my-first-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@vinodkrishnan92/my-first-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@jackedelic/mcp-discord": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@jackedelic/mcp-discord/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@big-saltedfish/mcp-browser": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@big-saltedfish/mcp-browser/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@DynamicEndpoints/power-bi-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@DynamicEndpoints/power-bi-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@leaper-mcp/leaper-mcp-proxy": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@leaper-mcp/leaper-mcp-proxy/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@emmanuel/aic-test": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@emmanuel/aic-test/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@SerPepe/ask-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@SerPepe/ask-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@kamath/notion": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@kamath/notion/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@Liam-Deacon/zettelkasten-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@Liam-Deacon/zettelkasten-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@googleworkspace/mcp-dev-assist": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@googleworkspace/mcp-dev-assist/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@RectiFlex/centerassist-mcp-centerpoint": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@RectiFlex/centerassist-mcp-centerpoint/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@riileyy/naver-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@riileyy/naver-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@sourabh/timeslope": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@sourabh/timeslope/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@rftsngl/newsmcp_with_mediastackapi": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@rftsngl/newsmcp_with_mediastackapi/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@MaciejCoinAPI/finfeedapi-stock-api": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@MaciejCoinAPI/finfeedapi-stock-api/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@kongyo2/zod": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@kongyo2/zod/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@wysh3/perplexity-mcp-server": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@wysh3/perplexity-mcp-server/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@RonsDad/browserbasemcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@RonsDad/browserbasemcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@jangsubong78/my-mcp-server": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@jangsubong78/my-mcp-server/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@Glitchcraft-Inc/singular-mcp-server": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@Glitchcraft-Inc/singular-mcp-server/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@yosseld/hyperbrowser-": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@yosseld/hyperbrowser-/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@mazah81-gif/my-mcp-server-2025_01": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@mazah81-gif/my-mcp-server-2025_01/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@gurdasnijor/server-quality-harness": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@gurdasnijor/server-quality-harness/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@ciel240/class_study": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@ciel240/class_study/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@chohi22/mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@chohi22/mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@abdulsaboor938/hicss-rag-test": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@abdulsaboor938/hicss-rag-test/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@mefta.sadat2/pcx": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@mefta.sadat2/pcx/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@navanithbharadwaj/stream": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@navanithbharadwaj/stream/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@riteshtk/notion-mcp-server": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@riteshtk/notion-mcp-server/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@documentation-x/number-automation": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@documentation-x/number-automation/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@ybouane/scrptly-ai-video-agent": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@ybouane/scrptly-ai-video-agent/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "hex": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/hex/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@hithereiamaliff/mcp-grabmaps": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@hithereiamaliff/mcp-grabmaps/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@rin2401/smithery-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@rin2401/smithery-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@PewterZz/sequential-thinking-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@PewterZz/sequential-thinking-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@Vic563/mindsweeper-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@Vic563/mindsweeper-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@tbakerx/instant-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@tbakerx/instant-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@membridge/membridge": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@membridge/membridge/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@VeriTeknik/pluggedin-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@VeriTeknik/pluggedin-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@hahongchul/mcp-server": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@hahongchul/mcp-server/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@vini1994/bingx": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@vini1994/bingx/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@helix-song/coinex_mcp_server": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@helix-song/coinex_mcp_server/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@arjunkmrm/external-test": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@arjunkmrm/external-test/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@arjunkmrm/py-test-no-config": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@arjunkmrm/py-test-no-config/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@arjunkmrm/py-test-config": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@arjunkmrm/py-test-config/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@Meet261/hello-mcp-server": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@Meet261/hello-mcp-server/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@arjunkmrm/ts-test-no-config": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@arjunkmrm/ts-test-no-config/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@demomagic/sip-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@demomagic/sip-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@kritsanan1/chrome-extensions-samples": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@kritsanan1/chrome-extensions-samples/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@maxbeech/instagram-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@maxbeech/instagram-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@yarism/vasttrafik-mcp-server": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@yarism/vasttrafik-mcp-server/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@lunarcrush/mcp-server": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@lunarcrush/mcp-server/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@arjunkmrm/ts-test-config": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@arjunkmrm/ts-test-config/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@apetta/diagrams-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@apetta/diagrams-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@xiaobenyang-com/mcp_tools_3": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@xiaobenyang-com/mcp_tools_3/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@CaullenOmdahl/expo-mcp-server": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@CaullenOmdahl/expo-mcp-server/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@gaharivatsa/kibana_server": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@gaharivatsa/kibana_server/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@imleokkkk/mcp-test-test": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@imleokkkk/mcp-test-test/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@imleokkkk/mcp-test2": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@imleokkkk/mcp-test2/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@harshith/core": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@harshith/core/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@Jeetinida/stocknews-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@Jeetinida/stocknews-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@stickerdaniel/linkedin-mcp-server": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@stickerdaniel/linkedin-mcp-server/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@rabiauynk/event-planner-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@rabiauynk/event-planner-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@Aman-Amith-Shastry/mcp-numpy": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@Aman-Amith-Shastry/mcp-numpy/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@ibuildthecloud/test": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@ibuildthecloud/test/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@parthashirolkar/gmail-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@parthashirolkar/gmail-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@manasp21/psi-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@manasp21/psi-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@kmnis/smithery": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@kmnis/smithery/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@tharuneshwar-s/auditron-soc-mcp-server": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@tharuneshwar-s/auditron-soc-mcp-server/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@nate/kismet-travel": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@nate/kismet-travel/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@ymeng98/ddddocr-captcha-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@ymeng98/ddddocr-captcha-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@dudi07/weather-mcp-server": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@dudi07/weather-mcp-server/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@chrisdoc/hevy-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@chrisdoc/hevy-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@nolleh/mcp-vertica": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@nolleh/mcp-vertica/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@robinbortlik/oso-cloud-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@robinbortlik/oso-cloud-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@yurthankiyak/mcp-advice3": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@yurthankiyak/mcp-advice3/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@abhiphile/fermat-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@abhiphile/fermat-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@yzsshen/mcp-demo": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@yzsshen/mcp-demo/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@mjucius/cozi_mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@mjucius/cozi_mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "kernel": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/kernel/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@sasabasara/where_is_my_bus_mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@sasabasara/where_is_my_bus_mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@ilil1/fastapi_mcp_sse": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@ilil1/fastapi_mcp_sse/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@ttkkasd/jimeng-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@ttkkasd/jimeng-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@maayanyosef/mcp-explorium": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@maayanyosef/mcp-explorium/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@Vijay-2005/gemini_mcp2": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@Vijay-2005/gemini_mcp2/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@choi20201101/ccfm_naver": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@choi20201101/ccfm_naver/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@asifmd1806/figma-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@asifmd1806/figma-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@LeGenAI/mcp-magma-handbook": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@LeGenAI/mcp-magma-handbook/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@contactout/contactout-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@contactout/contactout-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@WaterSippin/mcp-osrs": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@WaterSippin/mcp-osrs/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@samihalawa/advanced-tts-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@samihalawa/advanced-tts-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@iremaltunay55/denememcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@iremaltunay55/denememcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@GoodGoodCo/roundhr-mcp-server": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@GoodGoodCo/roundhr-mcp-server/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@muammar-yacoob/gmail-manager-mcp": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@muammar-yacoob/gmail-manager-mcp/mcp?api_key={{SMITHERY_API_KEY}}",
+      "headers": {}
+    },
+    "env": {}
+  },
+  "@therealhexi/shopify-mcp-server-main": {
+    "streamable_http": {
+      "url": "https://server.smithery.ai/@therealhexi/shopify-mcp-server-main/mcp?api_key={{SMITHERY_API_KEY}}",
       "headers": {}
     },
     "env": {}

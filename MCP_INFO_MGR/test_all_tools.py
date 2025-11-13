@@ -185,7 +185,7 @@ class ToolTester:
         # LLM settings
         self.use_llm = use_llm or evaluate_with_llm  # evaluate_with_llm implies use_llm
         self.evaluate_with_llm = evaluate_with_llm
-        self.model = model or os.getenv("OPENAI_MODEL", "gpt-4")
+        self.model = model or os.getenv("OPENAI_MODEL", "gpt-4o-mini")
         self.judge_model = judge_model or os.getenv("JUDGE_MODEL", self.model)
 
         # Initialize OpenAI client if using LLM
@@ -598,7 +598,8 @@ class ToolTester:
 
     async def run_tests(self, server_filter: Optional[str] = None,
                        tool_filter: Optional[str] = None,
-                       limit: Optional[int] = None):
+                       limit: Optional[int] = None,
+                       one_tool_per_server: bool = False):
         """
         Run tests on all tools.
 
@@ -606,6 +607,7 @@ class ToolTester:
             server_filter: If provided, only test this server
             tool_filter: If provided, only test this tool
             limit: If provided, only test first N servers
+            one_tool_per_server: If True, only test first tool from each server
         """
         self.load_data()
 
@@ -635,6 +637,11 @@ class ToolTester:
                     server_data["tools"] = [t for t in tools if t.get("name") == tool_filter]
                     if not server_data["tools"]:
                         continue
+                elif one_tool_per_server:
+                    # Only test the first tool from each server
+                    tools = server_data.get("tools", [])
+                    if tools:
+                        server_data["tools"] = [tools[0]]
 
                 results = await self.test_server(server_data)
                 self.results.extend(results)
@@ -940,9 +947,12 @@ async def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=__doc__
     )
+    parser.add_argument("--input", help="Input NDJSON file (default: mcp_data/indexed/tool_descriptions.ndjson)")
     parser.add_argument("--server", help="Test only this server (qualified name)")
     parser.add_argument("--tool", help="Test only this tool (requires --server)")
     parser.add_argument("--limit", type=int, help="Test only first N servers")
+    parser.add_argument("--one-tool-per-server", action="store_true",
+                       help="Test only the first tool from each server (quick health check)")
     parser.add_argument("--output", default="tool_test_results.json",
                        help="Output file for results (default: tool_test_results.json)")
     parser.add_argument("--use-llm", action="store_true",
@@ -967,7 +977,10 @@ async def main():
 
     # Set up paths (script is now in MCP_INFO_MGR directory)
     data_dir = PROJECT_ROOT / "mcp_data"
-    tool_descriptions_path = data_dir / "indexed" / "tool_descriptions.ndjson"
+    if args.input:
+        tool_descriptions_path = Path(args.input)
+    else:
+        tool_descriptions_path = data_dir / "indexed" / "tool_descriptions.ndjson"
 
     # Check file exists
     if not tool_descriptions_path.exists():
@@ -1000,7 +1013,8 @@ async def main():
         await tester.run_tests(
             server_filter=args.server,
             tool_filter=args.tool,
-            limit=args.limit
+            limit=args.limit,
+            one_tool_per_server=args.one_tool_per_server
         )
 
         # Save results

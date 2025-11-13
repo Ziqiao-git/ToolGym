@@ -636,6 +636,279 @@ def run_judge_from_files(
 
 
 # =========================
+# Step-by-Step Evaluation
+# =========================
+
+STEP_EVALUATION_TEMPLATE = """You are evaluating a SINGLE STEP in a multi-step ReAct agent trajectory.
+
+ULTIMATE GOAL (User's Query):
+{query}
+
+STEP NUMBER: {step_num}
+
+PREVIOUS CONTEXT:
+{previous_context}
+
+CURRENT STEP:
+Thought: {thought}
+Action: {action}
+Action Input: {action_input}
+Tool Result: {tool_result}
+
+---
+Evaluate this single step on FOUR dimensions (0-10, integers only):
+
+1) Thought Quality (0-10)
+   - Is the thought logical given the query and previous context?
+   - Does it show clear reasoning about what to do next?
+   10 = excellent reasoning, clear plan
+   7-9 = good reasoning, minor gaps
+   4-6 = weak reasoning, unclear plan
+   0-3 = poor/missing reasoning
+
+2) Action Appropriateness (0-10)
+   - Is the chosen action/tool appropriate for the thought and query?
+   - Are the action inputs correct and complete?
+   10 = perfect tool choice, correct inputs
+   7-9 = good choice, minor input issues
+   4-6 = questionable choice or significant input issues
+   0-3 = wrong tool or invalid inputs
+
+3) Result Utilization (0-10)
+   - Is the tool result valid and useful?
+   - Does it provide information needed for the query?
+   10 = excellent result, directly useful
+   7-9 = good result, mostly useful
+   4-6 = partial result or limited usefulness
+   0-3 = error, irrelevant result, or not utilized
+
+4) Progress Toward Goal (0-10)
+   - CRITICAL: Does this step move the agent CLOSER to answering the ultimate query?
+   - Does it gather necessary information or eliminate uncertainty?
+   - Is this step essential for the final answer, or is it redundant/tangential?
+   10 = essential step, directly advances toward goal
+   8-9 = helpful step, clearly contributes to progress
+   6-7 = marginal progress, somewhat relevant
+   4-5 = minimal progress, mostly redundant or tangential
+   0-3 = no progress, wrong direction, or completely irrelevant
+
+---
+OUTPUT FORMAT (strict JSON only):
+{{
+  "thought_quality": <int 0-10>,
+  "action_appropriateness": <int 0-10>,
+  "result_utilization": <int 0-10>,
+  "progress_toward_goal": <int 0-10>,
+  "step_score": <float 0-1>,
+  "issues": "<brief description of any problems, or 'none'>",
+  "suggestions": "<brief suggestion for improvement, or 'none'>",
+  "progress_explanation": "<1-2 sentences: HOW does this step contribute to answering the query?>"
+}}
+
+where step_score = (thought_quality + action_appropriateness + result_utilization + progress_toward_goal) / 40.0
+
+IMPORTANT: The "progress_toward_goal" dimension is the MOST CRITICAL. Always ask: "Is this step necessary for answering '{query}'?"
+"""
+
+
+def extract_steps_from_reasoning_trace(rt: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Extract individual steps from reasoning_trace."""
+    steps: List[Dict[str, Any]] = []
+    current: Optional[Dict[str, Any]] = None
+    step_num = 0
+
+    def _new_step(idx: int) -> Dict[str, Any]:
+        return {
+            "step_num": idx,
+            "thought": None,
+            "action": None,
+            "action_input": None,
+            "tool_result": None
+        }
+
+    for item in rt:
+        ttype = (item.get("type") or "").strip().lower()
+        content = item.get("content", "")
+
+        if ttype == "error":
+            continue
+
+        if ttype.startswith("step"):
+            if current:
+                steps.append(current)
+            step_num += 1
+            current = _new_step(step_num)
+            continue
+
+        if current is None:
+            step_num += 1
+            current = _new_step(step_num)
+
+        if ttype == "thought":
+            current["thought"] = content
+        elif ttype == "action":
+            current["action"] = content
+        elif ttype in ("action input", "action_input"):
+            try:
+                current["action_input"] = json.loads(content) if isinstance(content, str) else content
+            except:
+                current["action_input"] = content
+        elif ttype in ("result", "tool result", "tool_result"):
+            try:
+                current["tool_result"] = json.loads(content) if isinstance(content, str) else content
+            except:
+                current["tool_result"] = content
+        elif ttype == "answer":
+            if current.get("thought") is None:
+                current["thought"] = "Formulating final answer"
+            current["answer"] = content
+
+    if current:
+        steps.append(current)
+
+    return steps
+
+
+def evaluate_single_step(
+    *,
+    query: str,
+    step: Dict[str, Any],
+    previous_steps: List[Dict[str, Any]],
+    model_name: str = "openai/gpt-4o-mini",
+    temperature: float = 0.0,
+) -> Dict[str, Any]:
+    """Evaluate a single step."""
+    # Build previous context
+    prev_context = []
+    for i, ps in enumerate(previous_steps, 1):
+        prev_context.append(f"Step {i}:")
+        prev_context.append(f"  Thought: {ps.get('thought', 'N/A')}")
+        prev_context.append(f"  Action: {ps.get('action', 'N/A')}")
+        prev_context.append(f"  Result: {str(ps.get('tool_result', 'N/A'))[:200]}...")
+    previous_context_text = "\n".join(prev_context) if prev_context else "(This is the first step)"
+
+    thought = step.get("thought") or "(not recorded)"
+    action = step.get("action") or "(none)"
+    action_input = _json(step.get("action_input")) if step.get("action_input") else "{}"
+    tool_result = str(step.get("tool_result") or "(none)")[:500]
+
+    prompt = STEP_EVALUATION_TEMPLATE.format(
+        query=query,
+        step_num=step.get("step_num", "?"),
+        thought=thought,
+        action=action,
+        action_input=action_input,
+        tool_result=tool_result,
+        previous_context=previous_context_text,
+    )
+
+    raw = _call_llm(
+        prompt=prompt,
+        system_prompt="You are an expert evaluator of AI agent reasoning steps. Return only valid JSON.",
+        temperature=temperature,
+        max_tokens=2000,
+        model_name=model_name,
+    )
+
+    parsed = _safe_parse_json(raw)
+    if not parsed:
+        return {
+            "thought_quality": 0,
+            "action_appropriateness": 0,
+            "result_utilization": 0,
+            "progress_toward_goal": 0,
+            "step_score": 0.0,
+            "issues": "Failed to parse judge response",
+            "suggestions": "N/A",
+            "progress_explanation": "N/A",
+        }
+
+    return {
+        "thought_quality": parsed.get("thought_quality", 0),
+        "action_appropriateness": parsed.get("action_appropriateness", 0),
+        "result_utilization": parsed.get("result_utilization", 0),
+        "progress_toward_goal": parsed.get("progress_toward_goal", 0),
+        "step_score": parsed.get("step_score", 0.0),
+        "issues": parsed.get("issues", ""),
+        "suggestions": parsed.get("suggestions", ""),
+        "progress_explanation": parsed.get("progress_explanation", ""),
+    }
+
+
+def evaluate_trajectory_with_steps(
+    traj_obj: Dict[str, Any],
+    query: str,
+    reference_tools: List[Dict[str, Any]],
+    *,
+    model_name: str = "openai/gpt-4o-mini",
+    temperature: float = 0.0,
+    pass_threshold: float = 0.85,
+) -> Dict[str, Any]:
+    """
+    Evaluate trajectory with both step-by-step and holistic evaluation.
+
+    Returns combined result with both evaluations.
+    """
+    # Extract steps from reasoning trace
+    rt = traj_obj.get("reasoning_trace", [])
+    steps = extract_steps_from_reasoning_trace(rt)
+
+    if not steps:
+        print("[WARNING] No steps found in reasoning trace for step-by-step evaluation", file=sys.stderr)
+        step_evaluations = []
+        avg_step_score = 0.0
+    else:
+        # Evaluate each step
+        step_evaluations = []
+        for i, step in enumerate(steps):
+            previous_steps = steps[:i]
+            eval_result = evaluate_single_step(
+                query=query,
+                step=step,
+                previous_steps=previous_steps,
+                model_name=model_name,
+                temperature=temperature,
+            )
+            step_evaluations.append({
+                "step_num": step["step_num"],
+                "thought": step.get("thought"),
+                "action": step.get("action"),
+                "evaluation": eval_result,
+            })
+
+        avg_step_score = sum(e["evaluation"].get("step_score", 0) for e in step_evaluations) / len(step_evaluations)
+
+    # Get holistic evaluation (existing function)
+    task_id = traj_obj.get("_filename", "unknown")
+    pack = _values_from_prompt_and_traj(query, traj_obj, task_id, reference_tools)
+
+    holistic_eval = llm_as_judge_score(
+        meta=pack["meta"],
+        task=pack["task"],
+        history=pack["history"],
+        final_answer=pack["final_answer"],
+        reference_tools=pack["reference_tools"],
+        temperature=temperature,
+        pass_threshold=pass_threshold,
+        model_name=model_name,
+    )
+
+    # Combine results
+    return {
+        "query": query,
+        "reference_tools": reference_tools,
+        "actual_tools": pack.get("actual_tools", []),
+        "holistic_evaluation": holistic_eval,
+        "step_by_step_evaluation": {
+            "total_steps": len(steps),
+            "average_step_score": avg_step_score,
+            "steps": step_evaluations,
+        },
+        "task_id": task_id,
+    }
+
+
+# =========================
 # CLI
 # =========================
 
@@ -648,6 +921,7 @@ def main():
     parser.add_argument("--temperature", type=float, default=0.0)
     parser.add_argument("--model", default="openai/gpt-4o-mini", help="LLM model to use for evaluation (default: openai/gpt-4o-mini)")
     parser.add_argument("--save_json", default="", help="optional: path to save JSON results")
+    parser.add_argument("--step-by-step", action="store_true", help="Enable step-by-step evaluation in addition to holistic evaluation")
     args = parser.parse_args()
 
     # Single trajectory mode → create NEW-format temp prompt with empty reference_tools
@@ -669,28 +943,52 @@ def main():
             print("[ERROR] No query found in trajectory metadata", file=sys.stderr)
             sys.exit(1)
 
-        temp_prompt = tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False, encoding='utf-8')
-        json.dump({
-            "metadata": {},
-            "items": [{"query": query, "reference_tools": []}]
-        }, temp_prompt, ensure_ascii=False)
-        temp_prompt.close()
+        # Step-by-step evaluation mode
+        if args.step_by_step:
+            print(f"\n{'='*70}")
+            print(f"Step-by-Step Evaluation: {traj_path.name}")
+            print(f"{'='*70}")
+            print(f"Query: {query}")
+            print(f"Model: {args.model}")
+            print(f"{'='*70}\n")
 
-        temp_dir = tempfile.mkdtemp()
-        shutil.copy(traj_path, Path(temp_dir) / traj_path.name)
-
-        try:
-            results = run_judge_from_files(
-                prompt_path=temp_prompt.name,
-                trajectories_dir=temp_dir,
-                pass_threshold=args.threshold,
-                temperature=args.temperature,
+            results = [evaluate_trajectory_with_steps(
+                traj_obj=traj_data,
+                query=query,
+                reference_tools=[],
                 model_name=args.model,
-            )
-        finally:
-            os.unlink(temp_prompt.name)
-            shutil.rmtree(temp_dir)
+                temperature=args.temperature,
+                pass_threshold=args.threshold,
+            )]
+        else:
+            # Original holistic-only evaluation
+            temp_prompt = tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False, encoding='utf-8')
+            json.dump({
+                "metadata": {},
+                "items": [{"query": query, "reference_tools": []}]
+            }, temp_prompt, ensure_ascii=False)
+            temp_prompt.close()
+
+            temp_dir = tempfile.mkdtemp()
+            shutil.copy(traj_path, Path(temp_dir) / traj_path.name)
+
+            try:
+                results = run_judge_from_files(
+                    prompt_path=temp_prompt.name,
+                    trajectories_dir=temp_dir,
+                    pass_threshold=args.threshold,
+                    temperature=args.temperature,
+                    model_name=args.model,
+                )
+            finally:
+                os.unlink(temp_prompt.name)
+                shutil.rmtree(temp_dir)
     else:
+        # Batch evaluation mode (not supported for step-by-step yet)
+        if args.step_by_step:
+            print("[WARNING] --step-by-step is only supported with --trajectory flag", file=sys.stderr)
+            print("[WARNING] Falling back to holistic evaluation only", file=sys.stderr)
+
         results = run_judge_from_files(
             prompt_path=args.prompt,
             trajectories_dir=args.traj_dir,
