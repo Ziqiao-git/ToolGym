@@ -932,7 +932,7 @@ def main():
 
         traj_path = Path(args.trajectory)
         if not traj_path.exists():
-            print(f("[ERROR] Trajectory file not found: {traj_path}"), file=sys.stderr)
+            print(f"[ERROR] Trajectory file not found: {traj_path}", file=sys.stderr)
             sys.exit(1)
 
         with open(traj_path, 'r', encoding='utf-8') as f:
@@ -1000,10 +1000,26 @@ def main():
     out = json.dumps(results, ensure_ascii=False, indent=2)
     print(out)
 
-    if args.save_json:
-        with open(args.save_json, "w", encoding="utf-8") as f:
+    # Auto-generate filename for step-by-step mode if not specified
+    save_path = args.save_json
+    if args.step_by_step and args.trajectory and not save_path:
+        import re
+        from pathlib import Path
+        # Extract timestamp from trajectory filename (e.g., trajectory_20251114_140303.json)
+        traj_name = Path(args.trajectory).stem
+        match = re.search(r'(\d{8}_\d{6})', traj_name)
+        if match:
+            timestamp = match.group(1)
+            save_path = f"evaluation/step_by_step_{timestamp}.json"
+            # Create evaluation directory if it doesn't exist
+            Path("evaluation").mkdir(exist_ok=True)
+        else:
+            save_path = "evaluation/step_by_step_results.json"
+
+    if save_path:
+        with open(save_path, "w", encoding="utf-8") as f:
             f.write(out)
-        print(f"[OK] Saved results to {args.save_json}", file=sys.stderr)
+        print(f"[OK] Saved results to {save_path}", file=sys.stderr)
 
 
 if __name__ == "__main__":
