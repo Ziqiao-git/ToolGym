@@ -894,6 +894,61 @@ python runtime/run_goaloriented_agent.py \
 
 ---
 
+## Query Verification with Reference Tools
+
+Verify that generated queries can be solved using ONLY their reference tools (validates query quality):
+
+```bash
+cd /Users/xiziqiao/Documents/MCP-Research/MCP-R
+
+# Verify single query
+python runtime/verify_query_with_reference_tools.py \
+  --query-file mcp_generate/requests/multi_tool_queries_117servers.json \
+  --query-index 0 \
+  --max-iterations 15
+
+# Verify all queries in file
+python runtime/verify_query_with_reference_tools.py \
+  --query-file mcp_generate/requests/multi_tool_queries_117servers.json \
+  --all \
+  --max-iterations 15
+```
+
+**Arguments:**
+- `--query-file`: JSON file with queries and reference_tools (required)
+- `--query-index N`: Verify query at index N (use with single query)
+- `--all`: Verify all queries in the file
+- `--max-iterations`: Max agent reasoning steps (default: 15)
+- `--model`: LLM model (default: `anthropic/claude-3.5-sonnet`)
+
+**What it does:**
+1. Loads ONLY reference servers (restricts tool access)
+2. Runs agent on query with limited tool set
+3. Tracks tools used vs reference tools
+4. LLM-based tool quality assessment
+5. Saves to `trajectories/verification/verify_q{N}_{timestamp}.json`
+6. Creates `trajectories/verification/summary.json` (batch mode)
+
+**Key Output Fields:**
+- `tools_used`: Tools actually called (`["exa/search", "github/list_repos"]`)
+- `tools_matched`: Boolean - did agent use correct tools?
+- `self_evaluation`: Agent's assessment (`"SUFFICIENT"` or `"INSUFFICIENT"`)
+- `tool_quality_assessment`: LLM judge score (0.0-1.0)
+- `tools_with_missing_descriptions`: Tools with None/empty descriptions
+
+**Interpreting Results:**
+
+✅ Good: `tools_matched=true`, `self_evaluation="SUFFICIENT"`, `quality_score>=0.7`
+⚠️ Investigate: `tools_matched=false`, `quality_score=0.4-0.7`
+❌ Bad: `tools_used=0`, `self_evaluation="INSUFFICIENT"`, `quality_score<0.4`
+
+**Common Issues:**
+- Context overflow (298K+ tokens): Some tools return huge responses
+- Timeout errors: Increase `--max-iterations`
+- Missing descriptions: Tracked but handled gracefully
+
+---
+
 ## Trajectory Evaluation
 
 ### Evaluate Agent Trajectories with LLM Judge

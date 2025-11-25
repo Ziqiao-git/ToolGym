@@ -25,7 +25,7 @@ import numpy as np
 
 # Add project paths
 SCRIPT_DIR = Path(__file__).resolve().parent
-PROJECT_ROOT = SCRIPT_DIR.parent
+PROJECT_ROOT = SCRIPT_DIR.parent.parent  # Go up to MCP-R root
 
 sys.path.insert(0, str(PROJECT_ROOT))
 

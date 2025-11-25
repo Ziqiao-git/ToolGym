@@ -1,2 +1,3 @@
 .env
 .env.*
+server_test_script/*

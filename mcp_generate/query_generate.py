@@ -38,14 +38,40 @@ MAX_RETRIES = 3
 MAX_CONCURRENT = 5  # Maximum concurrent API calls
 
 
-# -------- 改动 1：SYSTEM_PROMPT（新增 reference_tools 要求） --------
-SYSTEM_PROMPT = """You are an expert at creating natural, realistic user queries that involve research or multi-step tasks.
+# -------- 改动 1：SYSTEM_PROMPT（新增 reference_tools 和 constraints 要求） --------
+SYSTEM_PROMPT = """You are an expert at creating natural, realistic user queries that involve complex planning with multiple constraints.
 
 Goal:
-Given a list of available MCP servers, generate ONE realistic, multi-step natural language query that users might actually ask, where solving it would require combining information or functions from different MCP servers.
+Given a list of available MCP servers, generate ONE realistic, multi-step natural language query that users might actually ask, where solving it would require:
+1. Combining information or functions from DIFFERENT MCP servers (2-4 tools from distinct servers)
+2. Navigating both HARD CONSTRAINTS (must satisfy) and SOFT CONSTRAINTS (preferred/optimized)
 
 In servers_summary, each entry follows this format:
 <server_namespace>/<server_name>/<tool_name>: <tool_description>
+
+CONSTRAINT REQUIREMENTS:
+The query MUST include realistic planning constraints that an agent needs to consider:
+
+**HARD CONSTRAINTS** (at least 2 - must be satisfied, non-negotiable):
+- Budget limits (e.g., "under $5,000", "API calls limited to 1000/day")
+- Deadlines (e.g., "by end of Q1 2025", "within 2 weeks")
+- Regulatory/compliance (e.g., "GDPR compliant", "must use approved vendors only")
+- Technical requirements (e.g., "must support real-time updates", "99.9% uptime SLA")
+- Resource limits (e.g., "team of 3 developers max", "existing infrastructure only")
+- Geographic/legal (e.g., "US-based services only", "data must stay in EU")
+
+**SOFT CONSTRAINTS** (at least 2 - preferences to optimize, can trade off):
+- Performance preferences (e.g., "prefer faster response time", "optimize for throughput")
+- Cost optimization (e.g., "minimize recurring costs where possible")
+- Quality preferences (e.g., "prefer higher accuracy if feasible")
+- Convenience (e.g., "easier onboarding preferred", "minimal training time")
+- Feature priorities (e.g., "nice to have advanced analytics", "prefer modern UI")
+- Risk preferences (e.g., "prefer established vendors", "minimize dependencies")
+
+The query should present a scenario where the agent must:
+- Make trade-offs between competing soft constraints
+- Ensure all hard constraints are met
+- Balance priorities across multiple dimensions
 
 Additionally, return a short list of reference tools that the agent would likely use to answer the query.
 
@@ -97,6 +123,19 @@ QUERY REQUIREMENTS:
 - Be specific, concrete, and realistic.
 - Avoid meta or instructional phrasing.
 - The task should make sense as something a real person or researcher might request.
+- MUST explicitly state both hard constraints (requirements) and soft constraints (preferences/optimizations).
+- Constraints should create realistic trade-offs and planning challenges.
+
+CONSTRAINT EXAMPLES IN QUERIES:
+
+Example 1 (Project Planning):
+"We need to build a customer analytics dashboard by March 15th [HARD: deadline] with a budget under $8,000 [HARD: budget]. The solution must be GDPR compliant [HARD: regulatory] and integrate with our existing Postgres database [HARD: technical]. We'd prefer a solution with minimal setup time [SOFT: convenience], prioritize data visualization quality over advanced ML features [SOFT: feature priority], and would like to minimize ongoing maintenance costs [SOFT: cost optimization]."
+
+Example 2 (Infrastructure Selection):
+"Select cloud hosting for our API service that guarantees 99.9% uptime [HARD: SLA], supports auto-scaling [HARD: technical], costs less than $500/month [HARD: budget], and uses US-based data centers only [HARD: geographic]. Prefer faster deployment over feature richness [SOFT: speed vs features], optimize for ease of DevOps integration [SOFT: convenience], and minimize vendor lock-in where possible [SOFT: risk]."
+
+Example 3 (Research Task):
+"Conduct market analysis for launching in EU by Q2 2025 [HARD: deadline] with research budget capped at $3,000 [HARD: budget]. Must cover Germany, France, and Spain [HARD: scope]. Data sources must be publicly available [HARD: compliance]. Prefer more recent data (2024+) over historical [SOFT: recency], prioritize quantitative data if available [SOFT: data type], and favor established research firms for credibility [SOFT: quality]."
 
 OUTPUT FORMAT:
 Return a valid JSON object:
@@ -127,10 +166,16 @@ Only output once all checks pass.
 
 ---
 
-Examples of good queries:
-- "Find open datasets on air pollution from NASA and correlate them with recent city-level weather forecasts to understand smog patterns."
-- "Compare top trending AI GitHub projects with recent funding announcements from venture databases."
-- "Retrieve tourism trends from an analytics API and cross-check upcoming weather forecasts to recommend the best destinations for next month."
+Examples of good constraint-based queries:
+
+Example 1:
+"Plan a tech conference for 200 attendees by June 2025 [HARD: deadline, capacity] within a $50,000 budget [HARD: budget]. Must find venues in San Francisco or Austin [HARD: location], with availability on weekends [HARD: scheduling]. Prefer venues with modern AV equipment [SOFT: quality], prioritize proximity to airports over downtown locations [SOFT: trade-off], and would like backup date options if possible [SOFT: flexibility]. Use weather data to check seasonal patterns and GitHub API to identify trending tech topics for the agenda."
+
+Example 2:
+"Research sustainable energy solutions for a manufacturing facility by Q1 2025 [HARD: deadline] with capital budget under $2M [HARD: budget]. Must achieve 30% carbon reduction [HARD: performance] and comply with state regulations [HARD: compliance]. Prefer solutions with faster ROI [SOFT: financial], prioritize proven technology over experimental [SOFT: risk], and favor options requiring minimal operational changes [SOFT: convenience]. Cross-reference environmental data APIs with cost calculators and regulatory databases."
+
+Example 3:
+"Select developer tools for a remote team of 15 by end of month [HARD: deadline, team size] spending max $5,000/year [HARD: budget]. Must integrate with Slack and GitHub [HARD: technical integration] and provide real-time collaboration [HARD: feature requirement]. Prefer tools with shorter learning curve [SOFT: usability], optimize for fewer total tools over feature completeness [SOFT: simplicity vs features], and favor vendors with strong security track record [SOFT: risk mitigation]. Query software comparison APIs, pricing databases, and integration catalogs."
 
 Make sure all reference tools come from distinct MCP servers (different prefixes before the third '/').
 
@@ -201,10 +246,19 @@ USER_PROMPT_TEMPLATE = """Here are the available MCP servers grouped by domain:
 servers_summary:
 {servers_summary}
 For each server, the format is: server_name/tool_name: tool_description. Did not include tool name in server name for output
-Generate 1 natural, realistic user query that people would actually ask.
-This query should naturally involve researching or combining information from different sources.
 
-Return a JSON object with "query" field containing a single string.
+Generate 1 natural, realistic user query with CONSTRAINT-BASED PLANNING that people would actually ask.
+
+REQUIREMENTS:
+1. Query must require 2-4 tools from DIFFERENT MCP servers
+2. Include at least 2 HARD CONSTRAINTS (must satisfy - e.g., budget, deadline, compliance, technical requirements)
+3. Include at least 2 SOFT CONSTRAINTS (preferences to optimize - e.g., performance, cost, quality, convenience)
+4. Create realistic trade-offs where the agent must balance competing priorities
+5. Make it sound like a real professional/business scenario
+
+Use concrete, specific values for constraints (e.g., "$5,000 budget", "by March 2025", "team of 10", "99% uptime").
+
+Return a JSON object with "query" and "reference_tools" fields.
 """
 
 
@@ -288,8 +342,8 @@ async def generate_single_query(all_tools: List[Dict], query_idx: int) -> Any:
                     {"role": "system", "content": SYSTEM_PROMPT},
                     {"role": "user", "content": user_prompt},
                 ],
-                temperature=0.7,
-                max_tokens=2000,
+                temperature=0.8,  # Higher for more diverse constraint scenarios
+                max_tokens=2500,  # More tokens for detailed constraints
                 response_format=schema,
             )
             text = resp.choices[0].message.content
@@ -375,7 +429,7 @@ async def generate_queries_async(all_tools: List[Dict], num_queries: int) -> Lis
 
 async def main_async():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--in", dest="in_path", required=True, help="输入 JSON 文件路径（MCP servers 列表）")
+    parser.add_argument("--in", dest="in_path", required=True, help="Working servers config JSON file")
     parser.add_argument("--out", dest="out_path", required=True, help="输出 JSON 文件路径")
     parser.add_argument("--num-queries", type=int, default=20, help="生成查询数量 (default: 20)")
     args = parser.parse_args()
@@ -383,24 +437,28 @@ async def main_async():
     if not os.path.exists(args.in_path):
         raise FileNotFoundError(f"输入文件不存在: {args.in_path}")
 
-    # Load servers (support both JSON and NDJSON)
+    # Load working server configs (JSON dict format)
+    print(f"Loading working servers from {args.in_path}...")
     with open(args.in_path, "r", encoding="utf-8") as f:
-        if args.in_path.endswith('.ndjson'):
-            servers = [json.loads(line) for line in f if line.strip()]
-        else:
-            servers = json.load(f)
+        working_servers_config = json.load(f)
 
-    if not isinstance(servers, list):
-        raise ValueError("输入 JSON 须为列表，每个元素为一个 MCP server 的字典。")
+    if not isinstance(working_servers_config, dict):
+        raise ValueError("Working servers config should be a JSON object (dict).")
+
+    working_server_names = set(working_servers_config.keys())
+    print(f"Loaded {len(working_server_names)} working servers")
 
     # Load all tool descriptions
-    tool_descriptions_path = "MCP_INFO_MGR/mcp_data/indexed/tool_descriptions.ndjson"
+    tool_descriptions_path = "MCP_INFO_MGR/mcp_data/working/tool_descriptions.ndjson"
     print(f"Loading tool descriptions from {tool_descriptions_path}...")
 
     with open(tool_descriptions_path, "r", encoding="utf-8") as f:
         all_tools = [json.loads(line) for line in f if line.strip()]
 
-    print(f"Loaded {len(all_tools)} servers with tools")
+    # Filter to only working servers
+    all_tools = [t for t in all_tools if t.get("qualifiedName") in working_server_names]
+
+    print(f"Filtered to {len(all_tools)} working servers with tools")
 
     # Generate queries concurrently, each with freshly shuffled tools
     print(f"Generating {args.num_queries} queries concurrently (max {MAX_CONCURRENT} at a time)...")
@@ -411,8 +469,13 @@ async def main_async():
     result = {
         "metadata": {
             "total_items": len(queries),
-            "servers_count": len(servers),
-            "generation_method": "async_with_per_query_shuffle"
+            "servers_count": len(all_tools),
+            "working_servers_count": len(working_server_names),
+            "generation_method": "async_with_per_query_shuffle_constrained_planning",
+            "constraint_types": {
+                "hard": ["budget", "deadline", "regulatory", "technical", "resource", "geographic"],
+                "soft": ["performance", "cost_optimization", "quality", "convenience", "features", "risk"]
+            }
         },
         "items": queries
     }

@@ -37,7 +37,11 @@ def get_tools_description(tools: Dict[str, List[Tool]]) -> str:
                     if param_name in tool.inputSchema.get("required", []):
                         arg += "\n    required: true"
                     args.append(arg.strip())
-            lines = [line for line in tool.description.split("\n") if line.strip()]
+            # Handle None descriptions gracefully
+            if tool.description:
+                lines = [line for line in tool.description.split("\n") if line.strip()]
+            else:
+                lines = ["No description available"]
             arguments = f"\n{chr(10).join(args)}" if args else " No arguments"
             description = (f"Server: {server_name}\n"
                            f"Tool: {tool.name}\n"

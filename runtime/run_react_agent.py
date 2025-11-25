@@ -66,7 +66,7 @@ async def main():
     print(f"{'='*60}\n")
 
     # Load all server configurations
-    configs_path = PROJECT_ROOT / "MCP_INFO_MGR" / "mcp_data" / "usable" / "remote_server_configs.json"
+    configs_path = PROJECT_ROOT / "MCP_INFO_MGR" / "mcp_data" / "working" / "remote_server_configs.json"
     print(f"Loading server configs from {configs_path}...")
     with configs_path.open("r") as f:
         all_server_configs = json.load(f)

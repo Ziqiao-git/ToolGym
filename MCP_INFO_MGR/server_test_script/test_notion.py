@@ -13,8 +13,6 @@ async def main():
         async with ClientSession(read, write) as session:
             # Initialize the connection
             await session.initialize()
-            
-            # List available tools
             tools_result = await session.list_tools()
             print(f"Available tools: {', '.join([t.name for t in tools_result.tools])}")
 
