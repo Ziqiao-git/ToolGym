@@ -912,6 +912,13 @@ python runtime/verify_query_with_reference_tools.py \
   --query-file mcp_generate/requests/multi_tool_queries_117servers.json \
   --all \
   --max-iterations 15
+
+# Verify AND refine insufficient queries
+python runtime/verify_query_with_reference_tools.py \
+  --query-file mcp_generate/requests/multi_tool_queries_117servers.json \
+  --all \
+  --max-iterations 15 \
+  --refine-output mcp_generate/requests/multi_tool_queries_refined.json
 ```
 
 **Arguments:**
@@ -920,6 +927,7 @@ python runtime/verify_query_with_reference_tools.py \
 - `--all`: Verify all queries in the file
 - `--max-iterations`: Max agent reasoning steps (default: 15)
 - `--model`: LLM model (default: `anthropic/claude-3.5-sonnet`)
+- `--refine-output`: Auto-refine insufficient queries and save to this file
 
 **What it does:**
 1. Loads ONLY reference servers (restricts tool access)
@@ -928,6 +936,7 @@ python runtime/verify_query_with_reference_tools.py \
 4. LLM-based tool quality assessment
 5. Saves to `trajectories/verification/verify_q{N}_{timestamp}.json`
 6. Creates `trajectories/verification/summary.json` (batch mode)
+7. **If `--refine-output`**: Rewrites insufficient queries to be solvable with reference tools
 
 **Key Output Fields:**
 - `tools_used`: Tools actually called (`["exa/search", "github/list_repos"]`)

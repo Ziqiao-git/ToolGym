@@ -217,6 +217,7 @@ class DynamicReActAgent(ReAct):
                 "dynamically_loaded": server_loaded_dynamically,
                 "duration_seconds": round(end_time - start_time, 3),
                 "result_preview": str(result)[:200] if result else None,
+                "result": str(result) if result else None,  # Full result for debugging
             }
 
             # Add server load failure reason if applicable

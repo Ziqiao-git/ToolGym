@@ -18,10 +18,11 @@ PROBLEMATIC_SERVERS = {
     # Connection issues
     "@Kastalien-Research/clear-thought-two",  # Timeout/cancellation errors
 
-    # Tool description issues (NoneType)
+    # Tool description issues (NoneType) + returns empty results
     "@amalinakurniasari/figmamcp",  # None description causes AttributeError
     "@coinranking/coinranking-mcp",  # Related to NoneType errors
     "@dravidsajinraj-iex/code-runner-mcp",  # Part of failed query
+    "@abdqum/supabase-mcp-selfhosted",  # All 43 tools have no descriptions, returns empty results
 
     # Note: 'exa' server is fine - the error was from malformed reference 'exa/get_code_context_exa'
 }

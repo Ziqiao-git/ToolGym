@@ -18,6 +18,7 @@ from typing import List, Dict, Any
 from tqdm import tqdm
 from pathlib import Path
 import random
+from datetime import datetime
 
 # OpenAI 官方 Python SDK
 # pip install --upgrade openai
@@ -39,7 +40,9 @@ MAX_CONCURRENT = 5  # Maximum concurrent API calls
 
 
 # -------- 改动 1：SYSTEM_PROMPT（新增 reference_tools 和 constraints 要求） --------
-SYSTEM_PROMPT = """You are an expert at creating natural, realistic user queries that involve complex planning with multiple constraints.
+SYSTEM_PROMPT_TEMPLATE = """CURRENT DATE AND TIME: {current_time}
+
+You are an expert at creating natural, realistic user queries that involve complex planning with multiple constraints.
 
 Goal:
 Given a list of available MCP servers, generate ONE realistic, multi-step natural language query that users might actually ask, where solving it would require:
@@ -76,173 +79,149 @@ The query should present a scenario where the agent must:
 Additionally, return a short list of reference tools that the agent would likely use to answer the query.
 
 IMPORTANT SELECTION RULES:
-- Only use tools that appear in the provided servers_summary (use exact names).
-- Pick 2–4 tools MAX.
-- ✅ Each selected tool MUST come from a **different MCP server namespace**.
-- The “server” field refers to the **ignore the last path components** (e.g., `plainyogurt21/clintrials-mcp`).
-- ❌ You may NOT include multiple tools whose server prefix (the part before the third “/”) is the same.
-- Example of NOT allowed:
-  1. 
-  - plainyogurt21/clintrials-mcp/search_trials_by_condition
-  - plainyogurt21/clintrials-mcp/get_trial_details_batched
-  (⛔ Both share the same server prefix `plainyogurt21/clintrials-mcp`, only count for one distinct server, but we need at lest 2 distinct servers)
-  2. 
-  - plainyogurt21/clintrials-mcp
-  - plainyogurt21/clintrials-mcp
-  (⛔ Both share the same server prefix `plainyogurt21/clintrials-mcp`, only count for one distinct server, but we need at lest 2 distinct servers)
-  3. 
-  - plainyogurt21/clintrials-mcp
-  - plainyogurt21/clintrials-mcp/get_trial_details_batched
-  (⛔ Both share the same server prefix `plainyogurt21/clintrials-mcp`, only count for one distinct server, but we need at lest 2 distinct servers)
-- Example of allowed:
-  - plainyogurt21/clintrials-mcp/search_trials_by_condition
-  - smithery-ai/national-weather-service/get_weather_forecast
-  (✅ Different server prefixes)
-  - plainyogurt21/clintrials-mcp
-  - smithery-ai/national-weather-service
-  (✅ Different server prefixes)
-
-Each selected tool must serve a distinct, complementary role in the overall workflow.
+- Only use tools from the provided servers_summary (use exact names)
+- Pick 2-4 tools MAX
+- **CRITICAL: Each tool MUST come from a DIFFERENT server** (different server name before the last "/")
+  * Example: ✅ `plainyogurt21/clintrials-mcp` and `smithery-ai/national-weather-service` are different servers
+  * Example: ❌ `plainyogurt21/clintrials-mcp/search_trials` and `plainyogurt21/clintrials-mcp/get_details` are from the SAME server (NOT ALLOWED)
+  * Example: ❌ `@vijitdaroch/financial-modeling-prep-mcp-server/getFundHoldings` and `@vijitdaroch/financial-modeling-prep-mcp-server/getFundInfo` are from the SAME server (NOT ALLOWED)
+- Each tool should serve a distinct, complementary role in the workflow
+- Tools should make sense together - avoid nonsensical combinations (e.g., Figma design + weather API for app development makes no sense)
 
 For each tool, include:
-- "server": the MCP server prefix only (the first two parts, e.g., `plainyogurt21/clintrials-mcp`)
-- "tool": the tool name (the third part)
+- "server": the MCP server prefix ONLY (e.g., `plainyogurt21/clintrials-mcp`) - **DO NOT include the tool name in the server field**
+- "tool": the tool name ONLY (the last part, e.g., `search_trials`)
 - "why": a one-sentence rationale
 
-⚠️ **CONTENT RESTRICTIONS**
-- Never include personal, financial, medical, or confidential data:
-  - No credit cards, bank accounts, passwords, private health info, or PII.
-- Keep all queries feasible within public, safe contexts (e.g., news, research, weather, travel, tech, public APIs).
-- Avoid speculative or illegal content.
-- Avoid medical/clinical trial scenarios unless they are open, public, and anonymized datasets.
+**CRITICAL FORMAT CHECK**:
+- ❌ WRONG: {{"server": "foo/bar-server/get_data", "tool": "get_data"}} - tool name is in server field!
+- ✅ CORRECT: {{"server": "foo/bar-server", "tool": "get_data"}}
 
 QUERY REQUIREMENTS:
 - Must sound natural, fluent, and genuinely useful.
 - Must require combining information or operations from tools in *different MCP servers* (distinct prefixes).
 - Each tool must add unique, necessary information to the overall task.
-- Be specific, concrete, and realistic.
-- Avoid meta or instructional phrasing.
-- The task should make sense as something a real person or researcher might request.
-- MUST explicitly state both hard constraints (requirements) and soft constraints (preferences/optimizations).
-- Constraints should create realistic trade-offs and planning challenges.
+- **CRITICAL: Include SPECIFIC, CONCRETE details that the agent can actually query**:
+  * Specific company names, stock tickers (e.g., "Tesla (TSLA)" not "a tech company")
+  * Exact locations with city/state (e.g., "San Francisco, CA" not "the event location")
+  * Specific dates (e.g., "July 15, 2025" not "the scheduled date")
+  * Concrete data identifiers the tools can use - NO vague references
+- **NEVER mention tools or tell the agent which tools to use**: Don't say "use the X tool" or "call the Y API" - the agent should figure out which tools to use on its own
+- Avoid meta or instructional phrasing
+- The task should make sense as something a real person or researcher might request
+- MUST explicitly state both hard constraints (requirements) and soft constraints (preferences/optimizations)
+- Constraints should create realistic trade-offs and planning challenges
 
-CONSTRAINT EXAMPLES IN QUERIES:
+CONSTRAINT EXAMPLES:
 
-Example 1 (Project Planning):
-"We need to build a customer analytics dashboard by March 15th [HARD: deadline] with a budget under $8,000 [HARD: budget]. The solution must be GDPR compliant [HARD: regulatory] and integrate with our existing Postgres database [HARD: technical]. We'd prefer a solution with minimal setup time [SOFT: convenience], prioritize data visualization quality over advanced ML features [SOFT: feature priority], and would like to minimize ongoing maintenance costs [SOFT: cost optimization]."
+IMPORTANT: Be creative with constraint types! Don't limit yourself to predefined categories. Use natural, descriptive names that capture real-world planning challenges.
 
-Example 2 (Infrastructure Selection):
-"Select cloud hosting for our API service that guarantees 99.9% uptime [HARD: SLA], supports auto-scaling [HARD: technical], costs less than $500/month [HARD: budget], and uses US-based data centers only [HARD: geographic]. Prefer faster deployment over feature richness [SOFT: speed vs features], optimize for ease of DevOps integration [SOFT: convenience], and minimize vendor lock-in where possible [SOFT: risk]."
+Example 1 (Travel Planning - showing diverse constraint types):
+Query: "Plan a 5-day family trip to Tokyo for 4 people departing from San Francisco on March 20, 2026. We need direct flights, family-friendly hotels in Shibuya or Shinjuku, and restaurant recommendations near major attractions. One family member has a shellfish allergy. We want to visit TeamLab Borderless and the Ghibli Museum."
 
-Example 3 (Research Task):
-"Conduct market analysis for launching in EU by Q2 2025 [HARD: deadline] with research budget capped at $3,000 [HARD: budget]. Must cover Germany, France, and Spain [HARD: scope]. Data sources must be publicly available [HARD: compliance]. Prefer more recent data (2024+) over historical [SOFT: recency], prioritize quantitative data if available [SOFT: data type], and favor established research firms for credibility [SOFT: quality]."
+Hard Constraints:
+- {{"type": "time_window", "description": "Must depart March 20, 2026 and return March 25, 2026"}}
+- {{"type": "party_size", "description": "Accommodation and activities must support 4 people"}}
+- {{"type": "dietary_restriction", "description": "Must avoid shellfish due to allergy"}}
+- {{"type": "flight_preference", "description": "Only direct flights from SFO to Tokyo"}}
+
+Soft Constraints:
+- {{"type": "neighborhood_preference", "description": "Prefer hotels in Shibuya or Shinjuku districts"}}
+- {{"type": "family_friendly", "description": "Prioritize child-appropriate activities and venues"}}
+- {{"type": "proximity", "description": "Prefer restaurants near major tourist attractions"}}
+- {{"type": "cultural_experience", "description": "Include visits to TeamLab and Ghibli Museum if available"}}
+
+Example 2 (Event Planning - creative constraints):
+Query: "Organize a 200-person tech conference in Austin, TX for June 15-17, 2026 with keynote speakers from the AI industry. Need venue with stage, A/V equipment, and breakout rooms. Catering must include vegan options. We have $75,000 total budget."
+
+Hard Constraints:
+- {{"type": "venue_capacity", "description": "Must accommodate 200 attendees"}}
+- {{"type": "date_range", "description": "June 15-17, 2026 - all 3 days required"}}
+- {{"type": "equipment_requirements", "description": "Stage, professional A/V, and 3+ breakout rooms"}}
+- {{"type": "budget_ceiling", "description": "Total costs cannot exceed $75,000"}}
+- {{"type": "dietary_accommodation", "description": "Catering must include vegan meal options"}}
+
+Soft Constraints:
+- {{"type": "speaker_profile", "description": "Prefer keynote speakers from AI/ML industry"}}
+- {{"type": "location_convenience", "description": "Venue close to airport or downtown Austin"}}
+- {{"type": "vendor_reputation", "description": "Prefer established catering companies with tech event experience"}}
+- {{"type": "weather_consideration", "description": "Indoor backup plan for any outdoor sessions"}}
+
+Example 3 (Investment Analysis - domain-specific):
+Query: "Evaluate cryptocurrency investments for a $50,000 portfolio by December 2025. Must include Bitcoin and Ethereum. Looking for assets with market cap over $1B and 24h trading volume above $100M. Want to understand recent price trends and news sentiment."
+
+Hard Constraints:
+- {{"type": "portfolio_size", "description": "Total investment $50,000"}}
+- {{"type": "asset_inclusion", "description": "Must include BTC and ETH"}}
+- {{"type": "market_cap_floor", "description": "Only assets with $1B+ market capitalization"}}
+- {{"type": "liquidity_requirement", "description": "24-hour trading volume must exceed $100M"}}
+
+Soft Constraints:
+- {{"type": "trend_analysis", "description": "Prefer assets showing positive 30-day momentum"}}
+- {{"type": "sentiment_consideration", "description": "Factor in recent news sentiment for decision-making"}}
+- {{"type": "diversification", "description": "Spread across different crypto sectors (DeFi, L1, L2)"}}
+- {{"type": "volatility_tolerance", "description": "Accept moderate volatility for higher potential returns"}}
 
 OUTPUT FORMAT:
-Return a valid JSON object:
-{
-  "query": "<the realistic user query>",
+Return a valid JSON object with separate query and constraint fields:
+{{
+  "query": "<the realistic user query WITHOUT constraint labels>",
+  "hard_constraints": [
+    {{"type": "<constraint_category>", "description": "<what must be satisfied>"}},
+    ...
+  ],
+  "soft_constraints": [
+    {{"type": "<constraint_category>", "description": "<what is preferred/optimized>"}},
+    ...
+  ],
   "reference_tools": [
-    { "server": "<server_namespace/server_name>", "tool": "<tool_name>", "why": "<short rationale>" },
+    {{"server": "<server_namespace/server_name>", "tool": "<tool_name>", "why": "<short rationale>"}},
     ...
   ]
-}
+}}
 
-❌ DO NOT repeat the same 'server' prefix across different entries.
-❌ DO NOT output servers like "@smithery-ai/national-weather-service/get_weather_forecast" in the "server" field, since @smithery-ai/national-weather-service is server name and get_weather_forecast is tool name.
-✅ The "server" field should stop at the server name level (e.g., "@smithery-ai/national-weather-service").
+IMPORTANT: The "query" field should contain natural language WITHOUT [HARD:] or [SOFT:] labels - those belong in the separate constraint arrays.
+
+CONSTRAINT TYPE CREATIVITY:
+- Don't just use "budget" and "deadline" - be creative and domain-specific!
+- Travel: time_conflict, layover_limits, visa_requirements, luggage_restrictions, jet_lag_consideration
+- Finance: risk_tolerance, liquidity_needs, tax_efficiency, correlation_limits, drawdown_threshold
+- Events: noise_restrictions, parking_capacity, ADA_compliance, insurance_requirements, cancellation_policy
+- Research: citation_recency, peer_review_requirement, dataset_size, reproducibility_standard
+- Real constraints people face: allergies, timezone_compatibility, language_barriers, skill_prerequisites
+- Make constraint types read naturally and describe what they actually constrain!
+
+SELF-CHECK BEFORE RETURN:
+1. Verify you selected tools from at least 3 DIFFERENT servers
+2. Ensure all tools exist in the provided servers_summary
+3. **CRITICAL: Verify query contains SPECIFIC, CONCRETE details (company names, locations, dates, tickers, repo names, etc.) - NO VAGUE REFERENCES**
+4. **CRITICAL: Verify query does NOT mention tool names or tell agent which tools to use** - the agent should figure it out
+5. **CREATIVE CONSTRAINTS: Use domain-appropriate, natural constraint types - avoid generic ones where specific ones fit better**
+6. Ensure the query avoids personal/financial/medical data
+7. Ensure output follows the JSON schema exactly
 
 ---
 
-### ✅ SELF-CHECK BEFORE RETURN
-Before producing final JSON:
-1. Extract all `server` prefixes (the first two path parts).  
-2. Verify that there are **at least two distinct servers** among them.  
-   - If fewer than two unique servers → **rewrite the query** and **reselect tools** until this condition is met.  
-3. Ensure all servers are distinct and exist in the provided list.  
-4. Ensure the query avoids personal/financial/medical data.  
-5. Ensure output strictly follows JSON schema above.  
+Examples of SPECIFIC constraint-based queries (showing query text WITHOUT labels):
 
-Only output once all checks pass.
+Example 1 (with specific location and dates):
+Query: "Plan a tech conference for 200 attendees by June 15, 2026 within a $50,000 budget. Must find venues in San Francisco, CA or Austin, TX with availability on weekends. Need weather forecast for San Francisco for June 12-14, 2026 to assess outdoor venue viability. Also need to identify trending topics in popular open-source repositories like microsoft/vscode, facebook/react, and vercel/next.js to inform the conference agenda. Prefer venues with modern AV equipment and prioritize proximity to SFO/AUS airports over downtown locations."
 
----
+Example 2 (with specific stocks and data):
+Query: "Compare investment performance of Tesla (TSLA), Apple (AAPL), and Microsoft (MSFT) for Q4 2024 with budget under $50,000 per position. Must achieve minimum 8% annual return and maintain portfolio volatility below 15%. Need historical price data and recent news affecting these tickers to make informed decisions. Prefer stocks with higher dividend yield, prioritize established companies over growth stocks, and favor companies with strong ESG ratings."
 
-Examples of good constraint-based queries:
+Example 3 (with specific tools and integrations):
+Query: "Select project management tools for a remote team of 15 developers by January 31, 2026 spending max $5,000/year. Must integrate with Slack, GitHub, and Jira and provide real-time collaboration. Looking to evaluate Asana, Monday.com, and Linear - need their feature sets, API capabilities, and pricing information. Prefer tools with shorter learning curve, optimize for fewer total tools over feature completeness, and favor vendors with SOC 2 certification."
 
-Example 1:
-"Plan a tech conference for 200 attendees by June 2025 [HARD: deadline, capacity] within a $50,000 budget [HARD: budget]. Must find venues in San Francisco or Austin [HARD: location], with availability on weekends [HARD: scheduling]. Prefer venues with modern AV equipment [SOFT: quality], prioritize proximity to airports over downtown locations [SOFT: trade-off], and would like backup date options if possible [SOFT: flexibility]. Use weather data to check seasonal patterns and GitHub API to identify trending tech topics for the agenda."
-
-Example 2:
-"Research sustainable energy solutions for a manufacturing facility by Q1 2025 [HARD: deadline] with capital budget under $2M [HARD: budget]. Must achieve 30% carbon reduction [HARD: performance] and comply with state regulations [HARD: compliance]. Prefer solutions with faster ROI [SOFT: financial], prioritize proven technology over experimental [SOFT: risk], and favor options requiring minimal operational changes [SOFT: convenience]. Cross-reference environmental data APIs with cost calculators and regulatory databases."
-
-Example 3:
-"Select developer tools for a remote team of 15 by end of month [HARD: deadline, team size] spending max $5,000/year [HARD: budget]. Must integrate with Slack and GitHub [HARD: technical integration] and provide real-time collaboration [HARD: feature requirement]. Prefer tools with shorter learning curve [SOFT: usability], optimize for fewer total tools over feature completeness [SOFT: simplicity vs features], and favor vendors with strong security track record [SOFT: risk mitigation]. Query software comparison APIs, pricing databases, and integration catalogs."
-
-Make sure all reference tools come from distinct MCP servers (different prefixes before the third '/').
+Make sure all reference tools come from distinct MCP servers and queries contain SPECIFIC identifiable data.
+Remember: Extract constraints into separate hard_constraints and soft_constraints arrays - do NOT include [HARD:] or [SOFT:] labels in the query text.
 
 """
 
-# SYSTEM_PROMPT = """You create concrete, realistic, English benchmark questions for MCP servers.
 
-# Goal:
-# Given an MCP server (name, summary, tools), generate 5 distinct natural-language questions that would realistically trigger its tool usage and cover its capabilities.
+USER_PROMPT_TEMPLATE = """CURRENT DATE AND TIME: {current_time}
 
-# Hard requirements:
-# - Output MUST be a valid JSON array with exactly 5 strings.
-# - Each question MUST be SPECIFIC and OPERATIONAL (include concrete entities like a URL, project name, table, metric, time range, top-k, etc. as appropriate).
-# - If multiple tools exist, cover as many different tools as possible (at least one per tool). If only one tool exists, create 5 diverse scenarios.
-# - Vary intents: listing, filtering, top-k, troubleshooting/health, summarization/aggregation, targeted lookup, etc.
-# - DO NOT use meta/instructional phrasing. Avoid generic templates.
-
-# Banned phrases/patterns (must NOT appear):
-# - "Based on the functionality of"
-# - "Show me a representative example"
-# - "If this service has a listing or browsing feature"
-# - "Pick a typical query scenario"
-# - "Demonstrate a troubleshooting or health check"
-# - "Explain what it would return"
-# - Any question that does not name specific entities (e.g., a URL, project name, table, service, or metric) when such entities are typical for the tool.
-
-# Style guidance:
-# - Questions should sound like real user requests with concrete details.
-# - Use plausible, public examples when needed (e.g., websites for a web extractor; project names like analytics-prod/demo-project; tables like orders, events, sensor_data; time ranges like "last 24 hours").
-
-# Few-shot examples:
-
-# [EXAMPLE — Server: AgentQL (extract structured data from web)]
-# Input tools: ["extract-web-data(url, prompt)"]
-# Good outputs:
-# [
-#   "From https://news.ycombinator.com, extract the top 10 posts with title, link, and points.",
-#   "From https://arxiv.org/list/cs.AI/recent, pull paper titles, authors, and submission dates for the most recent 15 entries.",
-#   "From https://github.com/trending, list the first 8 repositories with name, primary language, and star count.",
-#   "From https://www.nytimes.com, extract the homepage headlines and their article URLs under the 'Top Stories' section.",
-#   "From https://openreview.net/group?id=NeurIPS.cc/2025/Conference, collect accepted paper titles with author list and decision notes if present."
-# ]
-
-# [EXAMPLE — Server: Aiven (list_projects, list_services, get_service_details)]
-# Good outputs:
-# [
-#   "List all projects in my Aiven account.",
-#   "In the project analytics-prod, list all running services and their service types.",
-#   "For the service clickhouse-main in project analytics-prod, show its connection details and current status.",
-#   "Do I have any Kafka services in the project demo-project? If yes, list their service names and versions.",
-#   "For the PostgreSQL service pg-orders in project demo-project, show storage size and CPU/memory utilization over the last 24 hours if available."
-# ]
-
-# [EXAMPLE — Server: AnalyticDB for MySQL (execute_sql, get_query_plan)]
-# Good outputs:
-# [
-#   "Run: SELECT customer_id, COUNT(*) AS orders FROM orders WHERE order_date >= CURRENT_DATE - INTERVAL 30 DAY GROUP BY customer_id ORDER BY orders DESC LIMIT 10.",
-#   "What is the query plan for: SELECT * FROM events WHERE event_time >= NOW() - INTERVAL 1 HOUR AND user_id = 42 ORDER BY event_time DESC LIMIT 100?",
-#   "Execute: SHOW TABLES.",
-#   "Execute: DESCRIBE sales;",
-#   "Run: SELECT category, SUM(amount) AS revenue FROM sales WHERE ts BETWEEN '2025-08-01' AND '2025-08-31' GROUP BY category ORDER BY revenue DESC LIMIT 5."
-# ]
-# """
-
-
-
-USER_PROMPT_TEMPLATE = """Here are the available MCP servers grouped by domain:
+Here are the available MCP servers grouped by domain:
 servers_summary:
 {servers_summary}
 For each server, the format is: server_name/tool_name: tool_description. Did not include tool name in server name for output
@@ -250,22 +229,36 @@ For each server, the format is: server_name/tool_name: tool_description. Did not
 Generate 1 natural, realistic user query with CONSTRAINT-BASED PLANNING that people would actually ask.
 
 REQUIREMENTS:
-1. Query must require 2-4 tools from DIFFERENT MCP servers
-2. Include at least 2 HARD CONSTRAINTS (must satisfy - e.g., budget, deadline, compliance, technical requirements)
-3. Include at least 2 SOFT CONSTRAINTS (preferences to optimize - e.g., performance, cost, quality, convenience)
-4. Create realistic trade-offs where the agent must balance competing priorities
-5. Make it sound like a real professional/business scenario
+1. Query must require 3 or more tools from DIFFERENT MCP servers
+2. Include at least 2 HARD CONSTRAINTS (absolute requirements that must be met)
+3. Include at least 2 SOFT CONSTRAINTS (preferences to optimize or trade-offs to balance)
+4. **BE CREATIVE WITH CONSTRAINT TYPES**: Use natural, domain-specific types that fit the scenario
+   - Instead of just "budget": budget_ceiling, cost_per_unit, total_expenditure_cap, burn_rate_limit
+   - Instead of just "deadline": delivery_date, time_window, response_time, completion_timeline
+   - Think about real constraints: allergies, accessibility, compatibility, availability, capacity, licenses
+5. Create realistic trade-offs where the agent must balance competing priorities
+6. Make it sound like a real professional/business scenario
+7. **CRITICAL: Include SPECIFIC, QUERYABLE details**:
+   - Company names, stock tickers (e.g., "Tesla (TSLA)", "Apple (AAPL)")
+   - Exact locations (e.g., "San Francisco, CA", "New York, NY")
+   - Specific dates - use realistic future dates based on CURRENT DATE AND TIME above (e.g., if current date is Nov 2025, use dates like "December 15, 2025" or "Q1 2026", NOT past dates)
+   - Named products, repositories, APIs (e.g., "microsoft/vscode", "Slack API")
+   - Concrete identifiers the tools can actually query - NO VAGUE REFERENCES like "our company", "the location", "top products"
 
-Use concrete, specific values for constraints (e.g., "$5,000 budget", "by March 2025", "team of 10", "99% uptime").
+Use concrete, specific values for constraints and natural constraint type names that describe what they constrain.
 
-Return a JSON object with "query" and "reference_tools" fields.
+**CRITICAL OUTPUT FORMAT**:
+Return a JSON object with separate fields for query (WITHOUT constraint labels), hard_constraints, soft_constraints, and reference_tools.
+- The "query" field should be natural language WITHOUT [HARD:] or [SOFT:] markers
+- Extract all constraints into the hard_constraints and soft_constraints arrays
+- Each constraint should have "type" (category like "budget", "deadline") and "description" (specific requirement)
 """
 
 
 
 async def generate_single_query(all_tools: List[Dict], query_idx: int) -> Any:
     """
-    Generate a single query with freshly shuffled tools.
+    Generate a single query with tools from 10 random servers, all mixed together.
 
     Args:
         all_tools: List of all tool descriptions
@@ -274,35 +267,43 @@ async def generate_single_query(all_tools: List[Dict], query_idx: int) -> Any:
     Returns:
         Generated object: {"query": str, "reference_tools": [...]}
     """
-    # Shuffle tools for this specific query
-    tools_copy = [tool.copy() for tool in all_tools]
-    for tool in tools_copy:
-        tools = tool.get("tools", [])
-        random.shuffle(tools)
-        tool["tools"] = tools
-    random.shuffle(tools_copy)
+    # Randomly select 10 servers
+    selected_servers = random.sample(all_tools, min(10, len(all_tools)))
 
-    # Select top 100 tools
+    # Flatten all tools from the selected 10 servers into a single list
+    flattened_tools = []
+    for server in selected_servers:
+        server_name = server.get("qualifiedName", "unknown")
+        for tool in server.get("tools", []):
+            tool_name = tool.get("name", "")
+            tool_desc = tool.get("description", "No description")
+            flattened_tools.append({
+                "server": server_name,
+                "tool_name": tool_name,
+                "description": tool_desc
+            })
+
+    # Shuffle all tools together (mixing tools from different servers)
+    random.shuffle(flattened_tools)
+
+    # Format all tools for the prompt
     tools_summary = []
-    count = 0
-    for tool in tools_copy:
-        server = tool.get("qualifiedName", "unknown")
-        for t in tool.get("tools", []):
-            if count >= 100:
-                break
-            tool_name = t.get("name", "")
-            tool_desc = t.get("description", "No description")
-            tools_summary.append(f"- {server}/{tool_name}: {tool_desc}")
-            count += 1
-        if count >= 100:
-            break
+    for t in flattened_tools:
+        tools_summary.append(f"- {t['server']}/{t['tool_name']}: {t['description']}")
 
     tools_summary_text = "\n".join(tools_summary)
 
-    # Generate query
-    user_prompt = USER_PROMPT_TEMPLATE.format(servers_summary=tools_summary_text)
+    # Generate query with current time context
+    current_time = datetime.now().strftime("%B %d, %Y %I:%M %p %Z")
 
-    # -------- 改动 2：response_format schema（新增 reference_tools 字段） --------
+    # Format both system and user prompts with current time
+    system_prompt = SYSTEM_PROMPT_TEMPLATE.format(current_time=current_time)
+    user_prompt = USER_PROMPT_TEMPLATE.format(
+        current_time=current_time,
+        servers_summary=tools_summary_text
+    )
+
+    # -------- 改动 2：response_format schema（新增 reference_tools 和 constraints） --------
     schema = {
         "type": "json_schema",
         "json_schema": {
@@ -312,6 +313,30 @@ async def generate_single_query(all_tools: List[Dict], query_idx: int) -> Any:
                 "additionalProperties": False,
                 "properties": {
                     "query": {"type": "string"},
+                    "hard_constraints": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "additionalProperties": False,
+                            "properties": {
+                                "type": {"type": "string"},
+                                "description": {"type": "string"}
+                            },
+                            "required": ["type", "description"]
+                        }
+                    },
+                    "soft_constraints": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "additionalProperties": False,
+                            "properties": {
+                                "type": {"type": "string"},
+                                "description": {"type": "string"}
+                            },
+                            "required": ["type", "description"]
+                        }
+                    },
                     "reference_tools": {
                         "type": "array",
                         "minItems": 2,
@@ -328,7 +353,7 @@ async def generate_single_query(all_tools: List[Dict], query_idx: int) -> Any:
                         }
                     }
                 },
-                "required": ["query", "reference_tools"]
+                "required": ["query", "hard_constraints", "soft_constraints", "reference_tools"]
             },
             "strict": True
         }
@@ -339,7 +364,7 @@ async def generate_single_query(all_tools: List[Dict], query_idx: int) -> Any:
             resp = await CLIENT.chat.completions.create(
                 model=MODEL_NAME,
                 messages=[
-                    {"role": "system", "content": SYSTEM_PROMPT},
+                    {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt},
                 ],
                 temperature=0.8,  # Higher for more diverse constraint scenarios
@@ -354,7 +379,12 @@ async def generate_single_query(all_tools: List[Dict], query_idx: int) -> Any:
                     await asyncio.sleep(1)
                     continue
                 else:
-                    return {"query": f"[Error: Empty response after {MAX_RETRIES} attempts]", "reference_tools": []}
+                    return {
+                        "query": f"[Error: Empty response after {MAX_RETRIES} attempts]",
+                        "hard_constraints": [],
+                        "soft_constraints": [],
+                        "reference_tools": []
+                    }
 
             text = text.strip()
 
@@ -367,21 +397,36 @@ async def generate_single_query(all_tools: List[Dict], query_idx: int) -> Any:
                     await asyncio.sleep(1)
                     continue
                 else:
-                    return {"query": f"[Error: Invalid JSON after {MAX_RETRIES} attempts]", "reference_tools": []}
+                    return {
+                        "query": f"[Error: Invalid JSON after {MAX_RETRIES} attempts]",
+                        "hard_constraints": [],
+                        "soft_constraints": [],
+                        "reference_tools": []
+                    }
 
-            # -------- 改动 3（解析校验）：必须同时包含 query 与 reference_tools --------
+            # -------- 改动 3（解析校验）：必须同时包含 query, constraints, reference_tools --------
             if not (isinstance(obj, dict)
                     and isinstance(obj.get("query"), str)
+                    and isinstance(obj.get("hard_constraints"), list)
+                    and isinstance(obj.get("soft_constraints"), list)
                     and isinstance(obj.get("reference_tools"), list)):
                 print(f"⚠️  Query {query_idx}: Invalid format, retrying... (attempt {attempt}/{MAX_RETRIES})")
+                print(f"     Missing fields: query={isinstance(obj.get('query'), str)}, hard={isinstance(obj.get('hard_constraints'), list)}, soft={isinstance(obj.get('soft_constraints'), list)}, tools={isinstance(obj.get('reference_tools'), list)}")
                 if attempt < MAX_RETRIES:
                     await asyncio.sleep(1)
                     continue
                 else:
-                    return {"query": f"[Error: Invalid format after {MAX_RETRIES} attempts]", "reference_tools": []}
+                    return {
+                        "query": f"[Error: Invalid format after {MAX_RETRIES} attempts]",
+                        "hard_constraints": [],
+                        "soft_constraints": [],
+                        "reference_tools": []
+                    }
 
             return {
                 "query": obj["query"],
+                "hard_constraints": obj["hard_constraints"],
+                "soft_constraints": obj["soft_constraints"],
                 "reference_tools": obj["reference_tools"]
             }
 
@@ -392,7 +437,12 @@ async def generate_single_query(all_tools: List[Dict], query_idx: int) -> Any:
                 await asyncio.sleep(2)  # Longer sleep for unexpected errors
             else:
                 print(f"     Failed after {MAX_RETRIES} attempts")
-                return {"query": f"[Error: {type(e).__name__} after {MAX_RETRIES} attempts]", "reference_tools": []}
+                return {
+                    "query": f"[Error: {type(e).__name__} after {MAX_RETRIES} attempts]",
+                    "hard_constraints": [],
+                    "soft_constraints": [],
+                    "reference_tools": []
+                }
 
 
 async def generate_queries_async(all_tools: List[Dict], num_queries: int) -> List[Any]:
@@ -472,9 +522,21 @@ async def main_async():
             "servers_count": len(all_tools),
             "working_servers_count": len(working_server_names),
             "generation_method": "async_with_per_query_shuffle_constrained_planning",
-            "constraint_types": {
-                "hard": ["budget", "deadline", "regulatory", "technical", "resource", "geographic"],
-                "soft": ["performance", "cost_optimization", "quality", "convenience", "features", "risk"]
+            "constraint_approach": "creative_flexible",
+            "constraint_guidelines": {
+                "hard_examples": [
+                    "time_window", "budget_ceiling", "party_size", "dietary_restriction",
+                    "equipment_requirements", "venue_capacity", "date_range", "asset_inclusion",
+                    "market_cap_floor", "liquidity_requirement", "flight_preference", "regulatory",
+                    "technical_integration", "security_requirement", "accessibility_need"
+                ],
+                "soft_examples": [
+                    "neighborhood_preference", "family_friendly", "proximity", "cultural_experience",
+                    "speaker_profile", "location_convenience", "vendor_reputation", "weather_consideration",
+                    "trend_analysis", "sentiment_consideration", "diversification", "volatility_tolerance",
+                    "performance_preference", "cost_optimization", "quality_priority", "user_experience"
+                ],
+                "note": "These are examples only - queries should use creative, domain-specific constraint types that naturally fit the scenario"
             }
         },
         "items": queries

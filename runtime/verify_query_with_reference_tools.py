@@ -68,6 +68,8 @@ async def verify_single_query(
     """
     query = query_item["query"]
     reference_tools = query_item.get("reference_tools", [])
+    hard_constraints = query_item.get("hard_constraints", [])
+    soft_constraints = query_item.get("soft_constraints", [])
 
     print(f"\n{'='*80}")
     print(f"VERIFYING QUERY {query_idx + 1}")
@@ -81,6 +83,8 @@ async def verify_single_query(
     result = {
         "query_index": query_idx,
         "query": query,
+        "hard_constraints": hard_constraints,
+        "soft_constraints": soft_constraints,
         "reference_tools": reference_tools,
         "status": "unknown",
         "error": None,
@@ -91,25 +95,44 @@ async def verify_single_query(
         "self_evaluation": None,  # Agent's assessment of tool sufficiency
         "tools_sufficient": None,  # Boolean: did agent think tools were sufficient?
         "insufficiency_reason": None,  # Explanation of why tools are insufficient
+        "failure_category": None,  # Type of failure: TOOL_QUALITY, QUERY_DESIGN, CONTEXT_OVERFLOW, MIXED
         "tool_quality_assessment": [],  # Per-tool quality evaluation
         "blocked_tool_calls": [],  # Tools agent tried to use but were blocked
         "tools_with_missing_descriptions": [],  # Tools that have None/empty descriptions
     }
 
-    # Extract unique server names from reference tools
-    # Handle both formats: "server" or "server/tool"
-    reference_servers = set()
+    # Normalize server names: add @ prefix if missing
+    # Configs use @namespace/name format, but LLM may generate namespace/name
+    def normalize_server_name(name: str, configs: dict) -> str:
+        """Normalize server name to match config format (with @ prefix)."""
+        if name in configs:
+            return name
+        # Try adding @ prefix
+        if not name.startswith('@'):
+            with_at = f"@{name}"
+            if with_at in configs:
+                return with_at
+        return name  # Return original if no match found
+
+    # Fix and normalize reference_tools server names
     for tool in reference_tools:
-        server = tool["server"]
+        original_server = tool["server"]
         # Remove tool name if present (e.g., "@server/tool" -> "@server")
-        # Split by '/' and take all but last part if it looks like it has a tool suffix
-        parts = server.split("/")
+        parts = original_server.split("/")
         if len(parts) > 2:  # Has namespace + name + possibly tool
             # Keep namespace/name only
-            server_name = "/".join(parts[:2])
-        else:
-            server_name = server
-        reference_servers.add(server_name)
+            tool["server"] = "/".join(parts[:2])
+
+        # Normalize to add @ prefix if needed
+        tool["server"] = normalize_server_name(tool["server"], all_server_configs)
+
+        if tool["server"] != original_server:
+            print(f"  Auto-corrected: {original_server} → {tool['server']}")
+
+    # Extract unique normalized server names
+    reference_servers = set()
+    for tool in reference_tools:
+        reference_servers.add(tool["server"])
 
     print(f"Reference servers to load: {reference_servers}\n")
 
@@ -150,25 +173,40 @@ async def verify_single_query(
             for tool in reference_tools
         ])
 
+        # Build step-by-step workflow instructions
+        workflow_steps = []
+        for i, tool in enumerate(reference_tools, 1):
+            workflow_steps.append(
+                f"Step {i}: Use {tool['server']}/{tool['tool']}\n"
+                f"   Purpose: {tool['why']}\n"
+                f"   What to do: Call this tool with appropriate arguments based on the query"
+            )
+        workflow_instructions = "\n\n".join(workflow_steps)
+
         # Create agent configuration with reference tools constraint
         react_config = {
             "name": f"verify-agent-q{query_idx}",
-            "instruction": f"""You are an intelligent agent that needs to solve a query using the available tools.
+            "instruction": f"""You are an intelligent agent that needs to solve a query by following a strict step-by-step workflow using specific tools.
+
+QUERY TO SOLVE:
+{query}
+
+REQUIRED WORKFLOW - Follow these steps in order:
+
+{workflow_instructions}
 
 AVAILABLE TOOLS:
 {tools_list}
 
-1. Analyze the query and determine what information is needed
-2. Use the available tools to gather as much relevant information as possible
-3. Combine the results to provide the best answer you can
+CRITICAL INSTRUCTIONS:
+1. You MUST follow the workflow steps above sequentially
+2. For each step, use the specified tool with appropriate arguments extracted from the query
+3. Use the results from previous steps to inform later steps if needed
+4. You MUST ONLY use the tools listed in the workflow - no other tools are allowed
+5. If a tool returns an error or empty result, note it and continue to the next step
+6. After completing all steps, synthesize the results into a comprehensive answer
 
-CONSTRAINTS:
-- You MUST ONLY use the tools listed above
-- Try to use the tools that seem most relevant to the query
-- Even if tools don't perfectly match the query, use what's available and do your best
-- Provide whatever information you can gather from the available tools
-
-Remember: You have direct access to these tools. Just call them with correct arguments.
+Remember: You have direct access to these tools. Call them directly with the correct arguments.
 NO tool search needed - use the tools directly!
 """,
             "max_iterations": max_iterations,
@@ -250,6 +288,9 @@ NO tool search needed - use the tools directly!
                     "tool": tool_call,
                     "arguments": step.get("arguments", {}),
                     "result": step.get("result", ""),
+                    "status": step.get("status", "unknown"),
+                    "error": step.get("error", None),
+                    "load_error": step.get("load_error", None),
                 })
 
         result["tools_used"] = tools_used
@@ -257,21 +298,48 @@ NO tool search needed - use the tools directly!
 
         # Post-execution tool quality assessment using LLM
         tool_quality_assessments = []
+
+        # Build assessment prompt (even if no tools were used)
         if tool_call_details:
-            # Build assessment prompt
-            tools_summary = "\n\n".join([
-                f"Tool: {tc['tool']}\nArguments: {json.dumps(tc['arguments'], indent=2)}\nResult: {str(tc['result'])[:500]}"
-                for tc in tool_call_details
-            ])
+            tools_summary_parts = []
+            for tc in tool_call_details:
+                tool_info = f"Tool: {tc['tool']}"
+                tool_info += f"\nStatus: {tc['status']}"
+                tool_info += f"\nArguments: {json.dumps(tc['arguments'], indent=2)}"
 
-            reference_tools_summary = "\n".join([
-                f"- {tool['server']}/{tool['tool']}: {tool['why']}"
-                for tool in reference_tools
-            ])
+                # Show error information prominently
+                if tc['error']:
+                    tool_info += f"\n❌ ERROR: {str(tc['error'])[:1000]}"
+                elif tc['load_error']:
+                    tool_info += f"\n❌ LOAD ERROR: {str(tc['load_error'])[:1000]}"
 
-            final_answer = result["response"][:1000] if result["response"] else "No response generated"
+                # Show result (full result, not truncated, so LLM can see what actually happened)
+                result_str = str(tc['result'])
+                if result_str:
+                    # Limit to 2000 chars to avoid token overflow, but show more than before
+                    tool_info += f"\nResult: {result_str[:2000]}"
+                    if len(result_str) > 2000:
+                        tool_info += f"\n... [Result truncated, total length: {len(result_str)} chars]"
+                else:
+                    tool_info += f"\nResult: (empty/null)"
 
-            assessment_prompt = f"""You are evaluating the quality of tools that were used to solve a query.
+                tools_summary_parts.append(tool_info)
+
+            tools_summary = "\n\n".join(tools_summary_parts)
+        else:
+            tools_summary = "NO TOOLS WERE USED"
+
+        reference_tools_summary = "\n".join([
+            f"- {tool['server']}/{tool['tool']}: {tool['why']}"
+            for tool in reference_tools
+        ])
+
+        final_answer = result["response"][:1000] if result["response"] else "No response generated"
+        current_time = datetime.now().strftime("%B %d, %Y %I:%M %p %Z")
+
+        assessment_prompt = f"""You are evaluating the quality of tools that were used to solve a query.
+
+CURRENT DATE AND TIME: {current_time}
 
 ORIGINAL QUERY:
 {query}
@@ -281,6 +349,12 @@ REFERENCE TOOLS (tools that were supposed to be useful):
 
 TOOLS ACTUALLY USED AND THEIR RESULTS:
 {tools_summary}
+
+**PAY CLOSE ATTENTION TO:**
+- Status field (success/error/server_load_failed)
+- ERROR messages (these explain WHY tools failed)
+- Empty/null results (tool didn't return useful data)
+- Whether the query provided specific enough parameters for the tools
 
 FINAL ANSWER PRODUCED:
 {final_answer}
@@ -294,7 +368,16 @@ For EACH reference tool, assess its quality:
 
 Also provide an overall assessment:
 - TOOLS_SUFFICIENT: true/false - Were the reference tools sufficient to solve the query?
-- INSUFFICIENCY_REASON: If insufficient, explain what was missing
+- INSUFFICIENCY_REASON: If insufficient, explain what was missing. **Use the STATUS and ERROR fields to diagnose the problem**:
+  * If tools returned errors (402 payment required, 401 auth, 404 not found, timeout, etc.) → Tool quality issue
+  * If tools returned empty/null despite being called correctly → Tool quality issue
+  * If query lacks SPECIFIC, QUERYABLE details (vague references like "our company", "the location" instead of "Tesla (TSLA)", "San Francisco, CA") → Query design issue
+  * If agent didn't call the right tools or couldn't figure out which tools to use → Query design issue (query wasn't clear enough)
+- FAILURE_CATEGORY: Categorize the type of failure (if tools_sufficient is false):
+  * TOOL_QUALITY: Tools are broken, return errors (402/401/404/500), return empty/null, require missing API keys, timeout, or have technical issues
+  * QUERY_DESIGN: Query asks for capabilities the tools fundamentally don't have, OR the query is too vague/generic (lacks specific data identifiers), OR the query wasn't clear enough about which tools to use
+  * CONTEXT_OVERFLOW: Tool responses are too large, causing context window issues
+  * MIXED: Multiple failure types (e.g., some tools broken AND query design issues)
 
 FORMAT YOUR RESPONSE AS JSON:
 {{
@@ -309,40 +392,37 @@ FORMAT YOUR RESPONSE AS JSON:
   ],
   "overall_assessment": {{
     "tools_sufficient": true|false,
-    "insufficiency_reason": "explanation if false"
+    "insufficiency_reason": "explanation if false",
+    "failure_category": "TOOL_QUALITY|QUERY_DESIGN|CONTEXT_OVERFLOW|MIXED|null"
   }}
 }}"""
 
-            try:
-                # Call LLM for assessment
-                assessment_messages = [{"role": "user", "content": assessment_prompt}]
-                assessment_response = llm.generate(assessment_messages)
-                assessment_text = assessment_response if isinstance(assessment_response, str) else str(assessment_response)
+        try:
+            # Call LLM for assessment (always, even if no tools were used)
+            assessment_messages = [{"role": "user", "content": assessment_prompt}]
+            assessment_response = llm.generate(assessment_messages)
+            assessment_text = assessment_response if isinstance(assessment_response, str) else str(assessment_response)
 
-                # Parse JSON response
-                # Extract JSON from markdown code blocks if present
-                if "```json" in assessment_text:
-                    assessment_text = assessment_text.split("```json")[1].split("```")[0].strip()
-                elif "```" in assessment_text:
-                    assessment_text = assessment_text.split("```")[1].split("```")[0].strip()
+            # Parse JSON response
+            # Extract JSON from markdown code blocks if present
+            if "```json" in assessment_text:
+                assessment_text = assessment_text.split("```json")[1].split("```")[0].strip()
+            elif "```" in assessment_text:
+                assessment_text = assessment_text.split("```")[1].split("```")[0].strip()
 
-                assessment_data = json.loads(assessment_text)
-                tool_quality_assessments = assessment_data.get("tool_assessments", [])
-                overall = assessment_data.get("overall_assessment", {})
+            assessment_data = json.loads(assessment_text)
+            tool_quality_assessments = assessment_data.get("tool_assessments", [])
+            overall = assessment_data.get("overall_assessment", {})
 
-                result["tools_sufficient"] = overall.get("tools_sufficient")
-                result["insufficiency_reason"] = overall.get("insufficiency_reason")
-                result["self_evaluation"] = "SUFFICIENT" if overall.get("tools_sufficient") else "INSUFFICIENT"
+            result["tools_sufficient"] = overall.get("tools_sufficient")
+            result["insufficiency_reason"] = overall.get("insufficiency_reason")
+            result["failure_category"] = overall.get("failure_category")
+            result["self_evaluation"] = "SUFFICIENT" if overall.get("tools_sufficient") else "INSUFFICIENT"
 
-            except Exception as e:
-                print(f"Warning: Could not perform post-execution assessment: {e}")
-                result["tools_sufficient"] = None
-                result["self_evaluation"] = "UNCLEAR"
-        else:
-            # No tools were used at all
-            result["tools_sufficient"] = False
-            result["self_evaluation"] = "INSUFFICIENT"
-            result["insufficiency_reason"] = "No tools were used during execution"
+        except Exception as e:
+            print(f"Warning: Could not perform post-execution assessment: {e}")
+            result["tools_sufficient"] = None
+            result["self_evaluation"] = "UNCLEAR"
 
         result["tool_quality_assessment"] = tool_quality_assessments
 
@@ -463,11 +543,216 @@ FORMAT YOUR RESPONSE AS JSON:
         result["status"] = "error"
         result["error"] = str(e)
         result["execution_successful"] = False
+
+        # Categorize error-based failures
+        error_str = str(e).lower()
+        if "context length" in error_str or "tokens" in error_str or "maximum" in error_str:
+            result["failure_category"] = "CONTEXT_OVERFLOW"
+        elif "timeout" in error_str or "connection" in error_str:
+            result["failure_category"] = "TOOL_QUALITY"
+        else:
+            result["failure_category"] = "UNKNOWN_ERROR"
+
         print(f"\n❌ Error during execution: {e}\n")
         import traceback
         print(f"Traceback: {traceback.format_exc()}\n")
 
     return result
+
+
+def refine_insufficient_query(
+    original_query: str,
+    reference_tools: list,
+    insufficiency_reason: str,
+    tool_assessments: list,
+    tools_used: list,
+    failure_category: str,
+    llm,
+) -> tuple:
+    """
+    Refine a query and update reference tools based on verification results.
+
+    Args:
+        original_query: Original insufficient query
+        reference_tools: List of original reference tools
+        insufficiency_reason: Why tools were insufficient
+        tool_assessments: Per-tool quality assessments
+        tools_used: Tools actually used by the agent
+        failure_category: Type of failure (TOOL_QUALITY, QUERY_DESIGN, etc.)
+        llm: LLM instance
+
+    Returns:
+        Tuple of (refined_query, updated_reference_tools)
+    """
+    # Build useful tools list from assessments
+    useful_tools = []
+    tools_to_keep = []
+    tools_to_add = []
+
+    for assessment in tool_assessments:
+        tool_name = assessment.get("tool", "")  # This is just the tool name, not server/tool
+        necessity = assessment.get("necessity", "")
+        relevance = assessment.get("relevance", 0)
+        reasoning = assessment.get("reasoning", "")
+
+        if necessity in ["ESSENTIAL", "HELPFUL"] and relevance >= 5:
+            useful_tools.append({
+                "tool": tool_name,
+                "necessity": necessity,
+                "relevance": relevance,
+                "capability": reasoning,
+            })
+
+            # Find the full server/tool name from tools_used
+            full_tool_name = None
+            for used_tool in tools_used:
+                if used_tool.endswith(f"/{tool_name}") or used_tool == tool_name:
+                    full_tool_name = used_tool
+                    break
+
+            if not full_tool_name:
+                # If not in tools_used, check reference tools
+                for ref_tool in reference_tools:
+                    if ref_tool['tool'] == tool_name:
+                        full_tool_name = f"{ref_tool['server']}/{ref_tool['tool']}"
+                        break
+
+            if not full_tool_name:
+                continue  # Skip if we can't find the server
+
+            # Check if this tool is in reference_tools
+            is_reference = any(f"{t['server']}/{t['tool']}" == full_tool_name for t in reference_tools)
+            if is_reference:
+                # Keep this reference tool
+                for ref_tool in reference_tools:
+                    if f"{ref_tool['server']}/{ref_tool['tool']}" == full_tool_name:
+                        tools_to_keep.append(ref_tool)
+                        break
+            else:
+                # This is a non-reference tool that was helpful - add it
+                if "/" in full_tool_name:
+                    server, tool = full_tool_name.rsplit("/", 1)
+                    tools_to_add.append({
+                        "server": server,
+                        "tool": tool,
+                        "why": reasoning[:100]  # Use assessment reasoning as rationale
+                    })
+
+    # Build tool descriptions
+    tool_descriptions = "\n".join([
+        f"- {tool['server']}/{tool['tool']}: {tool['why']}"
+        for tool in reference_tools
+    ])
+
+    capabilities = "\n".join([
+        f"- {t['tool']} [{t['necessity']}]: {t['capability']}"
+        for t in useful_tools
+    ]) if useful_tools else "No tools provided useful results"
+
+    # Build list of tools actually used
+    tools_used_str = "\n".join([f"- {t}" for t in tools_used]) if tools_used else "No tools were called"
+
+    current_time = datetime.now().strftime("%B %d, %Y %I:%M %p %Z")
+
+    prompt = f"""Rewrite this query and identify which tools to use based on actual execution results.
+
+CURRENT DATE AND TIME: {current_time}
+
+ORIGINAL QUERY:
+{original_query}
+
+REFERENCE TOOLS (originally planned):
+{tool_descriptions}
+
+ACTUAL TOOL EXECUTION RESULTS:
+{capabilities}
+
+TOOLS ACTUALLY USED:
+{tools_used_str}
+
+WHY QUERY FAILED:
+{insufficiency_reason}
+
+FAILURE TYPE: {failure_category or 'UNKNOWN'}
+
+CRITICAL REFINEMENT INSTRUCTIONS:
+
+1. **REMOVE UNSUPPORTED REQUIREMENTS**: Identify and remove ANY requirements the tools cannot handle:
+   - Remove mentions of "advertising regulations", "compliance checks", "legal requirements" if no tools verify these
+   - Remove data visualization, reporting, or analysis features if tools only return raw data
+   - Remove requirements for specific data the tools don't provide
+
+2. **PRESERVE WHAT WORKS**: Keep requirements that tools CAN handle based on actual results above
+
+3. **ADD SPECIFIC DETAILS**: Replace vague references with concrete identifiers:
+   - Company names, stock tickers (e.g., "Tesla (TSLA)")
+   - Exact locations (e.g., "San Francisco, CA")
+   - Specific dates (future dates based on current time: {current_time})
+
+4. **KEEP COMPLEXITY**: Don't oversimplify - maintain multi-step planning where tools support it
+
+5. **NATURAL LANGUAGE**: Sound like a real professional request, don't mention tools
+
+6. **FUTURE DATES ONLY**: Use dates after {current_time}
+
+OUTPUT FORMAT - Return a JSON object with TWO fields:
+{{
+  "refined_query": "<the rewritten query without unsupported requirements>",
+  "recommended_tools": [
+    {{"server": "<server_name>", "tool": "<tool_name>", "why": "<rationale>"}},
+    ...
+  ]
+}}
+
+IMPORTANT: When specifying tools, split the server/tool correctly:
+- If tool is "@Ymuberra/geo-news-mcp/get_news_by_country", then:
+  {{"server": "@Ymuberra/geo-news-mcp", "tool": "get_news_by_country", "why": "..."}}
+- If tool is "@vijitdaroch/financial-modeling-prep-mcp-server/getESGDisclosures", then:
+  {{"server": "@vijitdaroch/financial-modeling-prep-mcp-server", "tool": "getESGDisclosures", "why": "..."}}
+  ]
+}}
+
+IMPORTANT: Based on actual execution, recommend ONLY tools that worked well (marked ESSENTIAL or HELPFUL with relevance >= 5).
+"""
+
+    try:
+        messages = [{"role": "user", "content": prompt}]
+        response = llm.generate(messages)
+        response_text = response.strip() if isinstance(response, str) else str(response).strip()
+
+        # Extract JSON from response
+        if "```json" in response_text:
+            response_text = response_text.split("```json")[1].split("```")[0].strip()
+        elif "```" in response_text:
+            response_text = response_text.split("```")[1].split("```")[0].strip()
+
+        try:
+            result = json.loads(response_text)
+            refined_query = result.get("refined_query", original_query)
+            recommended_tools = result.get("recommended_tools", tools_to_keep)
+
+            # Use recommended tools, or fall back to tools_to_keep if empty
+            updated_tools = recommended_tools if recommended_tools else tools_to_keep
+
+            # Clean up query prefixes
+            for prefix in ["Refined query:", "Refined:", "Query:", "Here is", "Here's"]:
+                if refined_query.lower().startswith(prefix.lower()):
+                    refined_query = refined_query[len(prefix):].strip().lstrip(":")
+
+            # Ensure we have at least some tools
+            if not updated_tools:
+                updated_tools = reference_tools
+
+            return (refined_query, updated_tools)
+
+        except json.JSONDecodeError:
+            # Fallback: treat entire response as query text
+            print(f"Warning: Could not parse JSON, using text as query")
+            return (response_text, tools_to_keep if tools_to_keep else reference_tools)
+
+    except Exception as e:
+        print(f"Warning: Could not refine query: {e}")
+        return (original_query, reference_tools)
 
 
 async def main():
@@ -507,6 +792,12 @@ async def main():
         "--no-save-trajectory",
         action="store_true",
         help="Don't save execution trajectories",
+    )
+    parser.add_argument(
+        "--refine-output",
+        type=Path,
+        default=None,
+        help="Generate refined queries for insufficient ones and save to this file",
     )
     args = parser.parse_args()
 
@@ -571,6 +862,25 @@ async def main():
         print(f"  Tools SUFFICIENT: {sufficient} ({sufficient/total*100:.1f}%)")
         print(f"  Tools INSUFFICIENT: {insufficient} ({insufficient/total*100:.1f}%)")
 
+        # Failure category breakdown
+        failure_categories = {}
+        for r in results:
+            cat = r.get("failure_category")
+            if cat:
+                failure_categories[cat] = failure_categories.get(cat, 0) + 1
+
+        if failure_categories:
+            print(f"\nFailure Category Breakdown:")
+            for category, count in sorted(failure_categories.items()):
+                emoji = {
+                    "TOOL_QUALITY": "🔧",
+                    "QUERY_DESIGN": "📝",
+                    "CONTEXT_OVERFLOW": "📊",
+                    "MIXED": "🔀",
+                    "UNKNOWN_ERROR": "❓"
+                }.get(category, "•")
+                print(f"  {emoji} {category}: {count} ({count/total*100:.1f}%)")
+
         # Tool quality statistics
         all_assessments = []
         for r in results:
@@ -620,6 +930,116 @@ async def main():
             json.dump(summary_data, f, indent=2, ensure_ascii=False)
 
         print(f"✓ Summary saved to: {summary_path}\n")
+
+        # Refine insufficient queries if requested
+        if args.refine_output:
+            print(f"{'='*80}")
+            print("REFINING INSUFFICIENT QUERIES")
+            print(f"{'='*80}\n")
+
+            # Initialize LLM for refinement (use gpt-4o-mini for speed/cost)
+            refinement_model = "openai/gpt-4o-mini"
+            print(f"Initializing refinement model: {refinement_model}...")
+            model_manager = ModelManager()
+            refinement_llm = model_manager.build_model("openrouter", config={"model_name": refinement_model})
+
+            refined_items = []
+            refined_count = 0
+            skipped_count = 0
+            failure_category_counts = {}
+
+            for result in results:
+                query_idx = result["query_index"]
+                original_query = result["query"]
+                reference_tools = result["reference_tools"]
+                hard_constraints = result.get("hard_constraints", [])
+                soft_constraints = result.get("soft_constraints", [])
+                tools_sufficient = result.get("tools_sufficient")
+                insufficiency_reason = result.get("insufficiency_reason", "")
+                failure_category = result.get("failure_category")
+                tool_assessments = result.get("tool_quality_assessment", [])
+
+                # Track failure categories
+                if failure_category:
+                    failure_category_counts[failure_category] = failure_category_counts.get(failure_category, 0) + 1
+
+                # Refine ALL insufficient queries, regardless of failure category
+                # Also refine UNCLEAR queries (tools_sufficient is None) since we can't trust the assessment
+                if tools_sufficient is False or tools_sufficient is None:
+                    print(f"Query {query_idx}: REFINING (failure: {failure_category or 'UNKNOWN'})")
+                    print(f"  Original: {original_query[:80]}...")
+
+                    # Get tools actually used by the agent
+                    tools_used = result.get("tools_used", [])
+
+                    refined_query, updated_tools = refine_insufficient_query(
+                        original_query=original_query,
+                        reference_tools=reference_tools,
+                        insufficiency_reason=insufficiency_reason,
+                        tool_assessments=tool_assessments,
+                        tools_used=tools_used,
+                        failure_category=failure_category,
+                        llm=refinement_llm,
+                    )
+
+                    print(f"  Refined: {refined_query[:80]}...")
+                    print(f"  Updated tools: {len(updated_tools)} tools")
+                    print()
+
+                    refined_items.append({
+                        "query": refined_query,
+                        "hard_constraints": hard_constraints,
+                        "soft_constraints": soft_constraints,
+                        "reference_tools": updated_tools,
+                        "original_query": original_query,
+                        "original_reference_tools": reference_tools,
+                        "refinement_reason": insufficiency_reason,
+                        "failure_category": failure_category,
+                        "was_refined": True,
+                    })
+                    refined_count += 1
+                else:
+                    # Keep original query (was sufficient)
+                    refined_items.append({
+                        "query": original_query,
+                        "hard_constraints": hard_constraints,
+                        "soft_constraints": soft_constraints,
+                        "reference_tools": reference_tools,
+                        "was_refined": False,
+                    })
+
+            # Save refined queries
+            refined_data = {
+                "metadata": {
+                    "total_items": len(refined_items),
+                    "refined_count": refined_count,
+                    "skipped_count": skipped_count,
+                    "sufficient_count": total - refined_count - skipped_count,
+                    "failure_category_distribution": failure_category_counts,
+                    "generation_method": "query_refinement_from_verification",
+                    "refinement_model": refinement_model,
+                    "refinement_policy": "Refine ALL insufficient queries regardless of failure category, remove unsupported requirements",
+                    "timestamp": datetime.now().isoformat(),
+                    "source_verification": str(summary_path),
+                },
+                "items": refined_items,
+            }
+
+            args.refine_output.parent.mkdir(parents=True, exist_ok=True)
+            with args.refine_output.open("w", encoding="utf-8") as f:
+                json.dump(refined_data, f, indent=2, ensure_ascii=False)
+
+            print(f"{'='*80}")
+            print(f"REFINEMENT SUMMARY")
+            print(f"{'='*80}")
+            print(f"✓ Refined: {refined_count} queries (ALL failure types)")
+            print(f"✓ Skipped: {skipped_count} queries (execution errors)")
+            print(f"✓ Kept unchanged: {total - refined_count - skipped_count} queries (sufficient)")
+            print(f"\nFailure Category Distribution:")
+            for category, count in sorted(failure_category_counts.items()):
+                print(f"  {category}: {count}")
+            print(f"\n✓ Saved to: {args.refine_output}")
+            print(f"{'='*80}\n")
 
     else:
         # Verify single query
