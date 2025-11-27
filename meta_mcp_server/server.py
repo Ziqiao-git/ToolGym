@@ -50,27 +50,31 @@ class MetaMCPServer:
                 Tool(
                     name="search_tools",
                     description=(
-                        "Search across 4,572 MCP tools from 301 servers using semantic search. "
-                        "Finds the most relevant tools for a given task or query. "
-                        "Returns tool name, server, description, and similarity score."
+                        "Search across available MCP tools using semantic search. "
+                        "**IMPORTANT USAGE RULES**: "
+                        "1. This tool searches for ONE semantic concept at a time - if you need multiple different types of tools (e.g., weather + stocks + news), you MUST call this tool multiple times with separate queries. "
+                        "2. Each query should describe a single, focused capability (e.g., 'fetch weather forecasts', 'analyze financial data', 'search documentation'). "
+                        "3. You can adjust search parameters: increase 'top_k' (default: 5, max: 20) to get more results, or adjust 'min_score' (default: 0.3, range: 0.0-1.0) to control relevance threshold. "
+                        "4. Lower min_score (e.g., 0.2) finds more tools but may include less relevant ones; higher min_score (e.g., 0.5) is stricter but may miss useful tools. "
+                        "Returns tool name, server, description, parameters, and similarity score for each match."
                     ),
                     inputSchema={
                         "type": "object",
                         "properties": {
                             "query": {
                                 "type": "string",
-                                "description": "Natural language description of what you want to do (e.g., 'search GitHub repos', 'fetch weather data', 'analyze stocks')",
+                                "description": "Natural language description of a SINGLE capability you need (e.g., 'search GitHub repos', 'fetch weather data', 'analyze stock prices'). Be specific and focused - don't combine multiple unrelated requirements in one query.",
                             },
                             "top_k": {
                                 "type": "integer",
-                                "description": "Number of results to return (default: 5, max: 20)",
+                                "description": "Number of results to return (default: 5, max: 20). Increase this if you want to see more tool options.",
                                 "default": 5,
                                 "minimum": 1,
                                 "maximum": 20,
                             },
                             "min_score": {
                                 "type": "number",
-                                "description": "Minimum similarity score threshold (0.0-1.0, default: 0.3)",
+                                "description": "Minimum similarity score threshold (0.0-1.0, default: 0.3). Lower values (0.2-0.3) find more tools but may be less relevant. Higher values (0.4-0.6) are stricter but may miss useful tools.",
                                 "default": 0.3,
                                 "minimum": 0.0,
                                 "maximum": 1.0,

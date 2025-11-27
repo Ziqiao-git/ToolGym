@@ -87,8 +87,8 @@ def load_tool_descriptions(input_path: Path) -> List[Dict[str, Any]]:
                 continue
             try:
                 server_data = json.loads(line)
-                # Only process successful server responses
-                if server_data.get("status") == "ok":
+                # Process all server responses that have tools (regardless of status)
+                if server_data.get("tools"):
                     server_name = server_data["qualifiedName"]
                     for tool in server_data.get("tools", []):
                         tools.append({

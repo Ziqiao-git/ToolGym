@@ -677,42 +677,53 @@ FAILURE TYPE: {failure_category or 'UNKNOWN'}
 
 CRITICAL REFINEMENT INSTRUCTIONS:
 
-1. **REMOVE UNSUPPORTED REQUIREMENTS**: Identify and remove ANY requirements the tools cannot handle:
-   - Remove mentions of "advertising regulations", "compliance checks", "legal requirements" if no tools verify these
-   - Remove data visualization, reporting, or analysis features if tools only return raw data
-   - Remove requirements for specific data the tools don't provide
+***MOST IMPORTANT: REMOVE UNSUPPORTED REQUIREMENTS FROM QUERY TEXT***
 
-2. **PRESERVE WHAT WORKS**: Keep requirements that tools CAN handle based on actual results above
+1. **ANALYZE TOOLS ACTUALLY USED**:
+   - Look at "TOOLS ACTUALLY USED" section above
+   - ANY tool that does NOT appear in that list was NEVER successfully called
+   - ANY requirement that depends on unused tools MUST be removed from the query
 
-3. **ADD SPECIFIC DETAILS**: Replace vague references with concrete identifiers:
+2. **REWRITE QUERY TO REMOVE UNSUPPORTED REQUIREMENTS**:
+   Examples of what to remove:
+   - If "send_whatsapp_message" is NOT in TOOLS ACTUALLY USED → Remove "send data via WhatsApp" from query
+   - If no compliance tool was used → Remove "ensure GDPR compliance", "verify regulations", etc.
+   - If no Canva tool was used → Remove "create visuals using Canva"
+   - If tool failed with error → Remove that requirement entirely
+
+   BE AGGRESSIVE: If a tool wasn't successfully used, DELETE that entire requirement from the query text.
+
+3. **KEEP ONLY WHAT WORKED**:
+   - Preserve requirements where tools in "TOOLS ACTUALLY USED" successfully provided data
+   - Maintain multi-step planning ONLY for capabilities that actually worked
+
+4. **ADD SPECIFIC DETAILS** (while removing unsupported parts):
    - Company names, stock tickers (e.g., "Tesla (TSLA)")
    - Exact locations (e.g., "San Francisco, CA")
    - Specific dates (future dates based on current time: {current_time})
 
-4. **KEEP COMPLEXITY**: Don't oversimplify - maintain multi-step planning where tools support it
-
-5. **NATURAL LANGUAGE**: Sound like a real professional request, don't mention tools
-
-6. **FUTURE DATES ONLY**: Use dates after {current_time}
+5. **NATURAL LANGUAGE**: Sound like a real professional request, don't mention tool names
 
 OUTPUT FORMAT - Return a JSON object with TWO fields:
 {{
-  "refined_query": "<the rewritten query without unsupported requirements>",
+  "refined_query": "<the rewritten query WITHOUT any unsupported requirements>",
   "recommended_tools": [
     {{"server": "<server_name>", "tool": "<tool_name>", "why": "<rationale>"}},
     ...
   ]
 }}
 
-IMPORTANT: When specifying tools, split the server/tool correctly:
+***CRITICAL FOR "recommended_tools"***:
+- Include ONLY tools that appear in "TOOLS ACTUALLY USED" section above
+- DO NOT include tools that were never called
+- DO NOT include tools that failed with errors
+- If a tool is in REFERENCE TOOLS but NOT in TOOLS ACTUALLY USED → EXCLUDE IT
+
+Tool format requirements:
 - If tool is "@Ymuberra/geo-news-mcp/get_news_by_country", then:
   {{"server": "@Ymuberra/geo-news-mcp", "tool": "get_news_by_country", "why": "..."}}
 - If tool is "@vijitdaroch/financial-modeling-prep-mcp-server/getESGDisclosures", then:
   {{"server": "@vijitdaroch/financial-modeling-prep-mcp-server", "tool": "getESGDisclosures", "why": "..."}}
-  ]
-}}
-
-IMPORTANT: Based on actual execution, recommend ONLY tools that worked well (marked ESSENTIAL or HELPFUL with relevance >= 5).
 """
 
     try:
