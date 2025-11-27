@@ -27,7 +27,7 @@ def _call_llm(
     system_prompt: str,
     temperature: float = 0.0,
     max_tokens: int = 8000,
-    prompt_char_limit: int = 100000,
+    prompt_char_limit: int = 200000,
     model_name: str = "openai/gpt-4o-mini",
 ) -> Optional[str]:
     """
@@ -106,7 +106,12 @@ def load_prompts(prompt_path: str) -> List[Dict[str, Any]]:
     {
       "metadata": {...},
       "items": [
-        {"query": "...", "reference_tools": [{"server":"...", "tool":"...", "why":"..."}]},
+        {
+          "query": "...",
+          "reference_tools": [{"server":"...", "tool":"...", "why":"..."}],
+          "hard_constraints": [{"type": "...", "description": "..."}],
+          "soft_constraints": [{"type": "...", "description": "..."}]
+        },
         ...
       ]
     }
@@ -121,6 +126,9 @@ def load_prompts(prompt_path: str) -> List[Dict[str, Any]]:
     for it in data["items"]:
         q = (it or {}).get("query", "")
         ref = (it or {}).get("reference_tools", [])
+        hard_constraints = (it or {}).get("hard_constraints", [])
+        soft_constraints = (it or {}).get("soft_constraints", [])
+
         if not isinstance(ref, list):
             ref = []
         norm_ref = []
@@ -131,7 +139,18 @@ def load_prompts(prompt_path: str) -> List[Dict[str, Any]]:
                     "tool": r.get("tool", ""),
                     "why": r.get("why", "")
                 })
-        out.append({"query": q, "reference_tools": norm_ref})
+
+        if not isinstance(hard_constraints, list):
+            hard_constraints = []
+        if not isinstance(soft_constraints, list):
+            soft_constraints = []
+
+        out.append({
+            "query": q,
+            "reference_tools": norm_ref,
+            "hard_constraints": hard_constraints,
+            "soft_constraints": soft_constraints
+        })
     return out
 
 
@@ -306,7 +325,7 @@ def _clean_history_before_summary(raw_history: str) -> str:
 # =========================
 
 LLM_JUDGE_TEMPLATE = """You are a strict and conservative evaluator of multi-step, tool-using ReAct agents.
-Score across FOUR dimensions that diagnose where to improve and help query generation.
+Score across FIVE dimensions that diagnose where to improve and help query generation.
 
 🔒 Policy
 - Perfect 10s are rare (<10%).
@@ -323,6 +342,9 @@ TASK:
 REFERENCE_TOOLS (expected/allowed):
 {reference_tools_json}
 
+CONSTRAINTS (must follow):
+{constraints_json}
+
 HISTORY:
 {history_text}
 
@@ -332,37 +354,48 @@ FINAL_ANSWER:
 ------------------------------------------------------------
 EVALUATION RUBRIC (each 0–10, integers only)
 
-1) Task Alignment (0–10)
-   Does the final answer satisfy the task intent/constraints and requested format?
-   10 = fully satisfies task & constraints with correct format;
-   8–9 = minor omission/format gap;
-   6–7 = partially meets task; unclear/incomplete;
-   ≤5 = misses task intent or violates explicit constraints.
+1) Answer Reasonableness (0–10)
+   Does the final answer reasonably solve the problem? Is it logical and complete?
+   10 = fully reasonable, complete solution to the problem;
+   8–9 = mostly reasonable, minor gaps or unclear parts;
+   6–7 = partially reasonable, some logic issues or incompleteness;
+   ≤5 = unreasonable, illogical, or fails to address the problem.
 
-2) Grounding & Evidence (0–10)
-   Are claims supported by tool outputs (verbatim fields/values/quotes)?
-   10 = all key claims grounded; no speculation;
-   8–9 = mostly grounded, 1–2 claims not explicit;
-   6–7 = several ungrounded claims;
-   ≤5 = hallucinated or contradicts tool evidence.
+2) Tool Correctness (0–10)
+   Based on the HISTORY above, were the tools called with correct parameters and did they execute successfully?
+   Evaluate the actual tool calls made in HISTORY, NOT the REFERENCE_TOOLS.
+   10 = all tools executed successfully with correct parameters;
+   8–9 = mostly correct, 1-2 minor parameter errors but tools still executed;
+   6–7 = several parameter errors or failed tool executions;
+   ≤5 = major parameter errors, invalid calls, or most tools failed to execute.
 
-3) Tool Planning & Selection (0–10)
-   Did the agent select the right tool(s) and order, aligned with REFERENCE_TOOLS unless a clearly better justified alternative is used?
-   10 = correct tools/sequence; justified deviations;
-   8–9 = minor redundancy/omission with little impact;
-   6–7 = noticeable mismatch (wrong/extra/missing tools);
-   ≤5 = ignored necessary tools or planned poorly.
+3) Tool Relevance (0–10)
+   Based on the HISTORY above, were the tools actually used relevant and useful for solving the task?
+   Evaluate the actual tool calls made in HISTORY, NOT the REFERENCE_TOOLS.
+   REFERENCE_TOOLS are provided as a guide but not mandatory—what matters is usefulness.
+   10 = all tools used are highly relevant and contribute to solving the task;
+   8–9 = most tools are relevant, with minor unnecessary or missing useful tools;
+   6–7 = some irrelevant tools used, or missed several useful tools;
+   ≤5 = mostly irrelevant tools, or ignored many necessary tools for the task.
 
-4) Execution & Recovery (0–10)
-   Did calls succeed, parameters match schema, errors get diagnosed/retried/fallback correctly, and outputs get used?
-   10 = clean execution; robust error handling; outputs used effectively;
-   8–9 = small misuse or ignored part of outputs;
-   6–7 = several failed/unused calls or weak recovery;
-   ≤5 = major execution errors; no recovery.
+4) Grounding & Evidence (0–10)
+   Does the answer reference tool results? Are claims supported by tool outputs (not hallucinated)?
+   10 = all claims grounded in tool results; no hallucination;
+   8–9 = mostly grounded, 1–2 claims not explicitly from tools;
+   6–7 = several ungrounded claims or partial hallucination;
+   ≤5 = answer is mostly hallucinated or contradicts tool evidence.
+
+5) Constraint Adherence (0–10)
+   Did the agent follow all specified CONSTRAINTS?
+   10 = all constraints perfectly followed;
+   8–9 = minor constraint deviation with little impact;
+   6–7 = noticeable constraint violations;
+   ≤5 = major constraint violations or completely ignored constraints.
+   N/A if no constraints provided (use 10 as default).
 
 ------------------------------------------------------------
 OVERALL SCORE
-overall_score = (task_alignment + grounding + tool_planning + execution_recovery) / 40.
+overall_score = (answer_reasonableness + tool_correctness + tool_relevance + grounding + constraint_adherence) / 50.
 Round to two decimals. Must be in [0,1].
 
 BINARY DECISION
@@ -372,17 +405,19 @@ BINARY DECISION
 OUTPUT FORMAT
 Return STRICT JSON ONLY:
 {{
-  "task_alignment": <int 0-10>,
+  "answer_reasonableness": <int 0-10>,
+  "tool_correctness": <int 0-10>,
+  "tool_relevance": <int 0-10>,
   "grounding": <int 0-10>,
-  "tool_planning": <int 0-10>,
-  "execution_recovery": <int 0-10>,
+  "constraint_adherence": <int 0-10>,
   "overall_score": <float 0-1>,
   "binary": "success" or "failure",
   "reasons": {{
-    "task_alignment": "<1-3 concise sentences>",
+    "answer_reasonableness": "<1-3 concise sentences>",
+    "tool_correctness": "<1-3 concise sentences>",
+    "tool_relevance": "<1-3 concise sentences>",
     "grounding": "<1-3 concise sentences>",
-    "tool_planning": "<1-3 concise sentences>",
-    "execution_recovery": "<1-3 concise sentences>"
+    "constraint_adherence": "<1-3 concise sentences>"
   }}
 }}
 """
@@ -395,21 +430,31 @@ def llm_as_judge_score(
     history: str,
     final_answer: str,
     reference_tools: List[Dict[str, Any]],
+    hard_constraints: Optional[List[Dict[str, Any]]] = None,
+    soft_constraints: Optional[List[Dict[str, Any]]] = None,
     temperature: float = 0.0,
     pass_threshold: float = 0.85,
     max_completion_tokens: int = 8000,
-    prompt_char_limit: int = 100000,
+    prompt_char_limit: int = 200000,
     model_name: str = "openai/gpt-4o-mini",
 ) -> Dict[str, Any]:
     meta_json = _json(meta)
     task_json = _json(task)
     ref_tools_json = _json(reference_tools or [])
 
+    # Combine hard and soft constraints
+    all_constraints = {
+        "hard_constraints": hard_constraints or [],
+        "soft_constraints": soft_constraints or []
+    }
+    constraints_json = _json(all_constraints)
+
     prompt = LLM_JUDGE_TEMPLATE.format(
         pass_threshold=pass_threshold,
         meta_json=meta_json,
         task_json=task_json,
         reference_tools_json=ref_tools_json,
+        constraints_json=constraints_json,
         history_text=history,
         final_answer_text=final_answer,
     )
@@ -440,10 +485,11 @@ def llm_as_judge_score(
             "binary": "failure",
             "reasons": {},
             "explanation": "Judge model did not return valid JSON.",
-            "task_alignment": None,
+            "answer_reasonableness": None,
+            "tool_correctness": None,
+            "tool_relevance": None,
             "grounding": None,
-            "tool_planning": None,
-            "execution_recovery": None,
+            "constraint_adherence": None,
             "raw_judge_output": raw,
         }
 
@@ -459,17 +505,18 @@ def llm_as_judge_score(
         return val
 
     subs = {
-        "task_alignment": _coerce_0_10(parsed.get("task_alignment")),
+        "answer_reasonableness": _coerce_0_10(parsed.get("answer_reasonableness")),
+        "tool_correctness": _coerce_0_10(parsed.get("tool_correctness")),
+        "tool_relevance": _coerce_0_10(parsed.get("tool_relevance")),
         "grounding": _coerce_0_10(parsed.get("grounding")),
-        "tool_planning": _coerce_0_10(parsed.get("tool_planning")),
-        "execution_recovery": _coerce_0_10(parsed.get("execution_recovery")),
+        "constraint_adherence": _coerce_0_10(parsed.get("constraint_adherence")),
     }
 
     def _avg_subscores_to_overall(d: Dict[str, Optional[float]]) -> Optional[float]:
         vals = [v for v in d.values() if v is not None]
         if not vals:
             return None
-        # Four dimensions, each 0-10; overall in [0,1]
+        # Five dimensions, each 0-10; overall in [0,1]
         return (sum(vals) / len(vals)) / 10.0
 
     try:
@@ -505,10 +552,11 @@ def llm_as_judge_score(
         "binary": binary,
         "reasons": reasons,
         "explanation": explanation,
-        "task_alignment": subs["task_alignment"],
+        "answer_reasonableness": subs["answer_reasonableness"],
+        "tool_correctness": subs["tool_correctness"],
+        "tool_relevance": subs["tool_relevance"],
         "grounding": subs["grounding"],
-        "tool_planning": subs["tool_planning"],
-        "execution_recovery": subs["execution_recovery"],
+        "constraint_adherence": subs["constraint_adherence"],
         "raw_judge_output": raw,
     }
 
@@ -548,7 +596,14 @@ def extract_actual_tools_from_trajectory(traj_obj: Dict[str, Any]) -> List[Dict[
     return actual_tools
 
 
-def _values_from_prompt_and_traj(query: str, traj_obj: Dict[str, Any], task_id: str, reference_tools: List[Dict[str, Any]]) -> Dict[str, Any]:
+def _values_from_prompt_and_traj(
+    query: str,
+    traj_obj: Dict[str, Any],
+    task_id: str,
+    reference_tools: List[Dict[str, Any]],
+    hard_constraints: Optional[List[Dict[str, Any]]] = None,
+    soft_constraints: Optional[List[Dict[str, Any]]] = None
+) -> Dict[str, Any]:
     exe = traj_obj.get("execution", {}) or {}
     final_resp = exe.get("final_response", "")
 
@@ -572,6 +627,8 @@ def _values_from_prompt_and_traj(query: str, traj_obj: Dict[str, Any], task_id: 
         "history": summarized_history,
         "final_answer": final_resp,
         "reference_tools": reference_tools or [],
+        "hard_constraints": hard_constraints or [],
+        "soft_constraints": soft_constraints or [],
         "actual_tools": actual_tools,
     }
 
@@ -583,7 +640,7 @@ def run_judge_from_files(
     pass_threshold: float = 0.85,
     temperature: float = 0.0,
     max_completion_tokens: int = 8000,
-    prompt_char_limit: int = 100000,
+    prompt_char_limit: int = 200000,
     model_name: str = "openai/gpt-4o-mini",
 ) -> List[Dict[str, Any]]:
     items = load_prompts(prompt_path)  # NEW format only
@@ -593,6 +650,8 @@ def run_judge_from_files(
     for idx, item in enumerate(items, 1):
         q = item.get("query", "")
         ref_tools = item.get("reference_tools", []) or []
+        hard_constraints = item.get("hard_constraints", []) or []
+        soft_constraints = item.get("soft_constraints", []) or []
         matched = match_traj_by_query(trajs, q)
         if not matched:
             results.append({
@@ -603,7 +662,7 @@ def run_judge_from_files(
             continue
 
         task_id = matched.get("_filename", f"task_{idx}")
-        pack = _values_from_prompt_and_traj(q, matched, task_id, ref_tools)
+        pack = _values_from_prompt_and_traj(q, matched, task_id, ref_tools, hard_constraints, soft_constraints)
 
         obj = llm_as_judge_score(
             meta=pack["meta"],
@@ -611,6 +670,8 @@ def run_judge_from_files(
             history=pack["history"],
             final_answer=pack["final_answer"],
             reference_tools=pack["reference_tools"],
+            hard_constraints=pack["hard_constraints"],
+            soft_constraints=pack["soft_constraints"],
             temperature=temperature,
             pass_threshold=pass_threshold,
             max_completion_tokens=max_completion_tokens,
@@ -622,13 +683,16 @@ def run_judge_from_files(
             "task_id": task_id,
             "query": q,
             "reference_tools": ref_tools,
+            "hard_constraints": hard_constraints,
+            "soft_constraints": soft_constraints,
             "actual_tools": pack.get("actual_tools", []),
             "binary": obj.get("binary"),
             "score": obj.get("score"),
-            "task_alignment": obj.get("task_alignment"),
+            "answer_reasonableness": obj.get("answer_reasonableness"),
+            "tool_correctness": obj.get("tool_correctness"),
+            "tool_relevance": obj.get("tool_relevance"),
             "grounding": obj.get("grounding"),
-            "tool_planning": obj.get("tool_planning"),
-            "execution_recovery": obj.get("execution_recovery"),
+            "constraint_adherence": obj.get("constraint_adherence"),
             "reasons": obj.get("reasons", {}),
             "explanation": obj.get("explanation"),
         })
@@ -656,58 +720,37 @@ Action Input: {action_input}
 Tool Result: {tool_result}
 
 ---
-Evaluate this single step on FOUR dimensions (0-10, integers only):
+Evaluate this single step on TWO dimensions (0-10, integers only):
 
-1) Thought Quality (0-10)
-   - Is the thought logical given the query and previous context?
-   - Does it show clear reasoning about what to do next?
-   10 = excellent reasoning, clear plan
-   7-9 = good reasoning, minor gaps
-   4-6 = weak reasoning, unclear plan
-   0-3 = poor/missing reasoning
+1) Tool Correctness (0-10)
+   - Is the tool called correctly with valid parameters?
+   - Does the tool execution succeed without errors?
+   - Are the tool inputs properly formatted and complete?
+   10 = perfect tool call, correct parameters, successful execution
+   7-9 = correct tool, minor parameter issues but succeeds
+   4-6 = tool called with issues (wrong params, partial success)
+   0-3 = tool failed, wrong tool called, or major execution errors
 
-2) Action Appropriateness (0-10)
-   - Is the chosen action/tool appropriate for the thought and query?
-   - Are the action inputs correct and complete?
-   10 = perfect tool choice, correct inputs
-   7-9 = good choice, minor input issues
-   4-6 = questionable choice or significant input issues
-   0-3 = wrong tool or invalid inputs
-
-3) Result Utilization (0-10)
-   - Is the tool result valid and useful?
-   - Does it provide information needed for the query?
-   10 = excellent result, directly useful
-   7-9 = good result, mostly useful
-   4-6 = partial result or limited usefulness
-   0-3 = error, irrelevant result, or not utilized
-
-4) Progress Toward Goal (0-10)
-   - CRITICAL: Does this step move the agent CLOSER to answering the ultimate query?
-   - Does it gather necessary information or eliminate uncertainty?
-   - Is this step essential for the final answer, or is it redundant/tangential?
-   10 = essential step, directly advances toward goal
-   8-9 = helpful step, clearly contributes to progress
-   6-7 = marginal progress, somewhat relevant
-   4-5 = minimal progress, mostly redundant or tangential
-   0-3 = no progress, wrong direction, or completely irrelevant
+2) Tool Relevance (0-10)
+   - Is the chosen tool relevant to the current thought and query?
+   - Does this tool choice make sense given what the agent is trying to accomplish in this step?
+   - Does this tool contribute meaningful information toward solving the query?
+   10 = highly relevant to thought and query, excellent choice
+   7-9 = relevant and reasonable choice for this step
+   4-6 = marginally relevant, could work but not ideal
+   0-3 = irrelevant to thought/query, poor choice
 
 ---
 OUTPUT FORMAT (strict JSON only):
 {{
-  "thought_quality": <int 0-10>,
-  "action_appropriateness": <int 0-10>,
-  "result_utilization": <int 0-10>,
-  "progress_toward_goal": <int 0-10>,
+  "tool_correctness": <int 0-10>,
+  "tool_relevance": <int 0-10>,
   "step_score": <float 0-1>,
   "issues": "<brief description of any problems, or 'none'>",
-  "suggestions": "<brief suggestion for improvement, or 'none'>",
-  "progress_explanation": "<1-2 sentences: HOW does this step contribute to answering the query?>"
+  "suggestions": "<brief suggestion for improvement, or 'none'>"
 }}
 
-where step_score = (thought_quality + action_appropriateness + result_utilization + progress_toward_goal) / 40.0
-
-IMPORTANT: The "progress_toward_goal" dimension is the MOST CRITICAL. Always ask: "Is this step necessary for answering '{query}'?"
+where step_score = (tool_correctness + tool_relevance) / 20.0
 """
 
 
@@ -813,25 +856,19 @@ def evaluate_single_step(
     parsed = _safe_parse_json(raw)
     if not parsed:
         return {
-            "thought_quality": 0,
-            "action_appropriateness": 0,
-            "result_utilization": 0,
-            "progress_toward_goal": 0,
+            "tool_correctness": 0,
+            "tool_relevance": 0,
             "step_score": 0.0,
             "issues": "Failed to parse judge response",
             "suggestions": "N/A",
-            "progress_explanation": "N/A",
         }
 
     return {
-        "thought_quality": parsed.get("thought_quality", 0),
-        "action_appropriateness": parsed.get("action_appropriateness", 0),
-        "result_utilization": parsed.get("result_utilization", 0),
-        "progress_toward_goal": parsed.get("progress_toward_goal", 0),
+        "tool_correctness": parsed.get("tool_correctness", 0),
+        "tool_relevance": parsed.get("tool_relevance", 0),
         "step_score": parsed.get("step_score", 0.0),
         "issues": parsed.get("issues", ""),
         "suggestions": parsed.get("suggestions", ""),
-        "progress_explanation": parsed.get("progress_explanation", ""),
     }
 
 
@@ -839,6 +876,8 @@ def evaluate_trajectory_with_steps(
     traj_obj: Dict[str, Any],
     query: str,
     reference_tools: List[Dict[str, Any]],
+    hard_constraints: Optional[List[Dict[str, Any]]] = None,
+    soft_constraints: Optional[List[Dict[str, Any]]] = None,
     *,
     model_name: str = "openai/gpt-4o-mini",
     temperature: float = 0.0,
@@ -880,7 +919,7 @@ def evaluate_trajectory_with_steps(
 
     # Get holistic evaluation (existing function)
     task_id = traj_obj.get("_filename", "unknown")
-    pack = _values_from_prompt_and_traj(query, traj_obj, task_id, reference_tools)
+    pack = _values_from_prompt_and_traj(query, traj_obj, task_id, reference_tools, hard_constraints, soft_constraints)
 
     holistic_eval = llm_as_judge_score(
         meta=pack["meta"],
@@ -888,6 +927,8 @@ def evaluate_trajectory_with_steps(
         history=pack["history"],
         final_answer=pack["final_answer"],
         reference_tools=pack["reference_tools"],
+        hard_constraints=pack["hard_constraints"],
+        soft_constraints=pack["soft_constraints"],
         temperature=temperature,
         pass_threshold=pass_threshold,
         model_name=model_name,
@@ -897,6 +938,8 @@ def evaluate_trajectory_with_steps(
     return {
         "query": query,
         "reference_tools": reference_tools,
+        "hard_constraints": hard_constraints or [],
+        "soft_constraints": soft_constraints or [],
         "actual_tools": pack.get("actual_tools", []),
         "holistic_evaluation": holistic_eval,
         "step_by_step_evaluation": {
@@ -913,15 +956,15 @@ def evaluate_trajectory_with_steps(
 # =========================
 
 def main():
-    parser = argparse.ArgumentParser(description="Judge from NEW prompt.json format + trajectories/*.json (reasoning_trace only; supports reference_tools; FOUR-dimension rubric)")
-    parser.add_argument("--prompt", default="prompt.json", help="path to NEW-format prompt.json")
+    parser = argparse.ArgumentParser(description="Judge from NEW prompt.json format + trajectories/*.json (reasoning_trace only; supports reference_tools, hard/soft constraints; FIVE-dimension rubric)")
+    parser.add_argument("--prompt", default="prompt.json", help="path to NEW-format prompt.json (with hard_constraints and soft_constraints)")
     parser.add_argument("--traj_dir", default="trajectories", help="directory of trajectory_*.json")
     parser.add_argument("--trajectory", default="", help="evaluate single trajectory file (auto-extracts query)")
     parser.add_argument("--threshold", type=float, default=0.85)
     parser.add_argument("--temperature", type=float, default=0.0)
     parser.add_argument("--model", default="openai/gpt-4o-mini", help="LLM model to use for evaluation (default: openai/gpt-4o-mini)")
     parser.add_argument("--save_json", default="", help="optional: path to save JSON results")
-    parser.add_argument("--step-by-step", action="store_true", help="Enable step-by-step evaluation in addition to holistic evaluation")
+    parser.add_argument("--step-by-step", action="store_true", help="Enable step-by-step evaluation in addition to holistic evaluation (supports batch mode)")
     args = parser.parse_args()
 
     # Single trajectory mode → create NEW-format temp prompt with empty reference_tools
@@ -984,18 +1027,61 @@ def main():
                 os.unlink(temp_prompt.name)
                 shutil.rmtree(temp_dir)
     else:
-        # Batch evaluation mode (not supported for step-by-step yet)
+        # Batch evaluation mode
         if args.step_by_step:
-            print("[WARNING] --step-by-step is only supported with --trajectory flag", file=sys.stderr)
-            print("[WARNING] Falling back to holistic evaluation only", file=sys.stderr)
+            # Batch step-by-step evaluation mode
+            print(f"\n{'='*70}")
+            print(f"Batch Step-by-Step Evaluation")
+            print(f"{'='*70}")
+            print(f"Prompt file: {args.prompt}")
+            print(f"Trajectories dir: {args.traj_dir}")
+            print(f"Model: {args.model}")
+            print(f"{'='*70}\n")
 
-        results = run_judge_from_files(
-            prompt_path=args.prompt,
-            trajectories_dir=args.traj_dir,
-            pass_threshold=args.threshold,
-            temperature=args.temperature,
-            model_name=args.model,
-        )
+            items = load_prompts(args.prompt)
+            trajs = load_all_trajectories(args.traj_dir)
+
+            results = []
+            for idx, item in enumerate(items, 1):
+                q = item.get("query", "")
+                ref_tools = item.get("reference_tools", []) or []
+                hard_constraints = item.get("hard_constraints", []) or []
+                soft_constraints = item.get("soft_constraints", []) or []
+
+                matched = match_traj_by_query(trajs, q)
+                if not matched:
+                    results.append({
+                        "task_id": f"prompt_idx_{idx}",
+                        "query": q,
+                        "error": "No trajectory matched for this query.",
+                    })
+                    print(f"[WARNING] No trajectory found for query {idx}: {q[:100]}...", file=sys.stderr)
+                    continue
+
+                print(f"\n[{idx}/{len(items)}] Evaluating: {q[:100]}...", file=sys.stderr)
+
+                eval_result = evaluate_trajectory_with_steps(
+                    traj_obj=matched,
+                    query=q,
+                    reference_tools=ref_tools,
+                    hard_constraints=hard_constraints,
+                    soft_constraints=soft_constraints,
+                    model_name=args.model,
+                    temperature=args.temperature,
+                    pass_threshold=args.threshold,
+                )
+                results.append(eval_result)
+
+            print(f"\n✅ Batch step-by-step evaluation complete!", file=sys.stderr)
+        else:
+            # Batch holistic-only evaluation
+            results = run_judge_from_files(
+                prompt_path=args.prompt,
+                trajectories_dir=args.traj_dir,
+                pass_threshold=args.threshold,
+                temperature=args.temperature,
+                model_name=args.model,
+            )
 
     out = json.dumps(results, ensure_ascii=False, indent=2)
     print(out)

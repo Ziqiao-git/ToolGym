@@ -83,8 +83,8 @@ if [ "$SKIP_EVAL" = false ]; then
     python Orchestrator/mcpuniverse/evaluator/commonllmjudge.py \
       --prompt "$TASKS_FILE" \
       --traj_dir "$TRAJ_DIR" \
-      --threshold 0.8 \
-      --temperature 0.0 \
+      --step-by-step \
+      --model openai/gpt-4o-mini \
       --save_json "$RESULT_JSON"
 
     echo ""
@@ -99,6 +99,8 @@ else
     echo "  python Orchestrator/mcpuniverse/evaluator/commonllmjudge.py \\"
     echo "    --prompt $TASKS_FILE \\"
     echo "    --traj_dir $TRAJ_DIR \\"
+    echo "    --step-by-step \\"
+    echo "    --model openai/gpt-4o-mini \\"
     echo "    --save_json $RESULT_JSON"
 fi
 
