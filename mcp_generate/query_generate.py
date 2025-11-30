@@ -19,6 +19,7 @@ from tqdm import tqdm
 from pathlib import Path
 import random
 from datetime import datetime
+import uuid
 
 # OpenAI 官方 Python SDK
 # pip install --upgrade openai
@@ -34,7 +35,7 @@ CLIENT = AsyncOpenAI(
   api_key=os.getenv("OPENROUTER_API_KEY"),
 )
 
-MODEL_NAME = "openai/gpt-4o-mini"
+MODEL_NAME = "openai/gpt-5.1"  # Using GPT-5.1 for highest quality query generation
 MAX_RETRIES = 3
 MAX_CONCURRENT = 5  # Maximum concurrent API calls
 
@@ -265,8 +266,11 @@ async def generate_single_query(all_tools: List[Dict], query_idx: int) -> Any:
         query_idx: Index of this query (for logging)
 
     Returns:
-        Generated object: {"query": str, "reference_tools": [...]}
+        Generated object: {"uuid": str, "query": str, "reference_tools": [...]}
     """
+    # Generate time-based UUID for tracking
+    query_uuid = str(uuid.uuid1())
+
     # Randomly select 10 servers
     selected_servers = random.sample(all_tools, min(10, len(all_tools)))
 
@@ -304,6 +308,7 @@ async def generate_single_query(all_tools: List[Dict], query_idx: int) -> Any:
     )
 
     # -------- 改动 2：response_format schema（新增 reference_tools 和 constraints） --------
+    # Note: We don't include UUID in the schema since we generate it client-side
     schema = {
         "type": "json_schema",
         "json_schema": {
@@ -368,18 +373,40 @@ async def generate_single_query(all_tools: List[Dict], query_idx: int) -> Any:
                     {"role": "user", "content": user_prompt},
                 ],
                 temperature=0.8,  # Higher for more diverse constraint scenarios
-                max_tokens=2500,  # More tokens for detailed constraints
+                max_tokens=8000,  # GPT-5.1 uses reasoning tokens, needs more space
                 response_format=schema,
             )
-            text = resp.choices[0].message.content
 
-            if not text or not text.strip():
-                print(f"⚠️  Query {query_idx}: Empty response, retrying... (attempt {attempt}/{MAX_RETRIES})")
+            # GPT-5.1 uses reasoning field, content may be in reasoning instead of content
+            message = resp.choices[0].message
+            text = message.content
+
+            # Check if we hit token limit with reasoning models
+            if resp.choices[0].finish_reason == 'length':
+                print(f"⚠️  Query {query_idx}: Hit max_tokens limit (8000), retrying... (attempt {attempt}/{MAX_RETRIES})")
                 if attempt < MAX_RETRIES:
                     await asyncio.sleep(1)
                     continue
                 else:
                     return {
+                        "uuid": query_uuid,
+                        "query": f"[Error: Hit max_tokens limit after {MAX_RETRIES} attempts]",
+                        "hard_constraints": [],
+                        "soft_constraints": [],
+                        "reference_tools": []
+                    }
+
+            if not text or not text.strip():
+                print(f"⚠️  Query {query_idx}: Empty content field, retrying... (attempt {attempt}/{MAX_RETRIES})")
+                print(f"     Finish reason: {resp.choices[0].finish_reason}")
+                if hasattr(message, 'reasoning') and message.reasoning:
+                    print(f"     Reasoning present but no content - this shouldn't happen with structured output")
+                if attempt < MAX_RETRIES:
+                    await asyncio.sleep(1)
+                    continue
+                else:
+                    return {
+                        "uuid": query_uuid,
                         "query": f"[Error: Empty response after {MAX_RETRIES} attempts]",
                         "hard_constraints": [],
                         "soft_constraints": [],
@@ -398,6 +425,7 @@ async def generate_single_query(all_tools: List[Dict], query_idx: int) -> Any:
                     continue
                 else:
                     return {
+                        "uuid": query_uuid,
                         "query": f"[Error: Invalid JSON after {MAX_RETRIES} attempts]",
                         "hard_constraints": [],
                         "soft_constraints": [],
@@ -417,6 +445,7 @@ async def generate_single_query(all_tools: List[Dict], query_idx: int) -> Any:
                     continue
                 else:
                     return {
+                        "uuid": query_uuid,
                         "query": f"[Error: Invalid format after {MAX_RETRIES} attempts]",
                         "hard_constraints": [],
                         "soft_constraints": [],
@@ -424,6 +453,7 @@ async def generate_single_query(all_tools: List[Dict], query_idx: int) -> Any:
                     }
 
             return {
+                "uuid": query_uuid,
                 "query": obj["query"],
                 "hard_constraints": obj["hard_constraints"],
                 "soft_constraints": obj["soft_constraints"],
@@ -432,12 +462,19 @@ async def generate_single_query(all_tools: List[Dict], query_idx: int) -> Any:
 
         except Exception as e:
             print(f"⚠️  Query {query_idx}: Unexpected error: {type(e).__name__}: {str(e)}")
+            # Print full exception details for debugging
+            import traceback
+            print(f"     Full traceback:")
+            traceback.print_exc()
+            if hasattr(e, 'response'):
+                print(f"     API response: {e.response}")
             if attempt < MAX_RETRIES:
                 print(f"     Retrying... (attempt {attempt}/{MAX_RETRIES})")
                 await asyncio.sleep(2)  # Longer sleep for unexpected errors
             else:
                 print(f"     Failed after {MAX_RETRIES} attempts")
                 return {
+                    "uuid": query_uuid,
                     "query": f"[Error: {type(e).__name__} after {MAX_RETRIES} attempts]",
                     "hard_constraints": [],
                     "soft_constraints": [],

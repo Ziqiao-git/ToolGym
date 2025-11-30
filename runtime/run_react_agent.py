@@ -26,6 +26,56 @@ from mcpuniverse.mcp.manager import MCPManager
 from mcpuniverse.llm.manager import ModelManager
 from mcpuniverse.agent.dynamic_react import DynamicReActAgent
 from dotenv import load_dotenv
+from typing import Dict, Any, Optional
+
+
+def load_query_from_file(
+    query_file: str,
+    query_index: Optional[int] = None,
+    query_uuid: Optional[str] = None,
+) -> Dict[str, Any]:
+    """
+    Load a query from a JSON file containing queries with UUIDs.
+
+    Args:
+        query_file: Path to the JSON file
+        query_index: Index of query to load (0-based)
+        query_uuid: UUID of specific query to load
+
+    Returns:
+        Dict with keys: query, uuid, hard_constraints, soft_constraints, reference_tools
+
+    Raises:
+        ValueError: If query cannot be found or file format is invalid
+    """
+    with open(query_file, "r", encoding="utf-8") as f:
+        data = json.load(f)
+
+    if "items" not in data:
+        raise ValueError(f"Query file {query_file} must have 'items' field")
+
+    items = data["items"]
+
+    if not items:
+        raise ValueError(f"No queries found in {query_file}")
+
+    # Find the query
+    if query_uuid:
+        # Search by UUID
+        for item in items:
+            if item.get("uuid") == query_uuid:
+                return item
+        raise ValueError(f"Query with UUID {query_uuid} not found in {query_file}")
+    elif query_index is not None:
+        # Use index
+        if query_index < 0 or query_index >= len(items):
+            raise ValueError(
+                f"Query index {query_index} out of range (0-{len(items)-1})"
+            )
+        return items[query_index]
+    else:
+        # Default to first query
+        return items[0]
 
 
 async def main():
@@ -35,7 +85,20 @@ async def main():
     parser = argparse.ArgumentParser(
         description="ReAct agent with Meta-MCP server for dynamic tool discovery"
     )
-    parser.add_argument("query", help="Your question or task")
+    parser.add_argument("query", nargs="?", help="Your question or task (optional if using --query-file)")
+    parser.add_argument(
+        "--query-file",
+        help="Path to JSON file containing queries with UUIDs (e.g., generated_queries.json)",
+    )
+    parser.add_argument(
+        "--query-index",
+        type=int,
+        help="Index of query to run from the JSON file (0-based)",
+    )
+    parser.add_argument(
+        "--query-uuid",
+        help="UUID of specific query to run from the JSON file",
+    )
     parser.add_argument(
         "--model",
         default="anthropic/claude-3.5-sonnet",
@@ -57,10 +120,34 @@ async def main():
     # Load environment variables
     load_dotenv(str(ORCHESTRATOR_DIR / ".env"))
 
+    # Determine query and UUID
+    query_text = None
+    query_uuid = None
+
+    if args.query_file:
+        # Load query from file
+        if not args.query and args.query_index is None and not args.query_uuid:
+            print("Warning: No query index or UUID specified, using first query from file")
+
+        query_data = load_query_from_file(
+            args.query_file,
+            query_index=args.query_index,
+            query_uuid=args.query_uuid,
+        )
+        query_text = query_data["query"]
+        query_uuid = query_data.get("uuid")
+    elif args.query:
+        # Use command-line query
+        query_text = args.query
+    else:
+        parser.error("Either 'query' or '--query-file' must be provided")
+
     print(f"{'='*60}")
     print(f"Dynamic ReAct Agent with Meta-MCP Server")
     print(f"{'='*60}")
-    print(f"Query: {args.query}")
+    print(f"Query: {query_text}")
+    if query_uuid:
+        print(f"UUID: {query_uuid}")
     print(f"Model: {args.model}")
     print(f"Max iterations: {args.max_iterations}")
     print(f"{'='*60}\n")
@@ -99,36 +186,123 @@ async def main():
         "name": "meta-mcp-react-agent",
         "instruction": """You are an intelligent agent that can discover and use MCP tools dynamically.
 
-CRITICAL WORKFLOW - Follow these steps exactly:
+════════════════════════════════════════════════════════════════════════
+🚨 CRITICAL: YOU MUST FOLLOW THIS COMPLETE WORKFLOW 🚨
+════════════════════════════════════════════════════════════════════════
 
-Step 1: SEARCH for tools
-- Use the 'search_tools' function from 'meta-mcp' server to find relevant MCP tools
-- This searches across 4,572 tools from 301 servers
-- Parameters: query (string), top_k (integer), min_score (number)
+Your job has TWO phases that you MUST complete:
 
-Step 2: READ the search results carefully
-- The search returns: server name, tool name, description, and score
-- Example result: "@smithery-ai/github / search_repositories - Search for GitHub repositories"
-- This tells you BOTH the server name AND the tool name
+PHASE 1: DISCOVER TOOLS (using meta-mcp/search_tools)
+PHASE 2: EXECUTE TOOLS (using the tools you discovered)
 
-Step 3: USE the tool you found
+⚠️  NEVER stop after Phase 1! You must ALWAYS proceed to Phase 2! ⚠️
+
+════════════════════════════════════════════════════════════════════════
+COMPLETE WORKFLOW - FOLLOW EVERY STEP:
+════════════════════════════════════════════════════════════════════════
+
+Step 1: DISCOVER tools using search_tools
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+- Call: meta-mcp/search_tools
+- Purpose: Find which tools can help answer the user's question
+- Parameters:
+  * query: Natural language description of what you need
+  * top_k: Number of results (default 5, increase if needed)
+  * min_score: Relevance threshold (0.0-1.0, default 0.3)
+
+Example:
+Action: search_tools
+Action Input: {"query": "search GitHub repositories", "top_k": 10, "min_score": 0.3}
+
+Step 2: READ search results carefully
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+- The results show: server name, tool name, description, parameters
+- Example result: "**@smithery-ai/github** / `search_repositories` - Search for repositories on GitHub"
+- Extract: server = "@smithery-ai/github", tool = "search_repositories"
+
+Step 3: 🚨 EXECUTE THE DISCOVERED TOOL 🚨
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⚠️  THIS IS THE MOST CRITICAL STEP - DO NOT SKIP! ⚠️
+
 - Take the server and tool name from search results
-- Call that tool with appropriate arguments
-- Example: If search found "@smithery-ai/github/search_repositories",
-  then use server="@smithery-ai/github", tool="search_repositories"
+- Call that tool with appropriate arguments based on its parameters
+- The server will be loaded automatically when you call the tool
+- Example:
+  Action: search_repositories
+  Action Input: {"query": "machine learning", "sort": "stars"}
 
-Step 4: ANSWER with the results
+Step 4: READ the tool results
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+- The tool returns actual data (repositories, weather, papers, etc.)
+- This is the information you need to answer the user's question
 
-IMPORTANT:
-- search_tools only FINDS tools, it doesn't execute them
-- You MUST use the tools you find in a second step
-- Don't give up - if search_tools returns results, USE those tools!
+Step 5: ANSWER the user's question
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+- Use the tool results to provide a complete answer
+- Include specific data from the tool output
+- Be helpful and informative
 
-Example flow:
-1. Call: meta-mcp/search_tools with query="search GitHub repositories"
-2. Get result: "@smithery-ai/github / search_repositories"
-3. Call: @smithery-ai/github/search_repositories with arguments={"query": "machine learning"}
-4. Return the actual GitHub repositories""",
+════════════════════════════════════════════════════════════════════════
+🚨 CRITICAL RULES - MEMORIZE THESE 🚨
+════════════════════════════════════════════════════════════════════════
+
+1. search_tools is NOT a data retrieval tool - it's a tool DISCOVERY tool
+   ❌ WRONG: "I found tools about GitHub, here are the results"
+   ✅ RIGHT: "I found the search_repositories tool, now I'll use it"
+
+2. You MUST execute tools after discovering them
+   ❌ WRONG: Call search_tools → Return search results to user
+   ✅ RIGHT: Call search_tools → Call discovered tool → Return tool results to user
+
+3. If search_tools returns results, you MUST try to use at least one tool
+   - Don't make excuses like "I can't access that tool"
+   - The tools will be loaded automatically when you call them
+   - Just use the server and tool name from search results
+
+4. For complex queries requiring multiple types of data:
+   - Call search_tools multiple times with different focused queries
+   - Each search_tools call should focus on ONE capability
+   - Execute the tools you discover from each search
+
+════════════════════════════════════════════════════════════════════════
+COMPLETE EXAMPLE WORKFLOW:
+════════════════════════════════════════════════════════════════════════
+
+User Query: "Find machine learning repositories on GitHub"
+
+Iteration 1:
+  Thought: I need to find tools that can search GitHub repositories
+  Action: search_tools
+  Action Input: {"query": "search GitHub repositories", "top_k": 5}
+  Observation: Found 5 relevant tools for: 'search GitHub repositories'
+               1. **@smithery-ai/github** / `search_repositories`
+                  Score: 0.856
+                  Description: Search for repositories on GitHub
+                  Parameters: query, sort, order
+
+Iteration 2:
+  Thought: Great! I found the search_repositories tool. Now I'll use it to actually search for machine learning repositories.
+  Action: search_repositories
+  Action Input: {"query": "machine learning", "sort": "stars", "order": "desc"}
+  Observation: [
+    {"name": "tensorflow/tensorflow", "stars": 175000, ...},
+    {"name": "pytorch/pytorch", "stars": 65000, ...},
+    ...
+  ]
+
+Iteration 3:
+  Thought: Perfect! I got actual repository results. Now I can answer the user.
+  Action: Final Answer
+  Action Input: Here are the top machine learning repositories on GitHub:
+                1. tensorflow/tensorflow (175,000 stars) - ...
+                2. pytorch/pytorch (65,000 stars) - ...
+
+════════════════════════════════════════════════════════════════════════
+
+Remember:
+- Phase 1 (search_tools) = Find which tools exist
+- Phase 2 (execute tools) = Actually use those tools to get data
+- You must complete BOTH phases to answer the user's question!""",
         "max_iterations": args.max_iterations,
     }
 
@@ -152,7 +326,7 @@ Example flow:
     print("Running ReAct Agent...")
     print(f"{'='*60}\n")
 
-    response = await agent.execute(args.query)
+    response = await agent.execute(query_text)
 
     print(f"\n{'='*60}")
     print("Agent Response:")
@@ -175,13 +349,19 @@ Example flow:
         filename = f"trajectory_{timestamp}.json"
         filepath = trajectory_dir / filename
 
+        metadata = {
+            "timestamp": datetime.now().isoformat(),
+            "query": query_text,
+            "model": args.model,
+            "max_iterations": args.max_iterations,
+        }
+
+        # Include UUID if available
+        if query_uuid:
+            metadata["query_uuid"] = query_uuid
+
         trajectory_data = {
-            "metadata": {
-                "timestamp": datetime.now().isoformat(),
-                "query": args.query,
-                "model": args.model,
-                "max_iterations": args.max_iterations,
-            },
+            "metadata": metadata,
             "reasoning_trace": agent.reasoning_trace,  # Complete reasoning process
             "execution": {
                 "final_response": response.response,

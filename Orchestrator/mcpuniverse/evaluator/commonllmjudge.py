@@ -107,6 +107,7 @@ def load_prompts(prompt_path: str) -> List[Dict[str, Any]]:
       "metadata": {...},
       "items": [
         {
+          "uuid": "...",
           "query": "...",
           "reference_tools": [{"server":"...", "tool":"...", "why":"..."}],
           "hard_constraints": [{"type": "...", "description": "..."}],
@@ -124,6 +125,7 @@ def load_prompts(prompt_path: str) -> List[Dict[str, Any]]:
 
     out: List[Dict[str, Any]] = []
     for it in data["items"]:
+        query_uuid = (it or {}).get("uuid")  # Extract UUID for tracking
         q = (it or {}).get("query", "")
         ref = (it or {}).get("reference_tools", [])
         hard_constraints = (it or {}).get("hard_constraints", [])
@@ -146,6 +148,7 @@ def load_prompts(prompt_path: str) -> List[Dict[str, Any]]:
             soft_constraints = []
 
         out.append({
+            "uuid": query_uuid,  # Preserve UUID for tracking
             "query": q,
             "reference_tools": norm_ref,
             "hard_constraints": hard_constraints,
@@ -172,6 +175,21 @@ def match_traj_by_query(trajs: List[Dict[str, Any]], query: str) -> Optional[Dic
     for t in trajs:
         q = (t.get("metadata") or {}).get("query", "")
         if q.strip() == q_strip:
+            return t
+    return None
+
+
+def match_traj_by_uuid(trajs: List[Dict[str, Any]], query_uuid: str) -> Optional[Dict[str, Any]]:
+    """
+    Match trajectory by UUID from metadata.
+    Returns the first trajectory with matching query_uuid.
+    """
+    if not query_uuid:
+        return None
+
+    for t in trajs:
+        traj_uuid = (t.get("metadata") or {}).get("query_uuid")
+        if traj_uuid and traj_uuid == query_uuid:
             return t
     return None
 
@@ -648,14 +666,23 @@ def run_judge_from_files(
 
     results: List[Dict[str, Any]] = []
     for idx, item in enumerate(items, 1):
+        query_uuid = item.get("uuid")  # Extract UUID for tracking
         q = item.get("query", "")
         ref_tools = item.get("reference_tools", []) or []
         hard_constraints = item.get("hard_constraints", []) or []
         soft_constraints = item.get("soft_constraints", []) or []
-        matched = match_traj_by_query(trajs, q)
+
+        # Try UUID-based matching first, fall back to query text matching
+        matched = None
+        if query_uuid:
+            matched = match_traj_by_uuid(trajs, query_uuid)
+        if not matched:
+            matched = match_traj_by_query(trajs, q)
+
         if not matched:
             results.append({
                 "task_id": f"prompt_idx_{idx}",
+                "uuid": query_uuid,  # Include UUID in error result
                 "query": q,
                 "error": "No trajectory matched for this query.",
             })
@@ -681,6 +708,7 @@ def run_judge_from_files(
 
         results.append({
             "task_id": task_id,
+            "uuid": query_uuid,  # Include UUID in evaluation result
             "query": q,
             "reference_tools": ref_tools,
             "hard_constraints": hard_constraints,
@@ -879,6 +907,7 @@ def evaluate_trajectory_with_steps(
     hard_constraints: Optional[List[Dict[str, Any]]] = None,
     soft_constraints: Optional[List[Dict[str, Any]]] = None,
     *,
+    query_uuid: Optional[str] = None,
     model_name: str = "openai/gpt-4o-mini",
     temperature: float = 0.0,
     pass_threshold: float = 0.85,
@@ -936,6 +965,7 @@ def evaluate_trajectory_with_steps(
 
     # Combine results
     return {
+        "uuid": query_uuid,  # Include UUID in evaluation result
         "query": query,
         "reference_tools": reference_tools,
         "hard_constraints": hard_constraints or [],
@@ -1043,15 +1073,23 @@ def main():
 
             results = []
             for idx, item in enumerate(items, 1):
+                query_uuid = item.get("uuid")  # Extract UUID for tracking
                 q = item.get("query", "")
                 ref_tools = item.get("reference_tools", []) or []
                 hard_constraints = item.get("hard_constraints", []) or []
                 soft_constraints = item.get("soft_constraints", []) or []
 
-                matched = match_traj_by_query(trajs, q)
+                # Try UUID-based matching first, fall back to query text matching
+                matched = None
+                if query_uuid:
+                    matched = match_traj_by_uuid(trajs, query_uuid)
+                if not matched:
+                    matched = match_traj_by_query(trajs, q)
+
                 if not matched:
                     results.append({
                         "task_id": f"prompt_idx_{idx}",
+                        "uuid": query_uuid,  # Include UUID in error result
                         "query": q,
                         "error": "No trajectory matched for this query.",
                     })
@@ -1066,6 +1104,7 @@ def main():
                     reference_tools=ref_tools,
                     hard_constraints=hard_constraints,
                     soft_constraints=soft_constraints,
+                    query_uuid=query_uuid,  # Pass UUID to evaluation function
                     model_name=args.model,
                     temperature=args.temperature,
                     pass_threshold=args.threshold,
