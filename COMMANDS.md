@@ -351,6 +351,97 @@ Benchmark complete! Trajectories saved to: trajectories/
 
 ---
 
+### Batch Trajectory Generation with Pass@k Support
+
+Generate trajectories for all queries in a file with support for multiple attempts (pass@k evaluation):
+
+```bash
+cd /Users/xiziqiao/Documents/MCP-Research/MCP-R
+
+# Generate single pass (pass@1)
+python runtime/batch_generate_trajectories.py \
+  --query-file mcp_generate/refined_with_uuid.json \
+  --max-iterations 20 \
+  --model openai/gpt-4o-mini \
+  --pass-number 1
+
+# Generate with Claude model
+python runtime/batch_generate_trajectories.py \
+  --query-file mcp_generate/refined_with_uuid.json \
+  --max-iterations 20 \
+  --model anthropic/claude-3.5-sonnet \
+  --pass-number 1
+
+# Generate multiple passes for pass@5 evaluation
+for pass in 1 2 3 4 5; do
+  python runtime/batch_generate_trajectories.py \
+    --query-file mcp_generate/refined_with_uuid.json \
+    --max-iterations 20 \
+    --model anthropic/claude-3.5-sonnet \
+    --pass-number $pass
+done
+```
+
+**Arguments:**
+- `--query-file`: JSON file with queries and UUIDs (required)
+- `--max-iterations`: Maximum reasoning steps per query (default: 10)
+- `--model`: LLM model to use (default: `anthropic/claude-3.5-sonnet`)
+- `--pass-number`: Pass number for multiple attempts (default: 1)
+
+**Output Directory Structure:**
+```
+trajectories/
+├── openai-gpt-4o-mini/
+│   ├── pass@1/
+│   │   ├── trajectory_{uuid}_{timestamp}.json
+│   │   ├── trajectory_{uuid}_{timestamp}.json
+│   │   └── ...
+│   ├── pass@2/
+│   │   ├── trajectory_{uuid}_{timestamp}.json
+│   │   └── ...
+│   └── pass@5/
+│       └── ...
+├── anthropic-claude-3.5-sonnet/
+│   ├── pass@1/
+│   ├── pass@2/
+│   └── pass@5/
+└── ...
+```
+
+**Pass@k Evaluation:**
+- **pass@1**: Success rate using only the first attempt
+- **pass@2**: Success rate if either attempt 1 OR attempt 2 succeeds
+- **pass@5**: Success rate if any of the 5 attempts succeeds
+
+This enables measuring model reliability and variance across multiple runs.
+
+**Example Workflow:**
+```bash
+# Generate 5 attempts for each query with GPT-4o-mini
+for pass in 1 2 3 4 5; do
+  python runtime/batch_generate_trajectories.py \
+    --query-file mcp_generate/refined_with_uuid.json \
+    --max-iterations 20 \
+    --model openai/gpt-4o-mini \
+    --pass-number $pass
+done
+
+# Evaluate each pass separately
+for pass in 1 2 3 4 5; do
+  python Orchestrator/mcpuniverse/evaluator/commonllmjudge.py \
+    --prompt mcp_generate/refined_with_uuid.json \
+    --traj_dir trajectories/openai-gpt-4o-mini/pass@${pass} \
+    --model openai/gpt-4o-mini \
+    --save_json evaluation/gpt4omini_pass${pass}_results.json
+done
+```
+
+**See Also:**
+- Trajectory directory structure: [trajectories/README.md](trajectories/README.md)
+- Single query execution: [Run ReAct Agent](#run-react-agent-with-dynamic-tool-discovery)
+
+---
+
 ## Tool Testing
 
 ### Test All MCP Tools

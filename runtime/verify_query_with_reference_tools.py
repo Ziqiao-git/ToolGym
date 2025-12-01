@@ -70,6 +70,7 @@ async def verify_single_query(
     reference_tools = query_item.get("reference_tools", [])
     hard_constraints = query_item.get("hard_constraints", [])
     soft_constraints = query_item.get("soft_constraints", [])
+    query_uuid = query_item.get("uuid")  # Preserve UUID for tracking
 
     print(f"\n{'='*80}")
     print(f"VERIFYING QUERY {query_idx + 1}")
@@ -82,6 +83,7 @@ async def verify_single_query(
 
     result = {
         "query_index": query_idx,
+        "uuid": query_uuid,
         "query": query,
         "hard_constraints": hard_constraints,
         "soft_constraints": soft_constraints,
@@ -508,12 +510,17 @@ FORMAT YOUR RESPONSE AS JSON:
             trajectory_dir.mkdir(parents=True, exist_ok=True)
 
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = f"verify_q{query_idx}_{timestamp}.json"
+            # Include UUID in filename if available
+            if query_uuid:
+                filename = f"trajectory_{query_uuid}_{timestamp}.json"
+            else:
+                filename = f"verify_q{query_idx}_{timestamp}.json"
             filepath = trajectory_dir / filename
 
             trajectory_data = {
                 "metadata": {
                     "timestamp": datetime.now().isoformat(),
+                    "query_uuid": query_uuid,
                     "query_index": query_idx,
                     "query": query,
                     "model": model,
@@ -961,6 +968,7 @@ async def main():
 
             for result in results:
                 query_idx = result["query_index"]
+                query_uuid = result.get("uuid")  # Preserve UUID for tracking
                 original_query = result["query"]
                 reference_tools = result["reference_tools"]
                 hard_constraints = result.get("hard_constraints", [])
@@ -998,6 +1006,7 @@ async def main():
                     print()
 
                     refined_items.append({
+                        "uuid": query_uuid,
                         "query": refined_query,
                         "hard_constraints": hard_constraints,
                         "soft_constraints": soft_constraints,
@@ -1012,6 +1021,7 @@ async def main():
                 else:
                     # Keep original query (was sufficient)
                     refined_items.append({
+                        "uuid": query_uuid,
                         "query": original_query,
                         "hard_constraints": hard_constraints,
                         "soft_constraints": soft_constraints,

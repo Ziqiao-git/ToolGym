@@ -28,6 +28,7 @@ async def generate_all_trajectories(
     query_file: str,
     max_iterations: int = 10,
     model: str = "anthropic/claude-3.5-sonnet",
+    pass_number: int = 1,
 ):
     """Generate trajectories for all queries in the file."""
 
@@ -66,6 +67,7 @@ async def generate_all_trajectories(
             '--query-index', str(idx - 1),  # 0-based index
             '--max-iterations', str(max_iterations),
             '--model', model,
+            '--pass-number', str(pass_number),
             '--save-trajectory'
         ]
 
@@ -144,13 +146,20 @@ async def main():
         default="anthropic/claude-3.5-sonnet",
         help="Model to use (default: anthropic/claude-3.5-sonnet)"
     )
+    parser.add_argument(
+        "--pass-number",
+        type=int,
+        default=1,
+        help="Pass number for multiple attempts (default: 1)"
+    )
 
     args = parser.parse_args()
 
     await generate_all_trajectories(
         query_file=args.query_file,
         max_iterations=args.max_iterations,
-        model=args.model
+        model=args.model,
+        pass_number=args.pass_number
     )
 
 

@@ -115,6 +115,12 @@ async def main():
         action="store_true",
         help="Save the agent's execution trajectory to a JSON file",
     )
+    parser.add_argument(
+        "--pass-number",
+        type=int,
+        default=1,
+        help="Pass number for multiple attempts (e.g., 1 for pass@1, 2 for pass@2)",
+    )
     args = parser.parse_args()
 
     # Load environment variables
@@ -342,11 +348,20 @@ Remember:
     if args.save_trajectory:
         from datetime import datetime
 
-        trajectory_dir = PROJECT_ROOT / "trajectories"
-        trajectory_dir.mkdir(exist_ok=True)
+        # Sanitize model name for folder/filename (replace / with -)
+        model_safe = args.model.replace("/", "-").replace(":", "-")
+
+        # Create hierarchical directory: trajectories/{model}/pass@{N}/
+        pass_folder = f"pass@{args.pass_number}"
+        trajectory_dir = PROJECT_ROOT / "trajectories" / model_safe / pass_folder
+        trajectory_dir.mkdir(parents=True, exist_ok=True)
 
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"trajectory_{timestamp}.json"
+        # Include UUID in filename if available (no need for model since it's in folder)
+        if query_uuid:
+            filename = f"trajectory_{query_uuid}_{timestamp}.json"
+        else:
+            filename = f"trajectory_{timestamp}.json"
         filepath = trajectory_dir / filename
 
         metadata = {
@@ -354,9 +369,10 @@ Remember:
             "query": query_text,
             "model": args.model,
             "max_iterations": args.max_iterations,
+            "pass_number": args.pass_number,
         }
 
-        # Include UUID if available
+        # Include UUID in metadata
         if query_uuid:
             metadata["query_uuid"] = query_uuid
 

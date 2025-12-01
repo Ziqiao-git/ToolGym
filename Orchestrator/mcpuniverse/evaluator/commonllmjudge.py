@@ -587,7 +587,11 @@ def extract_actual_tools_from_trajectory(traj_obj: Dict[str, Any]) -> List[Dict[
     """
     Extract the actual tools used from the trajectory.
     Returns list of {"server": str, "tool": str}
+
+    Parses action content like: "Using tool `getFilingsBySymbol` in server `@vijitdaroch/financial-modeling-prep-mcp-server`"
     """
+    import re
+
     actual_tools = []
     rt = (traj_obj.get("reasoning_trace") or [])
 
@@ -596,20 +600,24 @@ def extract_actual_tools_from_trajectory(traj_obj: Dict[str, Any]) -> List[Dict[
         content = (item.get("content") or "")
 
         if ttype == "action" and content:
-            # Extract server and tool from action format like "server/tool"
-            if "/" in content:
-                parts = content.split("/", 1)
-                if len(parts) == 2:
-                    actual_tools.append({
-                        "server": parts[0].strip(),
-                        "tool": parts[1].strip()
-                    })
-            else:
-                # Just tool name without server
+            # Parse format: "Using tool `<tool>` in server `<server>`"
+            # Match both tool and server in backticks
+            match = re.search(r"Using tool `([^`]+)` in server `([^`]+)`", content)
+            if match:
+                tool_name = match.group(1).strip()
+                server_name = match.group(2).strip()
                 actual_tools.append({
-                    "server": "",
-                    "tool": content.strip()
+                    "server": server_name,
+                    "tool": tool_name
                 })
+            else:
+                # Fallback: try to extract just tool name from backticks
+                tool_match = re.search(r"`([^`]+)`", content)
+                if tool_match:
+                    actual_tools.append({
+                        "server": "",
+                        "tool": tool_match.group(1).strip()
+                    })
 
     return actual_tools
 
@@ -768,11 +776,18 @@ Evaluate this single step on TWO dimensions (0-10, integers only):
    4-6 = marginally relevant, could work but not ideal
    0-3 = irrelevant to thought/query, poor choice
 
+3) Tool Execution Success (true/false)
+   - Did the tool execute successfully WITHOUT errors?
+   - Look at the Tool Result - does it show an error, exception, or failure message?
+   - true = tool executed successfully, returned valid data (even if empty)
+   - false = tool failed with error, timeout, exception, or invalid response
+
 ---
 OUTPUT FORMAT (strict JSON only):
 {{
   "tool_correctness": <int 0-10>,
   "tool_relevance": <int 0-10>,
+  "tool_execution_success": <boolean true or false>,
   "step_score": <float 0-1>,
   "issues": "<brief description of any problems, or 'none'>",
   "suggestions": "<brief suggestion for improvement, or 'none'>"
@@ -886,6 +901,7 @@ def evaluate_single_step(
         return {
             "tool_correctness": 0,
             "tool_relevance": 0,
+            "tool_execution_success": False,
             "step_score": 0.0,
             "issues": "Failed to parse judge response",
             "suggestions": "N/A",
@@ -894,6 +910,7 @@ def evaluate_single_step(
     return {
         "tool_correctness": parsed.get("tool_correctness", 0),
         "tool_relevance": parsed.get("tool_relevance", 0),
+        "tool_execution_success": parsed.get("tool_execution_success", False),
         "step_score": parsed.get("step_score", 0.0),
         "issues": parsed.get("issues", ""),
         "suggestions": parsed.get("suggestions", ""),
