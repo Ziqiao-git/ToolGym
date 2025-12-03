@@ -40,6 +40,56 @@ class MetaMCPServer:
         # Register handlers
         self._setup_handlers()
 
+    def _extract_parameters(self, schema: dict) -> list[str]:
+        """
+        Extract parameter names from a JSON schema, resolving $ref references.
+
+        For nested schemas (e.g., parameters wrapped in a 'request' object),
+        this will extract the nested parameter names with dot notation.
+        """
+        def resolve_ref(ref_path: str, root_schema: dict) -> dict:
+            """Resolve a $ref reference like '#/$defs/SomeType'."""
+            if ref_path.startswith("#/"):
+                path_parts = ref_path[2:].split("/")
+                current = root_schema
+                for part in path_parts:
+                    if isinstance(current, dict):
+                        current = current.get(part, {})
+                    else:
+                        return {}
+                return current
+            return {}
+
+        params = []
+        properties = schema.get("properties", {})
+
+        for param_name, param_schema in properties.items():
+            # Check if this parameter has a $ref
+            if isinstance(param_schema, dict) and "$ref" in param_schema:
+                # Resolve the reference
+                resolved = resolve_ref(param_schema["$ref"], schema)
+                nested_props = resolved.get("properties", {})
+
+                if nested_props:
+                    # Add nested parameters with dot notation
+                    for nested_name in nested_props.keys():
+                        params.append(f"{param_name}.{nested_name}")
+                else:
+                    # No nested properties, just add the parameter
+                    params.append(param_name)
+            else:
+                # Check if this parameter itself has nested properties
+                nested_props = param_schema.get("properties", {}) if isinstance(param_schema, dict) else {}
+                if nested_props:
+                    # Add nested parameters
+                    for nested_name in nested_props.keys():
+                        params.append(f"{param_name}.{nested_name}")
+                else:
+                    # Simple parameter
+                    params.append(param_name)
+
+        return params
+
     def _setup_handlers(self):
         """Set up MCP protocol handlers."""
 
@@ -126,11 +176,12 @@ class MetaMCPServer:
                     response += f"   Description: {result['description']}\n"
 
                     # Add input schema info if available
-                    if result.get('inputSchema', {}).get('properties'):
-                        params = list(result['inputSchema']['properties'].keys())
-                        response += f"   Parameters: {', '.join(params[:5])}"
-                        if len(params) > 5:
-                            response += f" (+{len(params)-5} more)"
+                    input_schema = result.get('inputSchema', {})
+                    if input_schema.get('properties'):
+                        params = self._extract_parameters(input_schema)
+                        response += f"   Parameters: {', '.join(params[:8])}"
+                        if len(params) > 8:
+                            response += f" (+{len(params)-8} more)"
                         response += "\n"
                     response += "\n"
 
