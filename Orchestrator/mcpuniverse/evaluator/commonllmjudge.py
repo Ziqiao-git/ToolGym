@@ -380,21 +380,27 @@ EVALUATION RUBRIC (each 0–10, integers only)
    ≤5 = unreasonable, illogical, or fails to address the problem.
 
 2) Tool Correctness (0–10)
-   Based on the HISTORY above, were the tools called with correct parameters and did they execute successfully?
-   Evaluate the actual tool calls made in HISTORY, NOT the REFERENCE_TOOLS.
+   Based on the HISTORY above, were the ACTUAL tools called with correct parameters and did they execute successfully?
+   Evaluate the REAL tool calls made in HISTORY (excluding search_tools), NOT the REFERENCE_TOOLS.
+   IMPORTANT: search_tools does NOT count as a tool call. Only evaluate actual tool executions.
+   SPECIAL CASE: If there are NO tool calls besides search_tools, assign score = 4.
    10 = all tools executed successfully with correct parameters;
    8–9 = mostly correct, 1-2 minor parameter errors but tools still executed;
    6–7 = several parameter errors or failed tool executions;
-   ≤5 = major parameter errors, invalid calls, or most tools failed to execute.
+   ≤5 = major parameter errors, invalid calls, or most tools failed to execute;
+   4 = no actual tool calls made (only search_tools or no tools at all).
 
 3) Tool Relevance (0–10)
-   Based on the HISTORY above, were the tools actually used relevant and useful for solving the task?
-   Evaluate the actual tool calls made in HISTORY, NOT the REFERENCE_TOOLS.
+   Based on the HISTORY above, were the ACTUAL tools used relevant and useful for solving the task?
+   Evaluate the REAL tool calls made in HISTORY (excluding search_tools), NOT the REFERENCE_TOOLS.
+   IMPORTANT: search_tools does NOT count as a tool call. Only evaluate actual tool executions.
+   SPECIAL CASE: If there are NO tool calls besides search_tools, assign score = 4.
    REFERENCE_TOOLS are provided as a guide but not mandatory—what matters is usefulness.
    10 = all tools used are highly relevant and contribute to solving the task;
    8–9 = most tools are relevant, with minor unnecessary or missing useful tools;
    6–7 = some irrelevant tools used, or missed several useful tools;
-   ≤5 = mostly irrelevant tools, or ignored many necessary tools for the task.
+   ≤5 = mostly irrelevant tools, or ignored many necessary tools for the task;
+   4 = no actual tool calls made (only search_tools or no tools at all).
 
 4) Grounding & Evidence (0–10)
    Does the answer reference tool results? Are claims supported by tool outputs (not hallucinated)?

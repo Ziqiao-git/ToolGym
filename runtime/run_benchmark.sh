@@ -8,7 +8,7 @@
 TASKS_FILE=$1
 SKIP_EVAL=false
 OUTPUT_DIR="evaluation/results"
-TRAJ_DIR="trajectories"
+TRAJ_DIR="trajectories/anthropic-claude-3.5-sonnet/pass@1"
 RESULT_JSON="$OUTPUT_DIR/judge_results.json"
 
 # Parse arguments
@@ -84,7 +84,7 @@ if [ "$SKIP_EVAL" = false ]; then
       --prompt "$TASKS_FILE" \
       --traj_dir "$TRAJ_DIR" \
       --step-by-step \
-      --model openai/gpt-4o-mini \
+      --model openai/gpt-5.1 \
       --save_json "$RESULT_JSON"
 
     echo ""
