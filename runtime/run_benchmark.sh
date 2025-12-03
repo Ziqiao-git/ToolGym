@@ -75,32 +75,33 @@ echo "✅ Benchmark complete! Trajectories saved to: trajectories/"
 # Run evaluation unless --skip-eval flag is set
 if [ "$SKIP_EVAL" = false ]; then
     echo ""
-    echo "🔎 Running commonllmjudge on generated trajectories..."
+    echo "🔎 Running concurrent evaluation on generated trajectories..."
 
-    # 运行评测
-    export PYTHONPATH="/Users/xiziqiao/Documents/MCP-Research/MCP-R/Orchestrator:$PYTHONPATH"
+    # 运行并发评测（默认5个worker）
+    WORKERS=${EVAL_WORKERS:-5}
 
-    python Orchestrator/mcpuniverse/evaluator/commonllmjudge.py \
+    python runtime/concurrent_judge.py \
       --prompt "$TASKS_FILE" \
       --traj_dir "$TRAJ_DIR" \
       --step-by-step \
-      --model openai/gpt-5.1 \
+      --model openai/gpt-4o-mini \
+      --workers "$WORKERS" \
       --save_json "$RESULT_JSON"
 
     echo ""
-    echo "✅ Evaluation complete! Results saved to:"
+    echo "✅ Concurrent evaluation complete! Results saved to:"
     echo "   $RESULT_JSON"
 else
     echo ""
     echo "⏭️  Skipping evaluation (use --skip-eval flag to control this)"
     echo ""
-    echo "To evaluate later, run:"
-    echo "  export PYTHONPATH=\"/Users/xiziqiao/Documents/MCP-Research/MCP-R/Orchestrator:\$PYTHONPATH\""
-    echo "  python Orchestrator/mcpuniverse/evaluator/commonllmjudge.py \\"
+    echo "To evaluate later with concurrent processing, run:"
+    echo "  python runtime/concurrent_judge.py \\"
     echo "    --prompt $TASKS_FILE \\"
     echo "    --traj_dir $TRAJ_DIR \\"
     echo "    --step-by-step \\"
     echo "    --model openai/gpt-4o-mini \\"
+    echo "    --workers 5 \\"
     echo "    --save_json $RESULT_JSON"
 fi
 
