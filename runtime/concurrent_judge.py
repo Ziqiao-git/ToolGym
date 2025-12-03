@@ -411,9 +411,11 @@ def main():
     parser.add_argument("--workers", type=int, default=5,
                        help="最大并发worker数量 (默认: 5)")
 
-    # 输出参数
+    # Output parameters
     parser.add_argument("--save_json", default="",
-                       help="保存JSON结果的路径")
+                       help="Path to save combined JSON results (single file mode)")
+    parser.add_argument("--output-dir", default="",
+                       help="Directory to save individual evaluation files (one per query)")
 
     args = parser.parse_args()
 
@@ -445,29 +447,80 @@ def main():
             max_workers=args.workers,
         )
 
-    # 输出结果
-    out = json.dumps(results, ensure_ascii=False, indent=2)
-    print(out)
+    # Save results
+    if args.output_dir:
+        # Save individual files per query
+        output_path = Path(args.output_dir)
+        output_path.mkdir(parents=True, exist_ok=True)
 
-    # 保存结果
-    save_path = args.save_json
-    if not save_path and args.trajectory and args.step_by_step:
-        # 自动生成文件名
-        import re
-        traj_name = Path(args.trajectory).stem
-        match = re.search(r'(\d{8}_\d{6})', traj_name)
-        if match:
-            timestamp = match.group(1)
-            save_path = f"evaluation/concurrent_step_{timestamp}.json"
-        else:
-            save_path = "evaluation/concurrent_results.json"
-        Path("evaluation").mkdir(exist_ok=True)
+        print(f"\n💾 Saving individual evaluation files to: {output_path}", file=sys.stderr)
 
-    if save_path:
-        Path(save_path).parent.mkdir(parents=True, exist_ok=True)
-        with open(save_path, "w", encoding="utf-8") as f:
-            f.write(out)
-        print(f"\n💾 Saved results to {save_path}", file=sys.stderr)
+        # Create summary data
+        summary = {
+            "metadata": {
+                "timestamp": datetime.now().isoformat(),
+                "model": args.model,
+                "total_evaluations": len(results),
+                "output_directory": str(output_path),
+            },
+            "results_summary": []
+        }
+
+        for result in results:
+            uuid = result.get("uuid", "unknown")
+            model_safe = args.model.replace("/", "-").replace(":", "-")
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+            # Individual eval filename: eval_{model}_{uuid}_{timestamp}.json
+            eval_filename = f"eval_{model_safe}_{uuid}_{timestamp}.json"
+            eval_path = output_path / eval_filename
+
+            with open(eval_path, 'w', encoding='utf-8') as f:
+                json.dump(result, f, indent=2, ensure_ascii=False)
+
+            # Add to summary
+            binary = result.get("binary") or result.get("holistic_evaluation", {}).get("binary")
+            summary["results_summary"].append({
+                "uuid": uuid,
+                "file": eval_filename,
+                "binary": binary,
+                "query": result.get("query", "")[:100] + "..." if len(result.get("query", "")) > 100 else result.get("query", ""),
+            })
+
+            status = "✅" if binary == "success" else "❌"
+            print(f"   {status} Saved: {eval_filename}", file=sys.stderr)
+
+        # Save summary file
+        summary_path = output_path / "summary.json"
+        with open(summary_path, 'w', encoding='utf-8') as f:
+            json.dump(summary, f, indent=2, ensure_ascii=False)
+
+        print(f"   📋 Saved summary: summary.json", file=sys.stderr)
+        print(f"\n✅ Saved {len(results)} individual evaluation files", file=sys.stderr)
+
+    elif args.save_json or not args.output_dir:
+        # Original behavior: save combined JSON
+        out = json.dumps(results, ensure_ascii=False, indent=2)
+        print(out)
+
+        save_path = args.save_json
+        if not save_path and args.trajectory and args.step_by_step:
+            # Auto-generate filename
+            import re
+            traj_name = Path(args.trajectory).stem
+            match = re.search(r'(\d{8}_\d{6})', traj_name)
+            if match:
+                timestamp = match.group(1)
+                save_path = f"evaluation/concurrent_step_{timestamp}.json"
+            else:
+                save_path = "evaluation/concurrent_results.json"
+            Path("evaluation").mkdir(exist_ok=True)
+
+        if save_path:
+            Path(save_path).parent.mkdir(parents=True, exist_ok=True)
+            with open(save_path, "w", encoding="utf-8") as f:
+                f.write(out)
+            print(f"\n💾 Saved results to {save_path}", file=sys.stderr)
 
     # 统计摘要
     if results:

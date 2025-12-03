@@ -387,25 +387,31 @@ done
 - `--max-iterations`: Maximum reasoning steps per query (default: 10)
 - `--model`: LLM model to use (default: `anthropic/claude-3.5-sonnet`)
 - `--pass-number`: Pass number for multiple attempts (default: 1)
+- `--max-concurrent`: Maximum number of parallel queries (default: 5)
+
+**Features:**
+- **Parallel execution**: Runs multiple queries concurrently with `--max-concurrent` parameter
+- **Batch ID tracking**: Automatically generates a unique batch ID for each run
+- **Organized output**: Groups trajectories by `{model}_{batch_id}/pass@{N}/` structure
+- **Summary files**: Creates batch summary JSON with success/failure tracking
 
 **Output Directory Structure:**
 ```
 trajectories/
-├── openai-gpt-4o-mini/
+├── openai-gpt-4o-mini_{batch_id}/
 │   ├── pass@1/
 │   │   ├── trajectory_{uuid}_{timestamp}.json
 │   │   ├── trajectory_{uuid}_{timestamp}.json
 │   │   └── ...
 │   ├── pass@2/
-│   │   ├── trajectory_{uuid}_{timestamp}.json
 │   │   └── ...
 │   └── pass@5/
 │       └── ...
-├── anthropic-claude-3.5-sonnet/
+├── anthropic-claude-3.5-sonnet_{batch_id}/
 │   ├── pass@1/
 │   ├── pass@2/
 │   └── pass@5/
-└── ...
+└── batch_{query_file}_pass{N}_{batch_id}_{timestamp}.json (summary)
 ```
 
 **Pass@k Evaluation:**
@@ -426,15 +432,103 @@ for pass in 1 2 3 4 5; do
     --pass-number $pass
 done
 
-# Evaluate each pass separately
+# Evaluate each pass separately with step-by-step evaluation
 for pass in 1 2 3 4 5; do
   python Orchestrator/mcpuniverse/evaluator/commonllmjudge.py \
     --prompt mcp_generate/refined_with_uuid.json \
     --traj_dir trajectories/openai-gpt-4o-mini/pass@${pass} \
+    --step-by-step \
     --model openai/gpt-4o-mini \
-    --save_json evaluation/gpt4omini_pass${pass}_results.json
+    --save_json evaluation/gpt4omini_pass${pass}_stepbystep.json
+done
+
+# For Claude
+for pass in 1 2 3 4 5; do
+  python Orchestrator/mcpuniverse/evaluator/commonllmjudge.py \
+    --prompt mcp_generate/refined_with_uuid.json \
+    --traj_dir trajectories/anthropic-claude-3.5-sonnet/pass@${pass} \
+    --step-by-step \
+    --model openai/gpt-4o-mini \
+    --save_json evaluation/claude_pass${pass}_stepbystep.json
 done
 ```
+
+### Working with Multiple Query Datasets
+
+When you have multiple query files (e.g., different datasets), organize evaluations by prefixing output files:
+
+```bash
+cd /Users/xiziqiao/Documents/MCP-Research/MCP-R
+
+# Example: You have two datasets
+# - mcp_generate/refined_with_uuid.json (original dataset)
+# - mcp_generate/generated_queries_shuang.json (new dataset)
+
+# Generate trajectories for new dataset
+for pass in 1 2 3 4 5; do
+  python runtime/batch_generate_trajectories.py \
+    --query-file mcp_generate/generated_queries_shuang.json \
+    --max-iterations 20 \
+    --model openai/gpt-4o-mini \
+    --pass-number $pass
+
+  python runtime/batch_generate_trajectories.py \
+    --query-file mcp_generate/generated_queries_shuang.json \
+    --max-iterations 20 \
+    --model anthropic/claude-3.5-sonnet \
+    --pass-number $pass
+done
+
+# Evaluate with dataset-specific output files (use prefix to distinguish)
+for pass in 1 2 3 4 5; do
+  # GPT-4o-mini for shuang dataset
+  python Orchestrator/mcpuniverse/evaluator/commonllmjudge.py \
+    --prompt mcp_generate/generated_queries_shuang.json \
+    --traj_dir trajectories/openai-gpt-4o-mini/pass@${pass} \
+    --step-by-step \
+    --model openai/gpt-4o-mini \
+    --save_json evaluation/shuang_gpt4omini_pass${pass}_stepbystep.json
+
+  # Claude for shuang dataset
+  python Orchestrator/mcpuniverse/evaluator/commonllmjudge.py \
+    --prompt mcp_generate/generated_queries_shuang.json \
+    --traj_dir trajectories/anthropic-claude-3.5-sonnet/pass@${pass} \
+    --step-by-step \
+    --model openai/gpt-4o-mini \
+    --save_json evaluation/shuang_claude_pass${pass}_stepbystep.json
+done
+```
+
+**Key Points:**
+- Trajectories from different datasets can coexist in the same folder structure
+- The `--prompt` parameter matches trajectories by UUID, so only matching queries are evaluated
+- Use filename prefixes (e.g., `shuang_*`) to distinguish evaluation results from different datasets
+- The evaluator will skip trajectories that don't match UUIDs in the prompt file
+
+### Retrying Failed Queries
+
+If some queries fail during batch generation, you can retry only the failed ones:
+
+```bash
+cd /Users/xiziqiao/Documents/MCP-Research/MCP-R
+
+# Retry failed queries from a batch summary
+python runtime/retry_failed_queries.py \
+  --batch-summary trajectories/batch_generated_queries_clean_pass1_c0d1ab7c_20251203_122600.json \
+  --max-iterations 20 \
+  --max-concurrent 3
+```
+
+**Arguments:**
+- `--batch-summary`: Path to the batch summary JSON file (required)
+- `--max-iterations`: Maximum iterations per retry (default: 20)
+- `--max-concurrent`: Max concurrent retries (default: 3, lower to reduce resource contention)
+
+**Features:**
+- Automatically identifies failed queries from batch summary
+- Uses the same batch_id so retried trajectories go in the same folder
+- Creates a separate retry summary file
+- Shows which queries succeeded after retry
 
 **See Also:**
 - Trajectory directory structure: [trajectories/README.md](trajectories/README.md)
@@ -987,9 +1081,11 @@ python runtime/run_goaloriented_agent.py \
 
 ## Query Verification with Reference Tools
 
-Verify that generated queries can be solved using ONLY their reference tools (validates query quality):
+**⚠️ DEPRECATED - This process has been discarded in favor of direct trajectory generation and evaluation.**
 
-```bash
+~~Verify that generated queries can be solved using ONLY their reference tools (validates query quality):~~
+
+~~```bash
 cd /Users/xiziqiao/Documents/MCP-Research/MCP-R
 
 # Verify single query
@@ -1010,42 +1106,42 @@ python runtime/verify_query_with_reference_tools.py \
   --all \
   --max-iterations 15 \
   --refine-output mcp_generate/requests/multi_tool_queries_refined.json
-```
+```~~
 
-**Arguments:**
-- `--query-file`: JSON file with queries and reference_tools (required)
-- `--query-index N`: Verify query at index N (use with single query)
-- `--all`: Verify all queries in the file
-- `--max-iterations`: Max agent reasoning steps (default: 15)
-- `--model`: LLM model (default: `anthropic/claude-3.5-sonnet`)
-- `--refine-output`: Auto-refine insufficient queries and save to this file
+~~**Arguments:**~~
+~~- `--query-file`: JSON file with queries and reference_tools (required)~~
+~~- `--query-index N`: Verify query at index N (use with single query)~~
+~~- `--all`: Verify all queries in the file~~
+~~- `--max-iterations`: Max agent reasoning steps (default: 15)~~
+~~- `--model`: LLM model (default: `anthropic/claude-3.5-sonnet`)~~
+~~- `--refine-output`: Auto-refine insufficient queries and save to this file~~
 
-**What it does:**
-1. Loads ONLY reference servers (restricts tool access)
-2. Runs agent on query with limited tool set
-3. Tracks tools used vs reference tools
-4. LLM-based tool quality assessment
-5. Saves to `trajectories/verification/verify_q{N}_{timestamp}.json`
-6. Creates `trajectories/verification/summary.json` (batch mode)
-7. **If `--refine-output`**: Rewrites insufficient queries to be solvable with reference tools
+~~**What it does:**~~
+~~1. Loads ONLY reference servers (restricts tool access)~~
+~~2. Runs agent on query with limited tool set~~
+~~3. Tracks tools used vs reference tools~~
+~~4. LLM-based tool quality assessment~~
+~~5. Saves to `trajectories/verification/verify_q{N}_{timestamp}.json`~~
+~~6. Creates `trajectories/verification/summary.json` (batch mode)~~
+~~7. **If `--refine-output`**: Rewrites insufficient queries to be solvable with reference tools~~
 
-**Key Output Fields:**
-- `tools_used`: Tools actually called (`["exa/search", "github/list_repos"]`)
-- `tools_matched`: Boolean - did agent use correct tools?
-- `self_evaluation`: Agent's assessment (`"SUFFICIENT"` or `"INSUFFICIENT"`)
-- `tool_quality_assessment`: LLM judge score (0.0-1.0)
-- `tools_with_missing_descriptions`: Tools with None/empty descriptions
+~~**Key Output Fields:**~~
+~~- `tools_used`: Tools actually called (`["exa/search", "github/list_repos"]`)~~
+~~- `tools_matched`: Boolean - did agent use correct tools?~~
+~~- `self_evaluation`: Agent's assessment (`"SUFFICIENT"` or `"INSUFFICIENT"`)~~
+~~- `tool_quality_assessment`: LLM judge score (0.0-1.0)~~
+~~- `tools_with_missing_descriptions`: Tools with None/empty descriptions~~
 
-**Interpreting Results:**
+~~**Interpreting Results:**~~
 
-✅ Good: `tools_matched=true`, `self_evaluation="SUFFICIENT"`, `quality_score>=0.7`
-⚠️ Investigate: `tools_matched=false`, `quality_score=0.4-0.7`
-❌ Bad: `tools_used=0`, `self_evaluation="INSUFFICIENT"`, `quality_score<0.4`
+~~✅ Good: `tools_matched=true`, `self_evaluation="SUFFICIENT"`, `quality_score>=0.7`~~
+~~⚠️ Investigate: `tools_matched=false`, `quality_score=0.4-0.7`~~
+~~❌ Bad: `tools_used=0`, `self_evaluation="INSUFFICIENT"`, `quality_score<0.4`~~
 
-**Common Issues:**
-- Context overflow (298K+ tokens): Some tools return huge responses
-- Timeout errors: Increase `--max-iterations`
-- Missing descriptions: Tracked but handled gracefully
+~~**Common Issues:**~~
+~~- Context overflow (298K+ tokens): Some tools return huge responses~~
+~~- Timeout errors: Increase `--max-iterations`~~
+~~- Missing descriptions: Tracked but handled gracefully~~
 
 ---
 
@@ -1083,12 +1179,14 @@ python Orchestrator/mcpuniverse/evaluator/commonllmjudge.py \
 
 #### Evaluate Multiple Trajectories (Batch Mode)
 
+**Sequential Evaluation (Original):**
+
 ```bash
 cd /Users/xiziqiao/Documents/MCP-Research/MCP-R
 
 export PYTHONPATH="/Users/xiziqiao/Documents/MCP-Research/MCP-R/Orchestrator:$PYTHONPATH"
 
-# Evaluate all trajectories matching queries in prompt file
+# Evaluate all trajectories matching queries in prompt file (sequential)
 python Orchestrator/mcpuniverse/evaluator/commonllmjudge.py \
   --prompt mcp_generate/prompt/benchmark_tasks.json \
   --traj_dir trajectories \
@@ -1103,7 +1201,59 @@ python Orchestrator/mcpuniverse/evaluator/commonllmjudge.py \
   --save_json evaluation/batch_results_strict.json
 ```
 
+**Parallel Evaluation (Recommended for large batches):**
+
+```bash
+cd /Users/xiziqiao/Documents/MCP-Research/MCP-R
+
+# Parallel evaluation with combined output file
+python runtime/concurrent_judge.py \
+  --prompt mcp_generate/generated_queries_clean.json \
+  --traj-dir trajectories/openai-gpt-4o-mini_c0d1ab7c/pass@1 \
+  --model openai/gpt-4o-mini \
+  --step-by-step \
+  --save-json evaluation/clean_gpt4omini_c0d1ab7c_pass1_stepbystep.json \
+  --workers 5
+
+# Parallel evaluation with individual files per query (recommended)
+python runtime/concurrent_judge.py \
+  --prompt mcp_generate/generated_queries_clean.json \
+  --traj-dir trajectories/openai-gpt-4o-mini_c0d1ab7c/pass@1 \
+  --model openai/gpt-4o-mini \
+  --step-by-step \
+  --output-dir evaluation/clean_gpt4omini_c0d1ab7c_pass1_individual \
+  --workers 5
+```
+
 **Arguments:**
+- `--prompt`: JSON file with queries and UUIDs (required)
+- `--traj-dir`: Directory containing trajectory files (required)
+- `--model`: LLM judge model (default: `openai/gpt-4o-mini`)
+- `--step-by-step`: Enable step-by-step evaluation (default: False)
+- `--save-json`: Save all results to a single combined JSON file
+- `--output-dir`: Save individual evaluation files per query (one file per UUID)
+- `--workers`: Number of parallel workers (default: 5)
+- `--threshold`: Pass/fail threshold (default: 0.85)
+
+**Output Modes:**
+
+1. **Combined mode** (`--save-json`): All results in one JSON array
+   - Filename: `evaluation/batch_results.json`
+   - Format: `[{result1}, {result2}, ...]`
+
+2. **Individual mode** (`--output-dir`): One file per query
+   - Filenames: `eval_{model}_{uuid}_{timestamp}.json`
+   - Example: `eval_openai-gpt-4o-mini_b3f6f8dc-d076-11f0-a92b-5e42cb4e4d75_20251203_141530.json`
+   - Also creates `summary.json` with overview statistics
+
+**Performance Comparison:**
+- Sequential (`commonllmjudge.py`): ~30-60 seconds per query
+  - 10 queries = 5-10 minutes
+- Parallel (`concurrent_judge.py` with 5 workers): ~10-15 seconds per query
+  - 10 queries = 2-3 minutes total
+  - 5x-8x faster for large batches
+
+**Additional Arguments (for commonllmjudge.py):**
 - `--trajectory`: Path to single trajectory file (auto-extracts query from metadata)
   - **Note**: Single trajectory mode will have **empty reference_tools** in output
 - `--prompt`: Path to prompt JSON file with queries (for batch mode)

@@ -121,6 +121,10 @@ async def main():
         default=1,
         help="Pass number for multiple attempts (e.g., 1 for pass@1, 2 for pass@2)",
     )
+    parser.add_argument(
+        "--batch-id",
+        help="Batch ID for grouping related trajectories together",
+    )
     args = parser.parse_args()
 
     # Load environment variables
@@ -351,9 +355,13 @@ Remember:
         # Sanitize model name for folder/filename (replace / with -)
         model_safe = args.model.replace("/", "-").replace(":", "-")
 
-        # Create hierarchical directory: trajectories/{model}/pass@{N}/
+        # Create hierarchical directory: trajectories/{model}_{batch_id}/pass@{N}/ or trajectories/{model}/pass@{N}/
+        if args.batch_id:
+            folder_name = f"{model_safe}_{args.batch_id}"
+        else:
+            folder_name = model_safe
         pass_folder = f"pass@{args.pass_number}"
-        trajectory_dir = PROJECT_ROOT / "trajectories" / model_safe / pass_folder
+        trajectory_dir = PROJECT_ROOT / "trajectories" / folder_name / pass_folder
         trajectory_dir.mkdir(parents=True, exist_ok=True)
 
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -375,6 +383,10 @@ Remember:
         # Include UUID in metadata
         if query_uuid:
             metadata["query_uuid"] = query_uuid
+
+        # Include batch_id in metadata
+        if args.batch_id:
+            metadata["batch_id"] = args.batch_id
 
         trajectory_data = {
             "metadata": metadata,
