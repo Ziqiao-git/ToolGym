@@ -24,12 +24,12 @@ Usage:
         --all \
         --parallel 4
 
-    # Verify and generate refined queries for insufficient ones
+    # Verify and generate refined queries (saved as individual files in a directory)
     python runtime/verify_query_with_reference_tools.py \
         --query-file mcp_generate/requests/constrained_multi_tool_queries_121servers.json \
         --all \
         --parallel 4 \
-        --refine-output mcp_generate/requests/refined_queries.json
+        --refine-output mcp_generate/requests/refined_batch_001
 """
 from __future__ import annotations
 
@@ -829,7 +829,7 @@ async def main():
         "--refine-output",
         type=Path,
         default=None,
-        help="Generate refined queries for insufficient ones and save to this file",
+        help="Output directory to save refined queries (one file per query)",
     )
     parser.add_argument(
         "--parallel",
@@ -1019,15 +1019,20 @@ async def main():
             print("REFINING INSUFFICIENT QUERIES")
             print(f"{'='*80}\n")
 
+            # Create output directory
+            output_dir = args.refine_output
+            output_dir.mkdir(parents=True, exist_ok=True)
+            print(f"Output directory: {output_dir}\n")
+
             # Initialize LLM for refinement (use gpt-4o-mini for speed/cost)
             refinement_model = "openai/gpt-4o-mini"
             print(f"Initializing refinement model: {refinement_model}...")
             model_manager = ModelManager()
             refinement_llm = model_manager.build_model("openrouter", config={"model_name": refinement_model})
 
-            refined_items = []
             refined_count = 0
             skipped_count = 0
+            kept_count = 0
             failure_category_counts = {}
 
             for result in results:
@@ -1067,9 +1072,8 @@ async def main():
 
                     print(f"  Refined: {refined_query[:80]}...")
                     print(f"  Updated tools: {len(updated_tools)} tools")
-                    print()
 
-                    refined_items.append({
+                    query_data = {
                         "uuid": query_uuid,
                         "query": refined_query,
                         "hard_constraints": hard_constraints,
@@ -1080,50 +1084,64 @@ async def main():
                         "refinement_reason": insufficiency_reason,
                         "failure_category": failure_category,
                         "was_refined": True,
-                    })
+                    }
+
+                    # Save to individual file
+                    filename = f"query_{query_uuid}.json" if query_uuid else f"query_{query_idx}.json"
+                    filepath = output_dir / filename
+                    with filepath.open("w", encoding="utf-8") as f:
+                        json.dump(query_data, f, indent=2, ensure_ascii=False)
+                    print(f"  ✓ Saved to: {filename}\n")
+
                     refined_count += 1
                 else:
                     # Keep original query (was sufficient)
-                    refined_items.append({
+                    query_data = {
                         "uuid": query_uuid,
                         "query": original_query,
                         "hard_constraints": hard_constraints,
                         "soft_constraints": soft_constraints,
                         "reference_tools": reference_tools,
                         "was_refined": False,
-                    })
+                    }
 
-            # Save refined queries
-            refined_data = {
-                "metadata": {
-                    "total_items": len(refined_items),
-                    "refined_count": refined_count,
-                    "skipped_count": skipped_count,
-                    "sufficient_count": total - refined_count - skipped_count,
-                    "failure_category_distribution": failure_category_counts,
-                    "generation_method": "query_refinement_from_verification",
-                    "refinement_model": refinement_model,
-                    "refinement_policy": "Refine ALL insufficient queries regardless of failure category, remove unsupported requirements",
-                    "timestamp": datetime.now().isoformat(),
-                    "source_verification": str(summary_path),
-                },
-                "items": refined_items,
+                    # Save to individual file
+                    filename = f"query_{query_uuid}.json" if query_uuid else f"query_{query_idx}.json"
+                    filepath = output_dir / filename
+                    with filepath.open("w", encoding="utf-8") as f:
+                        json.dump(query_data, f, indent=2, ensure_ascii=False)
+
+                    kept_count += 1
+
+            # Save metadata summary
+            metadata = {
+                "total_items": total,
+                "refined_count": refined_count,
+                "skipped_count": skipped_count,
+                "kept_count": kept_count,
+                "failure_category_distribution": failure_category_counts,
+                "generation_method": "query_refinement_from_verification",
+                "refinement_model": refinement_model,
+                "refinement_policy": "Refine ALL insufficient queries regardless of failure category, remove unsupported requirements",
+                "timestamp": datetime.now().isoformat(),
+                "source_verification": str(summary_path),
             }
 
-            args.refine_output.parent.mkdir(parents=True, exist_ok=True)
-            with args.refine_output.open("w", encoding="utf-8") as f:
-                json.dump(refined_data, f, indent=2, ensure_ascii=False)
+            metadata_path = output_dir / "_metadata.json"
+            with metadata_path.open("w", encoding="utf-8") as f:
+                json.dump(metadata, f, indent=2, ensure_ascii=False)
 
             print(f"{'='*80}")
             print(f"REFINEMENT SUMMARY")
             print(f"{'='*80}")
             print(f"✓ Refined: {refined_count} queries (ALL failure types)")
             print(f"✓ Skipped: {skipped_count} queries (execution errors)")
-            print(f"✓ Kept unchanged: {total - refined_count - skipped_count} queries (sufficient)")
+            print(f"✓ Kept unchanged: {kept_count} queries (sufficient)")
             print(f"\nFailure Category Distribution:")
             for category, count in sorted(failure_category_counts.items()):
                 print(f"  {category}: {count}")
-            print(f"\n✓ Saved to: {args.refine_output}")
+            print(f"\n✓ Saved {total} files to: {output_dir}")
+            print(f"✓ Metadata saved to: {metadata_path}")
             print(f"{'='*80}\n")
 
     else:
