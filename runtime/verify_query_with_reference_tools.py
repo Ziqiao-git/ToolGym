@@ -7,15 +7,29 @@ specified during query generation. Instead of letting the agent search for tools
 we pre-load the specific reference tools and see if the agent can solve the task.
 
 Usage:
+    # Verify a single query
     python runtime/verify_query_with_reference_tools.py \
         --query-file mcp_generate/requests/constrained_multi_tool_queries_121servers.json \
         --query-index 0 \
         --max-iterations 10
 
-    Or verify all queries:
+    # Verify all queries sequentially
     python runtime/verify_query_with_reference_tools.py \
         --query-file mcp_generate/requests/constrained_multi_tool_queries_121servers.json \
         --all
+
+    # Verify all queries in parallel (recommended for speed)
+    python runtime/verify_query_with_reference_tools.py \
+        --query-file mcp_generate/requests/constrained_multi_tool_queries_121servers.json \
+        --all \
+        --parallel 4
+
+    # Verify and generate refined queries for insufficient ones
+    python runtime/verify_query_with_reference_tools.py \
+        --query-file mcp_generate/requests/constrained_multi_tool_queries_121servers.json \
+        --all \
+        --parallel 4 \
+        --refine-output mcp_generate/requests/refined_queries.json
 """
 from __future__ import annotations
 
@@ -817,6 +831,12 @@ async def main():
         default=None,
         help="Generate refined queries for insufficient ones and save to this file",
     )
+    parser.add_argument(
+        "--parallel",
+        type=int,
+        default=1,
+        help="Number of parallel workers for verification (default: 1 for sequential)",
+    )
     args = parser.parse_args()
 
     # Load environment variables
@@ -846,19 +866,63 @@ async def main():
         # Verify all queries
         print(f"\n{'='*80}")
         print(f"VERIFYING ALL {len(queries)} QUERIES")
+        if args.parallel > 1:
+            print(f"Parallel Workers: {args.parallel}")
         print(f"{'='*80}\n")
 
         results = []
-        for i, query_item in enumerate(queries):
-            result = await verify_single_query(
-                query_item=query_item,
-                all_server_configs=all_server_configs,
-                model=args.model,
-                max_iterations=args.max_iterations,
-                query_idx=i,
-                save_trajectory=not args.no_save_trajectory,
-            )
-            results.append(result)
+
+        if args.parallel > 1:
+            # Parallel execution with semaphore to limit concurrency
+            semaphore = asyncio.Semaphore(args.parallel)
+
+            async def verify_with_semaphore(i, query_item):
+                async with semaphore:
+                    print(f"[Worker] Starting query {i+1}/{len(queries)}")
+                    result = await verify_single_query(
+                        query_item=query_item,
+                        all_server_configs=all_server_configs,
+                        model=args.model,
+                        max_iterations=args.max_iterations,
+                        query_idx=i,
+                        save_trajectory=not args.no_save_trajectory,
+                    )
+                    print(f"[Worker] Completed query {i+1}/{len(queries)}")
+                    return result
+
+            # Create all tasks
+            tasks = [
+                verify_with_semaphore(i, query_item)
+                for i, query_item in enumerate(queries)
+            ]
+
+            # Wait for all tasks to complete
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+
+            # Handle any exceptions
+            for i, result in enumerate(results):
+                if isinstance(result, Exception):
+                    print(f"❌ Query {i} failed with exception: {result}")
+                    results[i] = {
+                        "query_index": i,
+                        "uuid": queries[i].get("uuid"),
+                        "query": queries[i].get("query", ""),
+                        "status": "error",
+                        "error": str(result),
+                        "execution_successful": False,
+                    }
+        else:
+            # Sequential execution (original behavior)
+            for i, query_item in enumerate(queries):
+                result = await verify_single_query(
+                    query_item=query_item,
+                    all_server_configs=all_server_configs,
+                    model=args.model,
+                    max_iterations=args.max_iterations,
+                    query_idx=i,
+                    save_trajectory=not args.no_save_trajectory,
+                )
+                results.append(result)
 
         # Summary
         print(f"\n{'='*80}")
