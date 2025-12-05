@@ -1081,67 +1081,89 @@ python runtime/run_goaloriented_agent.py \
 
 ## Query Verification with Reference Tools
 
-**⚠️ DEPRECATED - This process has been discarded in favor of direct trajectory generation and evaluation.**
+Verify that generated queries can be solved using ONLY their reference tools (validates query quality). **Now supports parallel execution and per-file output for better scalability.**
 
-~~Verify that generated queries can be solved using ONLY their reference tools (validates query quality):~~
+**Usage:**
 
-~~```bash
+```bash
 cd /Users/xiziqiao/Documents/MCP-Research/MCP-R
 
 # Verify single query
 python runtime/verify_query_with_reference_tools.py \
-  --query-file mcp_generate/requests/multi_tool_queries_117servers.json \
+  --query-file mcp_generate/requests/constrained_multi_tool_queries_121servers.json \
   --query-index 0 \
-  --max-iterations 15
+  --max-iterations 10
 
-# Verify all queries in file
+# Verify all queries sequentially
 python runtime/verify_query_with_reference_tools.py \
-  --query-file mcp_generate/requests/multi_tool_queries_117servers.json \
-  --all \
-  --max-iterations 15
+  --query-file mcp_generate/requests/constrained_multi_tool_queries_121servers.json \
+  --all
 
-# Verify AND refine insufficient queries
+# Verify all queries in parallel (RECOMMENDED - much faster)
 python runtime/verify_query_with_reference_tools.py \
-  --query-file mcp_generate/requests/multi_tool_queries_117servers.json \
+  --query-file mcp_generate/requests/constrained_multi_tool_queries_121servers.json \
   --all \
-  --max-iterations 15 \
-  --refine-output mcp_generate/requests/multi_tool_queries_refined.json
-```~~
+  --parallel 4
 
-~~**Arguments:**~~
-~~- `--query-file`: JSON file with queries and reference_tools (required)~~
-~~- `--query-index N`: Verify query at index N (use with single query)~~
-~~- `--all`: Verify all queries in the file~~
-~~- `--max-iterations`: Max agent reasoning steps (default: 15)~~
-~~- `--model`: LLM model (default: `anthropic/claude-3.5-sonnet`)~~
-~~- `--refine-output`: Auto-refine insufficient queries and save to this file~~
+# Verify AND refine insufficient queries (saves one file per query)
+python runtime/verify_query_with_reference_tools.py \
+  --query-file mcp_generate/requests/constrained_multi_tool_queries_121servers.json \
+  --all \
+  --parallel 4 \
+  --refine-output mcp_generate/requests/refined_batch_001
+```
 
-~~**What it does:**~~
-~~1. Loads ONLY reference servers (restricts tool access)~~
-~~2. Runs agent on query with limited tool set~~
-~~3. Tracks tools used vs reference tools~~
-~~4. LLM-based tool quality assessment~~
-~~5. Saves to `trajectories/verification/verify_q{N}_{timestamp}.json`~~
-~~6. Creates `trajectories/verification/summary.json` (batch mode)~~
-~~7. **If `--refine-output`**: Rewrites insufficient queries to be solvable with reference tools~~
+**Arguments:**
+- `--query-file`: JSON file with queries and reference_tools (required)
+- `--query-index N`: Verify query at index N (use with single query)
+- `--all`: Verify all queries in the file
+- `--parallel N`: Number of parallel workers (default: 1 for sequential)
+- `--max-iterations`: Max agent reasoning steps (default: 10)
+- `--model`: LLM model (default: `anthropic/claude-3.5-sonnet`)
+- `--refine-output DIR`: Directory to save refined queries (one file per query)
+- `--no-save-trajectory`: Don't save execution trajectories
 
-~~**Key Output Fields:**~~
-~~- `tools_used`: Tools actually called (`["exa/search", "github/list_repos"]`)~~
-~~- `tools_matched`: Boolean - did agent use correct tools?~~
-~~- `self_evaluation`: Agent's assessment (`"SUFFICIENT"` or `"INSUFFICIENT"`)~~
-~~- `tool_quality_assessment`: LLM judge score (0.0-1.0)~~
-~~- `tools_with_missing_descriptions`: Tools with None/empty descriptions~~
+**What it does:**
+1. Loads ONLY reference servers (restricts tool access)
+2. Runs agent on query with limited tool set
+3. Tracks tools used vs reference tools
+4. LLM-based tool quality assessment
+5. Saves to `trajectories/verification/verify_q{N}_{timestamp}.json`
+6. Creates `trajectories/verification/summary.json` (batch mode)
+7. **If `--refine-output`**: Saves refined queries as individual files in output directory
 
-~~**Interpreting Results:**~~
+**Refined Output Structure:**
+```
+refined_batch_001/
+  ├── _metadata.json              # Batch statistics
+  ├── query_{uuid1}.json         # Individual refined query
+  ├── query_{uuid2}.json         # Individual refined query
+  └── ...
+```
 
-~~✅ Good: `tools_matched=true`, `self_evaluation="SUFFICIENT"`, `quality_score>=0.7`~~
-~~⚠️ Investigate: `tools_matched=false`, `quality_score=0.4-0.7`~~
-~~❌ Bad: `tools_used=0`, `self_evaluation="INSUFFICIENT"`, `quality_score<0.4`~~
+**Key Output Fields:**
+- `tools_used`: Tools actually called (`["exa/search", "github/list_repos"]`)
+- `tools_matched`: Boolean - did agent use correct tools?
+- `self_evaluation`: Agent's assessment (`"SUFFICIENT"` or `"INSUFFICIENT"`)
+- `tool_quality_assessment`: LLM judge score (0.0-1.0)
+- `tools_sufficient`: Boolean - were reference tools sufficient to solve the query?
 
-~~**Common Issues:**~~
-~~- Context overflow (298K+ tokens): Some tools return huge responses~~
-~~- Timeout errors: Increase `--max-iterations`~~
-~~- Missing descriptions: Tracked but handled gracefully~~
+**Interpreting Results:**
+
+✅ Good: `tools_matched=true`, `tools_sufficient=true`, `quality_score>=0.7`
+⚠️ Investigate: `tools_matched=false`, `quality_score=0.4-0.7`
+❌ Bad: `tools_used=0`, `tools_sufficient=false`, `quality_score<0.4`
+
+**Parallel Execution Benefits:**
+- **4 workers**: ~4x faster than sequential
+- Each worker processes queries independently
+- Results saved incrementally (fault-tolerant)
+- Recommended for batches > 10 queries
+
+**Common Issues:**
+- Context overflow (298K+ tokens): Some tools return huge responses
+- Timeout errors: Increase `--max-iterations`
+- Missing descriptions: Tracked but handled gracefully
 
 ---
 
