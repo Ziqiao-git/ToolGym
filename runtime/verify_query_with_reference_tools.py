@@ -899,18 +899,27 @@ async def main():
             # Wait for all tasks to complete
             results = await asyncio.gather(*tasks, return_exceptions=True)
 
-            # Handle any exceptions
+            # Handle any exceptions and ensure all results are dicts
+            processed_results = []
             for i, result in enumerate(results):
                 if isinstance(result, Exception):
-                    print(f"❌ Query {i} failed with exception: {result}")
-                    results[i] = {
+                    # Handle cancelled tasks and other exceptions
+                    exception_type = type(result).__name__
+                    print(f"❌ Query {i} failed with exception: {exception_type}: {result}")
+                    processed_results.append({
                         "query_index": i,
                         "uuid": queries[i].get("uuid"),
                         "query": queries[i].get("query", ""),
                         "status": "error",
-                        "error": str(result),
+                        "error": f"{exception_type}: {str(result)}",
                         "execution_successful": False,
-                    }
+                        "reference_tools": queries[i].get("reference_tools", []),
+                    })
+                else:
+                    # Valid result dict
+                    processed_results.append(result)
+
+            results = processed_results
         else:
             # Sequential execution (original behavior)
             for i, query_item in enumerate(queries):
