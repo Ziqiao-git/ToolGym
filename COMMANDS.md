@@ -455,90 +455,62 @@ done
 
 ### Regenerate Missing Trajectories
 
-Scan existing trajectories and regenerate only the missing ones (useful for filling gaps after failed runs):
+Use the bash script to scan existing trajectories and regenerate only the missing ones:
 
 ```bash
 cd /Users/xiziqiao/Documents/MCP-Research/MCP-R
 
-# Regenerate missing trajectories for all 3 passes
-python runtime/batch_generate_trajectories.py \
-  --query-file mcp_generate/queries_verification.json \
-  --trajectory-dir trajectories/4omini-pass3 \
-  --regenerate-missing \
-  --pass-numbers "1,2,3" \
-  --model openai/gpt-4o-mini \
-  --max-concurrent 5
+# Check what's missing (dry run - no generation)
+./runtime/generate_missing_trajectories.sh trajectories/claude-3.5 anthropic/claude-3.5-sonnet --dry-run
 
-# Regenerate missing for a single pass only
-python runtime/batch_generate_trajectories.py \
-  --query-file mcp_generate/queries_verification.json \
-  --trajectory-dir trajectories/4omini-pass3 \
-  --regenerate-missing \
-  --pass-number 1 \
-  --model openai/gpt-4o-mini
+# Actually generate the missing trajectories
+./runtime/generate_missing_trajectories.sh trajectories/claude-3.5 anthropic/claude-3.5-sonnet
 
-# With custom batch name
-python runtime/batch_generate_trajectories.py \
-  --query-file mcp_generate/queries_verification.json \
-  --trajectory-dir trajectories/my_experiment \
-  --regenerate-missing \
-  --pass-numbers "1,2,3" \
-  --model anthropic/claude-3.5-sonnet \
-  --batch-name my_experiment_regen
+# For GPT-4o-mini
+./runtime/generate_missing_trajectories.sh trajectories/gpt-4omini openai/gpt-4o-mini
 ```
 
 **Arguments:**
-- `--query-file`: JSON file with all queries and UUIDs (required)
-- `--trajectory-dir`: Directory containing existing trajectories (required with `--regenerate-missing`)
-- `--regenerate-missing`: Enable regeneration mode (scans and fills gaps)
-- `--pass-numbers`: Comma-separated list of passes to check (e.g., `"1,2,3"`)
-- `--pass-number`: Single pass number (alternative to `--pass-numbers`)
-- `--model`: LLM model to use
-- `--max-concurrent`: Maximum parallel queries (default: 5)
-- `--batch-name`: Custom name for the batch
+- `<trajectory_dir>`: Directory containing existing trajectories (e.g., `trajectories/claude-3.5`)
+- `<model>`: LLM model to use (e.g., `anthropic/claude-3.5-sonnet`, `openai/gpt-4o-mini`)
+- `--dry-run`: (Optional) Show what would be generated without actually running
 
 **What it does:**
-1. Scans `trajectory-dir` recursively for existing `trajectory_*.json` files
-2. Extracts UUID and pass_number from each trajectory's metadata
-3. Compares against all queries in `query-file`
-4. Identifies missing trajectories per pass
-5. Regenerates only the missing ones **into the same `trajectory-dir`** (not a new folder)
-6. Saves a regeneration summary to `trajectories/regen_{batch_name}_{batch_id}_{timestamp}.json`
-
-**Note:** Regenerated trajectories are saved directly into the specified `--trajectory-dir`, maintaining the same directory structure (`pass@1/`, `pass@2/`, etc.). This ensures all trajectories (original + regenerated) stay consolidated in one location.
+1. Loads all query UUIDs from `mcp_generate/queries_verification.json`
+2. Scans `trajectory_dir` for existing trajectories in `pass@1/`, `pass@2/`, `pass@3/`
+3. Identifies missing UUIDs per pass
+4. Shows summary of existing vs missing trajectories
+5. Prompts for confirmation before generating
+6. Generates missing trajectories **into the same directory**
 
 **Example Output:**
 ```
-======================================================================
-Scanning for Missing Trajectories
-======================================================================
-Query file: mcp_generate/queries_verification.json
-Trajectory dir: trajectories/4omini-pass3
-Pass numbers: [1, 2, 3]
-======================================================================
+Loading queries from mcp_generate/queries_verification.json...
+Found 50 queries
 
-Total queries in file: 50
-Unique UUIDs: 50
-Pass 1: 48 existing, 2 missing
-Pass 2: 43 existing, 7 missing
-Pass 3: 44 existing, 6 missing
+Scanning for missing trajectories...
+==============================================
+pass@1: 50/50 (0 missing)
+pass@2: 48/50 (2 missing)
+pass@3: 49/50 (1 missing)
+==============================================
+Total missing: 3
 
-======================================================================
-Regenerating 15 Missing Trajectories
-======================================================================
+Will generate the following trajectories:
+
+  pass@2: abc123de-d157-11f0-8107-3abd0a1b915e
+  pass@2: def456gh-d157-11f0-8107-3abd0a1b915e
+  pass@3: ghi789jk-d157-11f0-8107-3abd0a1b915e
+
+Generate 3 missing trajectories? [y/N] y
+
+Starting generation...
 ...
-
-======================================================================
-Regeneration Summary
-======================================================================
-Pass 1: 2/2 successful
-Pass 2: 7/7 successful
-Pass 3: 6/6 successful
-======================================================================
-Total: 15 successful, 0 failed
-======================================================================
-
-✓ Summary saved to: trajectories/regen_queries_verification_abc123_20251207_143022.json
+==============================================
+Generation complete!
+  Generated: 3
+  Failed: 0
+==============================================
 ```
 
 ---

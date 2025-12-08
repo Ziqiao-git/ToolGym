@@ -231,17 +231,24 @@ def match_traj_by_query(trajs: List[Dict[str, Any]], query: str) -> Optional[Dic
     return None
 
 
-def match_traj_by_uuid(trajs: List[Dict[str, Any]], query_uuid: str) -> Optional[Dict[str, Any]]:
+def match_traj_by_uuid(trajs: List[Dict[str, Any]], query_uuid: str, pass_number: int = None) -> Optional[Dict[str, Any]]:
     """
     Match trajectory by UUID from metadata.
-    Returns the first trajectory with matching query_uuid.
+    If pass_number is specified, also match by pass_number.
+    Returns the first trajectory with matching query_uuid (and pass_number if specified).
     """
     if not query_uuid:
         return None
 
     for t in trajs:
-        traj_uuid = (t.get("metadata") or {}).get("query_uuid")
+        meta = t.get("metadata") or {}
+        traj_uuid = meta.get("query_uuid")
         if traj_uuid and traj_uuid == query_uuid:
+            # If pass_number is specified, also check it matches
+            if pass_number is not None:
+                traj_pass = meta.get("pass_number", 1)
+                if traj_pass != pass_number:
+                    continue
             return t
     return None
 
@@ -1272,10 +1279,10 @@ async def evaluate_batch_parallel(
 
             pass_number = item.get("pass_number", 1)  # Extract pass number
 
-            # Try UUID-based matching first, fall back to query text matching
+            # Try UUID-based matching first (with pass_number), fall back to query text matching
             matched = None
             if query_uuid:
-                matched = match_traj_by_uuid(trajs, query_uuid)
+                matched = match_traj_by_uuid(trajs, query_uuid, pass_number=pass_number)
             if not matched:
                 matched = match_traj_by_query(trajs, q)
 
@@ -1457,10 +1464,10 @@ def main():
                     soft_constraints = item.get("soft_constraints", []) or []
                     pass_number = item.get("pass_number", 1)  # Extract pass number
 
-                    # Try UUID-based matching first, fall back to query text matching
+                    # Try UUID-based matching first (with pass_number), fall back to query text matching
                     matched = None
                     if query_uuid:
-                        matched = match_traj_by_uuid(trajs, query_uuid)
+                        matched = match_traj_by_uuid(trajs, query_uuid, pass_number=pass_number)
                     if not matched:
                         matched = match_traj_by_query(trajs, q)
 
@@ -1497,8 +1504,20 @@ def main():
             if args.output_dir:
                 from pathlib import Path
                 from collections import defaultdict
-                output_dir = Path(args.output_dir)
+
+                # Build output directory name: {evaluated_model}_by_{judge_model}
+                # Extract evaluated model name from trajectory directory
+                traj_dir_name = Path(args.traj_dir).name  # e.g., "claude-3.5" or "gpt-4omini"
+
+                # Extract judge model short name (e.g., "gpt-4o-mini" -> "gpt4omini")
+                judge_model_short = args.model.split("/")[-1].replace("-", "").replace(".", "")
+
+                # Construct final output path
+                base_output_dir = Path(args.output_dir)
+                output_dir = base_output_dir / f"{traj_dir_name}_by_{judge_model_short}"
                 output_dir.mkdir(parents=True, exist_ok=True)
+
+                print(f"Output directory: {output_dir}", file=sys.stderr)
 
                 # Group results by pass_number
                 results_by_pass = defaultdict(list)
