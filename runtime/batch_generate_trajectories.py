@@ -132,9 +132,16 @@ async def run_single_query_direct(
     pass_number: int,
     batch_id: str,
     semaphore: asyncio.Semaphore,
-    temp_query_file: str
+    temp_query_file: str,
+    output_dir: str = None,
 ) -> dict:
-    """Run a single query directly using a temp query file with just this query."""
+    """Run a single query directly using a temp query file with just this query.
+
+    Args:
+        output_dir: If specified, saves trajectories directly to this directory
+                   (overrides batch_id folder structure). Used for regeneration
+                   to save into the same directory as existing trajectories.
+    """
     async with semaphore:
         query_uuid = query_item.get("uuid", "unknown")
 
@@ -146,9 +153,14 @@ async def run_single_query_direct(
             "--max-iterations", str(max_iterations),
             "--model", model,
             "--pass-number", str(pass_number),
-            "--batch-id", batch_id,
             "--save-trajectory"
         ]
+
+        # Use output_dir if provided, otherwise fall back to batch_id
+        if output_dir:
+            cmd.extend(["--output-dir", output_dir])
+        else:
+            cmd.extend(["--batch-id", batch_id])
 
         print(f"[{query_index + 1}] Starting query {query_uuid} (pass {pass_number})...")
 
@@ -320,7 +332,8 @@ async def regenerate_missing_trajectories(
                     pass_number=pass_num,
                     batch_id=batch_id,
                     semaphore=semaphore,
-                    temp_query_file=str(temp_file)
+                    temp_query_file=str(temp_file),
+                    output_dir=trajectory_dir,  # Save to same directory as existing trajectories
                 )
                 tasks.append(task)
 

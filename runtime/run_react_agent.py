@@ -125,6 +125,10 @@ async def main():
         "--batch-id",
         help="Batch ID for grouping related trajectories together",
     )
+    parser.add_argument(
+        "--output-dir",
+        help="Direct output directory for trajectory files (overrides batch-id folder structure)",
+    )
     args = parser.parse_args()
 
     # Load environment variables
@@ -352,16 +356,22 @@ Remember:
     if args.save_trajectory:
         from datetime import datetime
 
-        # Sanitize model name for folder/filename (replace / with -)
-        model_safe = args.model.replace("/", "-").replace(":", "-")
-
-        # Create hierarchical directory: trajectories/{model}_{batch_id}/pass@{N}/ or trajectories/{model}/pass@{N}/
-        if args.batch_id:
-            folder_name = f"{model_safe}_{args.batch_id}"
+        # Determine trajectory directory
+        if args.output_dir:
+            # Direct output directory specified - use it directly with pass folder
+            pass_folder = f"pass@{args.pass_number}"
+            trajectory_dir = Path(args.output_dir) / pass_folder
         else:
-            folder_name = model_safe
-        pass_folder = f"pass@{args.pass_number}"
-        trajectory_dir = PROJECT_ROOT / "trajectories" / folder_name / pass_folder
+            # Sanitize model name for folder/filename (replace / with -)
+            model_safe = args.model.replace("/", "-").replace(":", "-")
+
+            # Create hierarchical directory: trajectories/{model}_{batch_id}/pass@{N}/ or trajectories/{model}/pass@{N}/
+            if args.batch_id:
+                folder_name = f"{model_safe}_{args.batch_id}"
+            else:
+                folder_name = model_safe
+            pass_folder = f"pass@{args.pass_number}"
+            trajectory_dir = PROJECT_ROOT / "trajectories" / folder_name / pass_folder
         trajectory_dir.mkdir(parents=True, exist_ok=True)
 
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")

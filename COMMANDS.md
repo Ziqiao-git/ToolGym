@@ -502,8 +502,10 @@ python runtime/batch_generate_trajectories.py \
 2. Extracts UUID and pass_number from each trajectory's metadata
 3. Compares against all queries in `query-file`
 4. Identifies missing trajectories per pass
-5. Regenerates only the missing ones
+5. Regenerates only the missing ones **into the same `trajectory-dir`** (not a new folder)
 6. Saves a regeneration summary to `trajectories/regen_{batch_name}_{batch_id}_{timestamp}.json`
+
+**Note:** Regenerated trajectories are saved directly into the specified `--trajectory-dir`, maintaining the same directory structure (`pass@1/`, `pass@2/`, etc.). This ensures all trajectories (original + regenerated) stay consolidated in one location.
 
 **Example Output:**
 ```
