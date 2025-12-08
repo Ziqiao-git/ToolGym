@@ -453,6 +453,94 @@ for pass in 1 2 3 4 5; do
 done
 ```
 
+### Regenerate Missing Trajectories
+
+Scan existing trajectories and regenerate only the missing ones (useful for filling gaps after failed runs):
+
+```bash
+cd /Users/xiziqiao/Documents/MCP-Research/MCP-R
+
+# Regenerate missing trajectories for all 3 passes
+python runtime/batch_generate_trajectories.py \
+  --query-file mcp_generate/queries_verification.json \
+  --trajectory-dir trajectories/4omini-pass3 \
+  --regenerate-missing \
+  --pass-numbers "1,2,3" \
+  --model openai/gpt-4o-mini \
+  --max-concurrent 5
+
+# Regenerate missing for a single pass only
+python runtime/batch_generate_trajectories.py \
+  --query-file mcp_generate/queries_verification.json \
+  --trajectory-dir trajectories/4omini-pass3 \
+  --regenerate-missing \
+  --pass-number 1 \
+  --model openai/gpt-4o-mini
+
+# With custom batch name
+python runtime/batch_generate_trajectories.py \
+  --query-file mcp_generate/queries_verification.json \
+  --trajectory-dir trajectories/my_experiment \
+  --regenerate-missing \
+  --pass-numbers "1,2,3" \
+  --model anthropic/claude-3.5-sonnet \
+  --batch-name my_experiment_regen
+```
+
+**Arguments:**
+- `--query-file`: JSON file with all queries and UUIDs (required)
+- `--trajectory-dir`: Directory containing existing trajectories (required with `--regenerate-missing`)
+- `--regenerate-missing`: Enable regeneration mode (scans and fills gaps)
+- `--pass-numbers`: Comma-separated list of passes to check (e.g., `"1,2,3"`)
+- `--pass-number`: Single pass number (alternative to `--pass-numbers`)
+- `--model`: LLM model to use
+- `--max-concurrent`: Maximum parallel queries (default: 5)
+- `--batch-name`: Custom name for the batch
+
+**What it does:**
+1. Scans `trajectory-dir` recursively for existing `trajectory_*.json` files
+2. Extracts UUID and pass_number from each trajectory's metadata
+3. Compares against all queries in `query-file`
+4. Identifies missing trajectories per pass
+5. Regenerates only the missing ones
+6. Saves a regeneration summary to `trajectories/regen_{batch_name}_{batch_id}_{timestamp}.json`
+
+**Example Output:**
+```
+======================================================================
+Scanning for Missing Trajectories
+======================================================================
+Query file: mcp_generate/queries_verification.json
+Trajectory dir: trajectories/4omini-pass3
+Pass numbers: [1, 2, 3]
+======================================================================
+
+Total queries in file: 50
+Unique UUIDs: 50
+Pass 1: 48 existing, 2 missing
+Pass 2: 43 existing, 7 missing
+Pass 3: 44 existing, 6 missing
+
+======================================================================
+Regenerating 15 Missing Trajectories
+======================================================================
+...
+
+======================================================================
+Regeneration Summary
+======================================================================
+Pass 1: 2/2 successful
+Pass 2: 7/7 successful
+Pass 3: 6/6 successful
+======================================================================
+Total: 15 successful, 0 failed
+======================================================================
+
+✓ Summary saved to: trajectories/regen_queries_verification_abc123_20251207_143022.json
+```
+
+---
+
 ### Working with Multiple Query Datasets
 
 When you have multiple query files (e.g., different datasets), organize evaluations by prefixing output files:
