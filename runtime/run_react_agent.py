@@ -107,7 +107,7 @@ async def main():
     parser.add_argument(
         "--max-iterations",
         type=int,
-        default=5,
+        default=20,
         help="Maximum reasoning iterations",
     )
     parser.add_argument(

@@ -224,8 +224,8 @@ async def main():
     parser.add_argument(
         "--max-iterations",
         type=int,
-        default=10,
-        help="Maximum iterations per query (default: 10)"
+        default=20,
+        help="Maximum iterations per query (default: 20)"
     )
     parser.add_argument(
         "--model",

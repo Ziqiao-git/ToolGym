@@ -47,7 +47,7 @@ TRAJECTORY_DIR="$1"
 MODEL="$2"
 DRY_RUN=false
 MAX_CONCURRENT=5
-MAX_ITERATIONS=10  # Match batch_generate_trajectories.py default
+MAX_ITERATIONS=20  # Default iterations for trajectory generation
 
 # Parse optional arguments
 shift 2
