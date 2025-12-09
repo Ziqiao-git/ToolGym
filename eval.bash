@@ -1,7 +1,7 @@
 python Orchestrator/mcpuniverse/evaluator/commonllmjudge.py \
-  --traj_dir trajectories/gemini-2.5pro \
-  --model deepseek/deepseek-v3.2 \
+  --traj_dir trajectories/claude-3.5 \
+  --model openai/gpt-5.1-chat \
   --step-by-step \
   --recursive \
-  --parallel 10 \
-  --output-dir evaluation
+  --parallel 30 \
+  --output-dir evaluation/claude-3.5

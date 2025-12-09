@@ -455,7 +455,7 @@ done
 
 ### Regenerate Missing Trajectories
 
-Use the bash script to scan existing trajectories and regenerate only the missing ones:
+Use the bash script to scan existing trajectories and regenerate only the missing ones. **Supports concurrent execution for faster generation.**
 
 ```bash
 cd /Users/xiziqiao/Documents/MCP-Research/MCP-R
@@ -463,17 +463,22 @@ cd /Users/xiziqiao/Documents/MCP-Research/MCP-R
 # Check what's missing (dry run - no generation)
 ./runtime/generate_missing_trajectories.sh trajectories/claude-3.5 anthropic/claude-3.5-sonnet --dry-run
 
-# Actually generate the missing trajectories
+# Actually generate the missing trajectories (default: 5 concurrent workers)
 ./runtime/generate_missing_trajectories.sh trajectories/claude-3.5 anthropic/claude-3.5-sonnet
 
-# For GPT-4o-mini
-./runtime/generate_missing_trajectories.sh trajectories/gpt-4omini openai/gpt-4o-mini
+# Generate with custom concurrency (e.g., 3 workers)
+./runtime/generate_missing_trajectories.sh trajectories/deepseek-v3.2 deepseek/deepseek-v3.2 --max-concurrent 3
+
+# For GPT-4o-mini with 5 concurrent workers
+./runtime/generate_missing_trajectories.sh trajectories/gpt-4omini openai/gpt-4o-mini --max-concurrent 5
 ```
 
 **Arguments:**
 - `<trajectory_dir>`: Directory containing existing trajectories (e.g., `trajectories/claude-3.5`)
 - `<model>`: LLM model to use (e.g., `anthropic/claude-3.5-sonnet`, `openai/gpt-4o-mini`)
 - `--dry-run`: (Optional) Show what would be generated without actually running
+- `--max-concurrent N`: (Optional) Run N trajectories in parallel (default: 5)
+- `--max-iterations N`: (Optional) Max reasoning iterations per query (default: 10, matches batch_generate)
 
 **What it does:**
 1. Loads all query UUIDs from `mcp_generate/queries_verification.json`
@@ -481,7 +486,7 @@ cd /Users/xiziqiao/Documents/MCP-Research/MCP-R
 3. Identifies missing UUIDs per pass
 4. Shows summary of existing vs missing trajectories
 5. Prompts for confirmation before generating
-6. Generates missing trajectories **into the same directory**
+6. Generates missing trajectories **concurrently** into the same directory
 
 **Example Output:**
 ```
@@ -502,14 +507,21 @@ Will generate the following trajectories:
   pass@2: def456gh-d157-11f0-8107-3abd0a1b915e
   pass@3: ghi789jk-d157-11f0-8107-3abd0a1b915e
 
-Generate 3 missing trajectories? [y/N] y
+Generate 3 missing trajectories with 5 concurrent workers? [y/N] y
 
-Starting generation...
-...
+Starting generation with 5 concurrent workers...
+[1/3] Starting pass@2 for abc123de-d157-11f0-8107-3abd0a1b915e...
+[2/3] Starting pass@2 for def456gh-d157-11f0-8107-3abd0a1b915e...
+[3/3] Starting pass@3 for ghi789jk-d157-11f0-8107-3abd0a1b915e...
+[1/3] ✓ Completed pass@2 for abc123de-d157-11f0-8107-3abd0a1b915e
+[2/3] ✓ Completed pass@2 for def456gh-d157-11f0-8107-3abd0a1b915e
+[3/3] ✓ Completed pass@3 for ghi789jk-d157-11f0-8107-3abd0a1b915e
+
 ==============================================
 Generation complete!
   Generated: 3
   Failed: 0
+  Concurrent workers: 5
 ==============================================
 ```
 
