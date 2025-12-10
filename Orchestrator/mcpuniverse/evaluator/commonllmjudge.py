@@ -867,6 +867,9 @@ FINAL_ANSWER_EVALUATION_TEMPLATE = """You are evaluating the FINAL ANSWER produc
 USER'S QUERY:
 {query}
 
+AGENT'S REASONING AND TOOL CALLS:
+{history}
+
 FINAL ANSWER:
 {final_answer}
 
@@ -886,12 +889,15 @@ Evaluate the final answer on THREE dimensions (0-10, integers only):
    0-3 = unreasonable, illogical, or fails to address the problem
 
 2) Grounding & Evidence (0-10)
-   - Is the answer based on factual information (not hallucinated)?
-   - Are claims supported and verifiable?
-   10 = all claims appear grounded and factual
-   7-9 = mostly grounded, 1-2 claims may be unverified
-   4-6 = several ungrounded claims or potential hallucination
-   0-3 = answer appears mostly hallucinated or fabricated
+   - Is the answer based on the tool results shown in the HISTORY above?
+   - Are claims in the final answer directly supported by tool outputs?
+   - CRITICAL: If there are NO tool calls in the HISTORY (only thoughts, no actions/results), assign grounding = 0.
+   - Only evaluate grounding if the agent actually called tools and got results.
+   10 = all claims directly grounded in tool results
+   7-9 = mostly grounded, 1-2 claims not explicitly from tools
+   4-6 = several ungrounded claims or partial hallucination
+   0-3 = answer is mostly hallucinated or contradicts tool evidence
+   0 = NO tool calls were made (no evidence to ground the answer)
 
 3) Constraint Adherence (0-10)
    - Did the answer follow all specified constraints?
@@ -1042,12 +1048,13 @@ def evaluate_final_answer(
     *,
     query: str,
     final_answer: str,
+    history: str = "",
     hard_constraints: Optional[List[Dict[str, Any]]] = None,
     soft_constraints: Optional[List[Dict[str, Any]]] = None,
     model_name: str = "openai/gpt-4o-mini",
     temperature: float = 0.0,
 ) -> Dict[str, Any]:
-    """Evaluate only the final answer (no trajectory/holistic evaluation)."""
+    """Evaluate only the final answer with trajectory history for grounding evaluation."""
     # Combine constraints
     all_constraints = {
         "hard_constraints": hard_constraints or [],
@@ -1055,9 +1062,14 @@ def evaluate_final_answer(
     }
     constraints_json = _json(all_constraints)
 
+    # If no history provided, use a placeholder
+    if not history or history.strip() == "":
+        history = "(No tool calls recorded - agent did not use any tools)"
+
     prompt = FINAL_ANSWER_EVALUATION_TEMPLATE.format(
         query=query,
         final_answer=final_answer,
+        history=history,
         constraints_json=constraints_json,
     )
 
@@ -1164,13 +1176,17 @@ def evaluate_trajectory_with_steps(
     exe = traj_obj.get("execution", {}) or {}
     final_answer = exe.get("final_response", "")
 
+    # Build history for grounding evaluation
+    history_text = build_history_from_reasoning_trace(traj_obj)
+
     # Extract actual tools used
     actual_tools = extract_actual_tools_from_trajectory(traj_obj)
 
-    # Evaluate final answer only (no holistic trajectory evaluation)
+    # Evaluate final answer with history for grounding evaluation
     final_answer_eval = evaluate_final_answer(
         query=query,
         final_answer=final_answer,
+        history=history_text,
         hard_constraints=hard_constraints,
         soft_constraints=soft_constraints,
         model_name=model_name,
