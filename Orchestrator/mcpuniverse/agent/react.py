@@ -38,12 +38,15 @@ class ReActConfig(BaseAgentConfig):
         system_prompt (str): The system prompt template file or string.
         context_examples (str): Additional context examples for the agent.
         max_iterations (int): Maximum number of reasoning iterations.
-        summarize_tool_response (bool): Whether to summarize tool responses using the LLM.
+        summarize_tool_response (bool|str): Whether to summarize tool responses using the LLM.
+            - True: Always summarize
+            - False: Never summarize
+            - "auto": Automatically summarize if response exceeds summarize_threshold
+        summarize_threshold (int): Character threshold for auto mode (inherited from BaseAgentConfig, default 100k)
     """
     system_prompt: str = os.path.join(DEFAULT_CONFIG_FOLDER, "react_prompt.j2")
     context_examples: str = ""
     max_iterations: int = 5
-    summarize_tool_response: bool = False
 
 
 class ReAct(BaseAgent):
@@ -208,7 +211,16 @@ class ReAct(BaseAgent):
                             tool_summary = None
                             if not isinstance(tool_content, TextContent):
                                 raise ValueError("Tool output is not a text")
-                            if self._config.summarize_tool_response:
+
+                            # Determine if summarization is needed
+                            should_summarize = False
+                            if self._config.summarize_tool_response is True:
+                                should_summarize = True
+                            elif self._config.summarize_tool_response == "auto":
+                                # Auto mode: summarize if response exceeds threshold
+                                should_summarize = len(tool_content.text) > self._config.summarize_threshold
+
+                            if should_summarize:
                                 context = json.dumps(action, indent=2)
                                 tool_summary = await self.summarize_tool_response(
                                     tool_content.text,

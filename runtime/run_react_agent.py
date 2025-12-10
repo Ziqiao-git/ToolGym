@@ -318,6 +318,8 @@ Remember:
 - Phase 2 (execute tools) = Actually use those tools to get data
 - You must complete BOTH phases to answer the user's question!""",
         "max_iterations": args.max_iterations,
+        "summarize_tool_response": "auto",  # Enable smart summarization
+        "summarize_threshold": 100000,      # Summarize if response > 100k chars
     }
 
     # Create Dynamic ReAct agent (with auto-loading capability)

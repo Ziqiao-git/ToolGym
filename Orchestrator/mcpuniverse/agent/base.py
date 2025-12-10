@@ -85,6 +85,10 @@ class BaseAgentConfig(BaseConfig):
     use_llm_tool_api: str = "no"
     # MCP gateway URL
     mcp_gateway_url: str = ""
+    # Tool response summarization: True (always), False (never), "auto" (based on length)
+    summarize_tool_response: Union[bool, str] = False
+    # Character threshold for auto summarization (default: 100k)
+    summarize_threshold: int = 100000
 
 
 class Executor:
