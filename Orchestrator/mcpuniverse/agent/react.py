@@ -257,9 +257,14 @@ class ReAct(BaseAgent):
 
             except json.JSONDecodeError as e:
                 self._logger.error("Failed to parse response: %s", str(e))
+                # Preserve raw response for debugging/analysis
+                self._add_history(
+                    history_type="raw_response",
+                    message=response[:2000] if len(response) > 2000 else response
+                )
                 self._add_history(
                     history_type="error",
-                    message="I encountered an error in parsing LLM response. Let me try again."
+                    message=f"JSON parse error: {str(e)}"
                 )
                 send_message(callbacks, message=CallbackMessage(
                     source=__file__,
@@ -271,9 +276,14 @@ class ReAct(BaseAgent):
                 ))
             except Exception as e:
                 self._logger.error("Failed to process response: %s", str(e))
+                # Preserve raw response for debugging/analysis
+                self._add_history(
+                    history_type="raw_response",
+                    message=response[:2000] if len(response) > 2000 else response
+                )
                 self._add_history(
                     history_type="error",
-                    message="I encountered an unexpected error. Let me try a different approach."
+                    message=f"Processing error: {str(e)}"
                 )
                 send_message(callbacks, message=CallbackMessage(
                     source=__file__,

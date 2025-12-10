@@ -363,15 +363,15 @@ Remember:
             trajectory_dir = Path(args.output_dir) / pass_folder
         else:
             # Sanitize model name for folder/filename (replace / with -)
-            model_safe = args.model.replace("/", "-").replace(":", "-")
+            # Extract just the model name (e.g., "deepseek" from "deepseek/deepseek-v3.2")
+            model_name = args.model.split("/")[-1] if "/" in args.model else args.model
+            model_safe = model_name.replace(":", "-")
 
-            # Create hierarchical directory: trajectories/{model}_{batch_id}/pass@{N}/ or trajectories/{model}/pass@{N}/
-            if args.batch_id:
-                folder_name = f"{model_safe}_{args.batch_id}"
-            else:
-                folder_name = model_safe
+            # Create hierarchical directory: trajectories/iter{N}/{model}/pass@{N}/
+            iter_folder = f"iter{args.max_iterations}"
+            model_folder = model_safe
             pass_folder = f"pass@{args.pass_number}"
-            trajectory_dir = PROJECT_ROOT / "trajectories" / folder_name / pass_folder
+            trajectory_dir = PROJECT_ROOT / "trajectories" / iter_folder / model_folder / pass_folder
         trajectory_dir.mkdir(parents=True, exist_ok=True)
 
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
