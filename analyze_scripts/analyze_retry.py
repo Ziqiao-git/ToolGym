@@ -60,6 +60,11 @@ from data_loaders import (
 )
 
 
+def is_search_tool_call(server: str, tool: str) -> bool:
+    """Check if this is a search-tools call in meta-mcp."""
+    return server == "meta-mcp" and tool == "search-tools"
+
+
 def analyze_retry_behavior(trajectories: List[Dict[str, Any]]) -> None:
     """
     Analyze how models behave when tool calls fail.
@@ -68,6 +73,8 @@ def analyze_retry_behavior(trajectories: List[Dict[str, Any]]) -> None:
     - Retry same tool: Called same tool again after failure
     - Try different tool: Called different tool after failure
     - Gave up: No more tool calls after failure
+    - SUCCESS RATE: Whether the next call succeeds after retry/switch
+    - RECOVERY SCORE: Weighted score based on recovery strategy
     - Consecutive same-tool calls
     - Tool diversity per trajectory
     """
@@ -88,6 +95,14 @@ def analyze_retry_behavior(trajectories: List[Dict[str, Any]]) -> None:
         "gave_up": 0,  # No more tool calls after failure
         "consecutive_same_tool": [],  # Track consecutive calls to same tool
         "tool_switches_after_error": 0,
+        # NEW: Success tracking
+        "retry_same_success": 0,  # Retry same tool and it succeeded
+        "retry_same_fail": 0,  # Retry same tool but still failed
+        "switch_tool_success": 0,  # Switched tool and it succeeded
+        "switch_tool_fail": 0,  # Switched tool but still failed
+        # NEW: Recovery score tracking
+        "search_tools": 0,  # Searched for new tools
+        "recovery_scores": [],  # List of all recovery scores
     })
 
     for traj in trajectories:
@@ -102,7 +117,7 @@ def analyze_retry_behavior(trajectories: List[Dict[str, Any]]) -> None:
         if has_error:
             by_model[model]["trajectories_with_errors"] += 1
 
-        # Analyze consecutive tool calls
+        # Analyze consecutive tool calls and recovery behavior
         consecutive_count = 1
         prev_tool_key = None
 
@@ -119,11 +134,31 @@ def analyze_retry_behavior(trajectories: List[Dict[str, Any]]) -> None:
             # Check behavior after errors
             if i > 0 and sequence[i-1]["is_error"]:
                 prev_tool_key_check = f"{sequence[i-1]['server']}::{sequence[i-1]['tool']}"
-                if tool_key == prev_tool_key_check:
+                current_success = not tc["is_error"]
+
+                # Check if this is a search-tools call
+                if is_search_tool_call(tc['server'], tc['tool']):
+                    by_model[model]["search_tools"] += 1
+                    by_model[model]["recovery_scores"].append(0.6)
+                elif tool_key == prev_tool_key_check:
+                    # Retried same tool
                     by_model[model]["retry_same_tool"] += 1
+                    if current_success:
+                        by_model[model]["retry_same_success"] += 1
+                        by_model[model]["recovery_scores"].append(1.0)
+                    else:
+                        by_model[model]["retry_same_fail"] += 1
+                        by_model[model]["recovery_scores"].append(0.2)
                 else:
+                    # Switched to different tool
                     by_model[model]["retry_different_tool"] += 1
                     by_model[model]["tool_switches_after_error"] += 1
+                    if current_success:
+                        by_model[model]["switch_tool_success"] += 1
+                        by_model[model]["recovery_scores"].append(0.8)
+                    else:
+                        by_model[model]["switch_tool_fail"] += 1
+                        by_model[model]["recovery_scores"].append(0.2)
 
             prev_tool_key = tool_key
 
@@ -134,39 +169,202 @@ def analyze_retry_behavior(trajectories: List[Dict[str, Any]]) -> None:
         # Check if trajectory ended after an error (gave up)
         if sequence and sequence[-1]["is_error"]:
             by_model[model]["gave_up"] += 1
+            by_model[model]["recovery_scores"].append(0.0)
 
     # Print results
     print("\n--- Behavior After Tool Failure ---")
-    print(f"{'Model':<20} {'Retry Same':<12} {'Try Different':<15} {'Gave Up':<10} {'Total Errors'}")
-    print("-" * 75)
+    print(f"{'Model':<20} {'Retry Same':<12} {'Try Different':<15} {'Search Tools':<13} {'Gave Up':<10} {'Total Errors'}")
+    print("-" * 90)
 
     for model in sorted(by_model.keys()):
         stats = by_model[model]
         retry_same = stats["retry_same_tool"]
         retry_diff = stats["retry_different_tool"]
+        search_tools = stats["search_tools"]
         gave_up = stats["gave_up"]
-        total_after_error = retry_same + retry_diff + gave_up
+        total_after_error = retry_same + retry_diff + search_tools + gave_up
 
         if total_after_error > 0:
-            print(f"{model:<20} {retry_same:<12} {retry_diff:<15} {gave_up:<10} {total_after_error}")
+            print(f"{model:<20} {retry_same:<12} {retry_diff:<15} {search_tools:<13} {gave_up:<10} {total_after_error}")
 
     # Print retry rates as percentages
     print("\n--- Retry Rate After Failure (%) ---")
-    print(f"{'Model':<20} {'Retry Same%':<15} {'Switch Tool%':<15} {'Give Up%':<12}")
-    print("-" * 65)
+    print(f"{'Model':<20} {'Retry Same%':<15} {'Switch Tool%':<15} {'Search%':<12} {'Give Up%':<12}")
+    print("-" * 80)
 
     for model in sorted(by_model.keys()):
         stats = by_model[model]
         retry_same = stats["retry_same_tool"]
         retry_diff = stats["retry_different_tool"]
+        search_tools = stats["search_tools"]
         gave_up = stats["gave_up"]
-        total = retry_same + retry_diff + gave_up
+        total = retry_same + retry_diff + search_tools + gave_up
 
         if total > 0:
             retry_same_pct = retry_same / total * 100
             retry_diff_pct = retry_diff / total * 100
+            search_pct = search_tools / total * 100
             gave_up_pct = gave_up / total * 100
-            print(f"{model:<20} {retry_same_pct:<15.1f} {retry_diff_pct:<15.1f} {gave_up_pct:<12.1f}")
+            print(f"{model:<20} {retry_same_pct:<15.1f} {retry_diff_pct:<15.1f} {search_pct:<12.1f} {gave_up_pct:<12.1f}")
+
+    # NEW: Success rate comparison
+    print("\n" + "=" * 80)
+    print("SUCCESS RATE ANALYSIS: Retry Same Tool vs Switch Tool")
+    print("=" * 80)
+    print("\n--- Success Rate After Error Recovery ---")
+    print(f"{'Model':<20} {'Strategy':<15} {'Success':<10} {'Fail':<10} {'Success Rate':<15}")
+    print("-" * 75)
+
+    for model in sorted(by_model.keys()):
+        stats = by_model[model]
+
+        # Retry same tool stats
+        retry_success = stats["retry_same_success"]
+        retry_fail = stats["retry_same_fail"]
+        retry_total = retry_success + retry_fail
+        if retry_total > 0:
+            retry_success_rate = retry_success / retry_total * 100
+            print(f"{model:<20} {'Retry Same':<15} {retry_success:<10} {retry_fail:<10} {retry_success_rate:<15.1f}%")
+
+        # Switch tool stats
+        switch_success = stats["switch_tool_success"]
+        switch_fail = stats["switch_tool_fail"]
+        switch_total = switch_success + switch_fail
+        if switch_total > 0:
+            switch_success_rate = switch_success / switch_total * 100
+            print(f"{model:<20} {'Switch Tool':<15} {switch_success:<10} {switch_fail:<10} {switch_success_rate:<15.1f}%")
+
+        # Add separator between models for readability
+        if retry_total > 0 or switch_total > 0:
+            print()
+
+    # Summary comparison
+    print("\n--- Overall Success Rate Comparison ---")
+    print(f"{'Model':<20} {'Retry Same':<15} {'Switch Tool':<15} {'Better Strategy':<20}")
+    print("-" * 75)
+
+    for model in sorted(by_model.keys()):
+        stats = by_model[model]
+
+        retry_success = stats["retry_same_success"]
+        retry_fail = stats["retry_same_fail"]
+        retry_total = retry_success + retry_fail
+
+        switch_success = stats["switch_tool_success"]
+        switch_fail = stats["switch_tool_fail"]
+        switch_total = switch_success + switch_fail
+
+        if retry_total > 0 and switch_total > 0:
+            retry_rate = retry_success / retry_total * 100
+            switch_rate = switch_success / switch_total * 100
+
+            if retry_rate > switch_rate:
+                better = f"Retry (+{retry_rate - switch_rate:.1f}%)"
+            elif switch_rate > retry_rate:
+                better = f"Switch (+{switch_rate - retry_rate:.1f}%)"
+            else:
+                better = "Equal"
+
+            print(f"{model:<20} {retry_rate:<14.1f}% {switch_rate:<14.1f}% {better:<20}")
+        elif retry_total > 0:
+            retry_rate = retry_success / retry_total * 100
+            print(f"{model:<20} {retry_rate:<14.1f}% {'N/A':<14} {'Retry only':<20}")
+        elif switch_total > 0:
+            switch_rate = switch_success / switch_total * 100
+            print(f"{model:<20} {'N/A':<14} {switch_rate:<14.1f}% {'Switch only':<20}")
+
+    # NEW: Overall First-Attempt Recovery Rate
+    print("\n" + "=" * 80)
+    print("OVERALL FIRST-ATTEMPT RECOVERY RATE")
+    print("(When a tool fails, can the agent recover immediately on next call?)")
+    print("=" * 80)
+    print(f"{'Model':<20} {'Total Attempts':<16} {'Recovered':<12} {'Failed':<12} {'Recovery Rate':<15}")
+    print("-" * 80)
+
+    recovery_rates = []
+    for model in sorted(by_model.keys()):
+        stats = by_model[model]
+
+        # Combined success/fail counts (regardless of strategy)
+        total_success = stats["retry_same_success"] + stats["switch_tool_success"]
+        total_fail = stats["retry_same_fail"] + stats["switch_tool_fail"]
+        total_attempts = total_success + total_fail
+
+        if total_attempts > 0:
+            recovery_rate = total_success / total_attempts * 100
+            recovery_rates.append((model, recovery_rate, total_attempts))
+            print(f"{model:<20} {total_attempts:<16} {total_success:<12} {total_fail:<12} {recovery_rate:<14.1f}%")
+
+    # Ranking
+    print("\n--- Recovery Rate Ranking (Best to Worst) ---")
+    recovery_rates.sort(key=lambda x: x[1], reverse=True)
+    for rank, (model, rate, attempts) in enumerate(recovery_rates, 1):
+        print(f"{rank}. {model:<20} {rate:<10.1f}% (n={attempts})")
+
+    print("\nInterpretation:")
+    print("  This metric shows each model's ability to recover from errors immediately,")
+    print("  regardless of whether they retry the same tool or switch to a different one.")
+    print("  Higher = Better error recovery capability.")
+
+    # NEW: Recovery Score Analysis
+    print("\n" + "=" * 80)
+    print("RECOVERY SCORE ANALYSIS")
+    print("Scoring: Retry Same+✓=1.0, Switch+✓=0.8, Search=0.6, Retry/Switch+✗=0.2, GiveUp=0.0")
+    print("=" * 80)
+
+    print("\n--- Detailed Recovery Strategy Distribution ---")
+    print(f"{'Model':<20} {'Retry+✓':<10} {'Retry+✗':<10} {'Switch+✓':<10} "
+          f"{'Switch+✗':<10} {'Search':<10} {'GiveUp':<10}")
+    print("-" * 95)
+
+    for model in sorted(by_model.keys()):
+        stats = by_model[model]
+        print(f"{model:<20} "
+              f"{stats['retry_same_success']:<10} "
+              f"{stats['retry_same_fail']:<10} "
+              f"{stats['switch_tool_success']:<10} "
+              f"{stats['switch_tool_fail']:<10} "
+              f"{stats['search_tools']:<10} "
+              f"{stats['gave_up']:<10}")
+
+    print("\n--- Average Recovery Score by Model ---")
+    print(f"{'Model':<20} {'Avg Score':<12} {'Median':<12} {'Min':<8} {'Max':<8} {'#Recovery':<12}")
+    print("-" * 85)
+
+    model_scores = []
+    for model in sorted(by_model.keys()):
+        stats = by_model[model]
+        scores = stats['recovery_scores']
+
+        if scores:
+            avg_score = statistics.mean(scores)
+            median_score = statistics.median(scores)
+            min_score = min(scores)
+            max_score = max(scores)
+            model_scores.append((model, avg_score, len(scores)))
+
+            print(f"{model:<20} "
+                  f"{avg_score:<12.3f} "
+                  f"{median_score:<12.3f} "
+                  f"{min_score:<8.1f} "
+                  f"{max_score:<8.1f} "
+                  f"{len(scores):<12}")
+        else:
+            print(f"{model:<20} {'N/A':<12} {'N/A':<12} {'N/A':<8} {'N/A':<8} 0")
+
+    # Ranking
+    print("\n--- Recovery Score Ranking (Best to Worst) ---")
+    model_scores.sort(key=lambda x: x[1], reverse=True)
+    for rank, (model, avg_score, attempts) in enumerate(model_scores, 1):
+        print(f"{rank}. {model:<20} {avg_score:<10.3f} (n={attempts})")
+
+    print("\nRecovery Score Interpretation:")
+    print("  1.0 - Perfect: Successfully fixed error by retrying with corrected parameters")
+    print("  0.8 - Good: Successfully recovered by switching to different tool")
+    print("  0.6 - Moderate: Agent searched for new tools (aware of limitation)")
+    print("  0.2 - Poor: Attempted recovery but still failed")
+    print("  0.0 - Worst: Gave up immediately after error")
+    print("  Higher average score = Better error recovery capability")
 
     # Consecutive tool call analysis
     print("\n--- Consecutive Same-Tool Calls ---")

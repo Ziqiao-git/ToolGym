@@ -129,6 +129,17 @@ async def main():
         "--output-dir",
         help="Direct output directory for trajectory files (overrides batch-id folder structure)",
     )
+    parser.add_argument(
+        "--disable-compression",
+        action="store_true",
+        help="Disable two-layer context compression (not recommended for long conversations)",
+    )
+    parser.add_argument(
+        "--context-limit",
+        type=int,
+        default=200000,
+        help="Model context window size in characters (default: 200000 for Claude 3.5 Sonnet)",
+    )
     args = parser.parse_args()
 
     # Load environment variables
@@ -324,12 +335,22 @@ Remember:
 
     # Create Dynamic ReAct agent (with auto-loading capability)
     print("\nCreating Dynamic ReAct agent...")
+    enable_compression = not args.disable_compression
     agent = DynamicReActAgent(
         mcp_manager=mcp_manager,
         llm=llm,
         server_configs=all_server_configs,
         config=react_config,
+        enable_compression=enable_compression,
+        model_context_limit=args.context_limit,
     )
+
+    if enable_compression:
+        print("✓ Two-layer context compression enabled")
+        print(f"  - Layer 1: Single result > 50K chars")
+        print(f"  - Layer 2: Total context > {int(args.context_limit * 0.8)} chars (80%)")
+    else:
+        print("⚠ Context compression disabled")
 
     # Initialize the agent with only meta-mcp
     # Other servers will be loaded dynamically as needed
@@ -416,6 +437,15 @@ Remember:
                 "dynamically_loaded_count": len(agent.dynamically_loaded_servers),
             }
         }
+
+        # Add context compression stats if enabled
+        if enable_compression and agent.context_manager:
+            trajectory_data["context_compression"] = {
+                "enabled": True,
+                "stats": agent.context_manager.get_context_usage_stats(),
+            }
+        else:
+            trajectory_data["context_compression"] = {"enabled": False}
 
         with open(filepath, 'w', encoding='utf-8') as f:
             json.dump(trajectory_data, f, indent=2, ensure_ascii=False)

@@ -108,18 +108,19 @@ def print_model_comparison(summaries: List[Dict[str, Any]], judge_filter: str = 
     print(header)
     print("-" * 80)
 
-    # Sort models by best final answer score across judges
+    # Sort models by average final answer score across judges
     model_scores = []
     for model, model_summaries in by_model.items():
         valid_summaries = [s for s in model_summaries if s["judge"]]
         if not valid_summaries:
             continue
-        # Use max score for ranking (best performance)
-        best_fa = max(
+        # Use average score for ranking (more robust than max)
+        fa_scores = [
             s["data"].get("avg_final_answer_score", 0)
             for s in valid_summaries
-        )
-        model_scores.append((model, best_fa, valid_summaries))
+        ]
+        avg_fa = sum(fa_scores) / len(fa_scores) if fa_scores else 0
+        model_scores.append((model, avg_fa, valid_summaries))
 
     model_scores.sort(key=lambda x: x[1], reverse=True)
 
