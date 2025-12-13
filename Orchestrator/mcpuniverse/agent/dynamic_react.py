@@ -171,19 +171,57 @@ class DynamicReActAgent(ReAct):
             params = dict(os.environ)  # Use environment variables for template replacement
             self._mcp_manager.set_params(server_name, params)
 
-            # Build client
-            client = await self._mcp_manager.build_client(server_name, transport="streamable_http")
-            self._mcp_clients[server_name] = client
+            # Check if this is a Smithery server that requires OAuth
+            server_url = config.get("streamable_http", {}).get("url", "")
+            is_smithery = "smithery.ai" in server_url
 
-            # Load tools
-            tools = await client.list_tools()
-            self._tools[server_name] = tools
+            auth_provider = None
+            callback_handler = None
 
-            self.loaded_servers.add(server_name)
-            self.dynamically_loaded_servers.add(server_name)  # Track as dynamically loaded
-            self._logger.info(f"✅ Loaded {len(tools)} tools from {server_name}")
+            if is_smithery:
+                self._logger.info(f"🔐 Smithery server detected, using OAuth authentication...")
+                # Use OAuth for Smithery servers
+                from mcpuniverse.mcp.oauth import create_smithery_auth
 
-            return (True, "")
+                # Remove any API key from URL
+                base_url = server_url.split("?")[0]
+
+                auth_provider, callback_handler = create_smithery_auth(
+                    server_url=base_url,
+                    client_name=f"MCP Universe - {server_name}",
+                    redirect_port=8765,
+                    timeout=600.0
+                )
+
+            # Start callback handler if OAuth is being used
+            if callback_handler:
+                await callback_handler.__aenter__()
+
+            try:
+                # Build client with optional OAuth
+                client = await self._mcp_manager.build_client(
+                    server_name,
+                    transport="streamable_http",
+                    auth=auth_provider
+                )
+                self._mcp_clients[server_name] = client
+
+                # Load tools
+                tools = await client.list_tools()
+                self._tools[server_name] = tools
+
+                self.loaded_servers.add(server_name)
+                self.dynamically_loaded_servers.add(server_name)  # Track as dynamically loaded
+                self._logger.info(f"✅ Loaded {len(tools)} tools from {server_name}")
+
+                return (True, "")
+            finally:
+                # Close callback handler if it was opened
+                if callback_handler:
+                    try:
+                        await callback_handler.__aexit__(None, None, None)
+                    except Exception as e:
+                        self._logger.warning(f"Error closing OAuth callback handler: {e}")
 
         except Exception as e:
             error_msg = str(e)

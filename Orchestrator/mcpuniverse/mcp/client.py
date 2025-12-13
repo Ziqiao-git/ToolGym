@@ -106,7 +106,13 @@ class MCPClient(metaclass=AutodocABCMeta):
             await self.cleanup()
             raise e
 
-    async def connect_to_sse_server(self, server_url: str, timeout: int = 20, headers: Optional[Dict[str, str]] = None):
+    async def connect_to_sse_server(
+        self,
+        server_url: str,
+        timeout: int = 20,
+        headers: Optional[Dict[str, str]] = None,
+        auth: Optional[Any] = None
+    ):
         """
         Connects to an MCP server using SSE (Server-Sent Events) transport.
 
@@ -114,6 +120,7 @@ class MCPClient(metaclass=AutodocABCMeta):
             server_url (str): The URL of the MCP server.
             timeout (int, optional): Connection timeout in seconds. Defaults to 20.
             headers (dict, optional): Custom headers to include in the request.
+            auth (Any, optional): OAuth authentication provider (e.g., from create_smithery_auth).
 
         Raises:
             Exception: If the connection fails.
@@ -123,16 +130,18 @@ class MCPClient(metaclass=AutodocABCMeta):
         """
         try:
             use_streamable_http = streamablehttp_client is not None and server_url.startswith(("http://", "https://"))
-            if headers:
+            if headers or auth:
                 use_streamable_http = use_streamable_http or streamablehttp_client is not None
 
             if use_streamable_http and streamablehttp_client:
                 log_msg = "Connecting to %s using streamablehttp_client"
                 if headers:
                     log_msg = "Connecting to %s with custom headers using streamablehttp_client"
+                if auth:
+                    log_msg = "Connecting to %s with OAuth using streamablehttp_client"
                 self._logger.info(log_msg, server_url)
                 transport = await self._exit_stack.enter_async_context(
-                    streamablehttp_client(server_url, headers=headers)
+                    streamablehttp_client(server_url, headers=headers, auth=auth)
                 )
                 read, write, _ = transport
             else:

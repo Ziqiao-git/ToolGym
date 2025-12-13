@@ -181,7 +181,8 @@ class MCPManager(metaclass=AutodocABCMeta):
             server_name: str,
             transport: str = "stdio",
             timeout: int = 30,
-            mcp_gateway_address: str = ""
+            mcp_gateway_address: str = "",
+            auth: Optional[Any] = None
     ) -> MCPClient:
         """
         Builds and returns an MCP client for a specified server.
@@ -191,6 +192,7 @@ class MCPManager(metaclass=AutodocABCMeta):
             transport (str, optional): The transport type, either "stdio" or "sse". Defaults to "stdio".
             timeout (int, optional): Connection timeout in seconds. Defaults to 30.
             mcp_gateway_address (str, optional): A specified MCP gateway server address.
+            auth (Any, optional): OAuth authentication provider for streamable_http transport.
 
         Returns:
             MCPClient: An MCP client connected to the specified server.
@@ -244,7 +246,8 @@ class MCPManager(metaclass=AutodocABCMeta):
             await client.connect_to_sse_server(
                 server_url=http_config.url,
                 timeout=timeout,
-                headers=http_config.headers or None
+                headers=http_config.headers or None,
+                auth=auth
             )
         return client
     async def execute(
