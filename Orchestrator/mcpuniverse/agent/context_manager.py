@@ -51,9 +51,9 @@ class ContextManager:
 
         # Create default fast/cheap summarizer model if not provided
         if summarizer_llm is None:
-            summarizer_config = {"model_name": "openai/gpt-5.1-chat"}
+            summarizer_config = {"model_name": "openai/gpt-4o-mini"}
             self.summarizer_llm = OpenRouterModel(config=summarizer_config)
-            self._logger.info("Using default summarizer: openai/gpt-5.1-chat")
+            self._logger.info("Using default summarizer: openai/gpt-4o-mini")
         else:
             self.summarizer_llm = summarizer_llm
 
@@ -143,7 +143,7 @@ class ContextManager:
         for idx, chunk in enumerate(chunks, 1):
             self._logger.info(f"📝 Summarizing chunk {idx}/{len(chunks)} ({len(chunk)} chars)...")
 
-            prompt = f"""Aggressively compress this data chunk to ~10% of original size while preserving ALL critical information.
+            prompt = f"""Aggressively compress this data chunk to ~20% of original size while preserving ALL critical information.
 
 Tool: {tool_name}
 Arguments: {tool_args}
@@ -152,13 +152,13 @@ Compression rules:
 1. Extract ONLY essential data: numbers, key names, critical facts
 2. Remove ALL redundant text, formatting, explanations
 3. Use ultra-concise notation (abbreviations, symbols OK)
-4. Target: ~{len(chunk) // 10} characters (current: {len(chunk)})
+4. Target: ~{len(chunk) // 5} characters (current: {len(chunk)})
 5. Prioritize: data points > descriptions
 
 Chunk {idx}/{len(chunks)}:
 {chunk}
 
-Ultra-compressed output (aim for {len(chunk) // 10} chars):"""
+Ultra-compressed output (aim for {len(chunk) // 5} chars):"""
 
             try:
                 # Use summarizer_llm (fast cheap model) instead of main llm
@@ -204,8 +204,8 @@ Ultra-compressed output (aim for {len(chunk) // 10} chars):"""
         Returns:
             Further compressed summary
         """
-        target_size = len(combined_summary) // 10  # Aim for 10% of combined size
-        prompt = f"""Aggressively compress this pre-summarized data to ~10% of current size.
+        target_size = len(combined_summary) // 5  # Aim for 20% of combined size
+        prompt = f"""Aggressively compress this pre-summarized data to ~20% of current size.
 
 Tool: {tool_name}
 Arguments: {tool_args}
@@ -363,9 +363,9 @@ Ultra-compressed final summary (~{target_size} chars):"""
         """
         tool_name = action.get("tool", "unknown")
         tool_args = action.get("arguments", {})
-        target_size = len(result) // 10  # Aim for 10% compression
+        target_size = len(result) // 5  # Aim for 20% compression
 
-        prompt = f"""Aggressively compress this tool result to ~10% of original size.
+        prompt = f"""Aggressively compress this tool result to ~20% of original size.
 
 Turn #{turn_index}
 Tool: {tool_name}

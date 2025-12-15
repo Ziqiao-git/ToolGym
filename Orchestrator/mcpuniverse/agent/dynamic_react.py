@@ -7,6 +7,7 @@ loads the required MCP servers when the agent discovers new tools via search.
 """
 from __future__ import annotations
 
+import asyncio
 import json
 from typing import Dict, Any, List, Union
 
@@ -223,6 +224,11 @@ class DynamicReActAgent(ReAct):
                     except Exception as e:
                         self._logger.warning(f"Error closing OAuth callback handler: {e}")
 
+        except asyncio.CancelledError as e:
+            # Handle asyncio task cancellation (e.g., from cleanup errors)
+            # This prevents the cancellation from propagating and crashing the agent
+            self._logger.error(f"✗ Server loading cancelled for {server_name}: {e}")
+            return (False, f"task_cancelled: {str(e)[:100] if str(e) else 'asyncio task was cancelled during server loading'}")
         except Exception as e:
             error_msg = str(e)
             error_type = type(e).__name__

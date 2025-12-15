@@ -163,8 +163,10 @@ def run_commonllm_judge(
                     filename = eval_file.stem
                     if filename.startswith("eval_"):
                         query_uuid = filename[5:]  # Remove "eval_" prefix
-                        overall_score = eval_data.get("overall_score", 0.0)
-                        strategy_scores[query_uuid].append(overall_score)
+                        # Get score from final_answer_evaluation
+                        final_answer_eval = eval_data.get("final_answer_evaluation", {})
+                        score = final_answer_eval.get("final_answer_score", 0.0)
+                        strategy_scores[query_uuid].append(score)
 
                 except Exception as e:
                     print(f"    ⚠ Error reading {eval_file.name}: {e}")
@@ -216,8 +218,10 @@ def load_evaluation_scores(
                     filename = eval_file.stem
                     if filename.startswith("eval_"):
                         query_uuid = filename[5:]  # Remove "eval_" prefix
-                        overall_score = eval_data.get("overall_score", 0.0)
-                        strategy_scores[query_uuid].append(overall_score)
+                        # Get score from final_answer_evaluation
+                        final_answer_eval = eval_data.get("final_answer_evaluation", {})
+                        score = final_answer_eval.get("final_answer_score", 0.0)
+                        strategy_scores[query_uuid].append(score)
 
                 except Exception as e:
                     continue

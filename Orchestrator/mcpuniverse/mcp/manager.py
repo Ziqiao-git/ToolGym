@@ -180,7 +180,7 @@ class MCPManager(metaclass=AutodocABCMeta):
             self,
             server_name: str,
             transport: str = "stdio",
-            timeout: int = 30,
+            timeout: int = 60,
             mcp_gateway_address: str = "",
             auth: Optional[Any] = None
     ) -> MCPClient:
@@ -190,7 +190,7 @@ class MCPManager(metaclass=AutodocABCMeta):
         Args:
             server_name (str): The name of the MCP server to connect to.
             transport (str, optional): The transport type, either "stdio" or "sse". Defaults to "stdio".
-            timeout (int, optional): Connection timeout in seconds. Defaults to 30.
+            timeout (int, optional): Connection timeout in seconds. Defaults to 60.
             mcp_gateway_address (str, optional): A specified MCP gateway server address.
             auth (Any, optional): OAuth authentication provider for streamable_http transport.
 

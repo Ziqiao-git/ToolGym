@@ -239,6 +239,25 @@ class MCPClient(metaclass=AutodocABCMeta):
                     project_id=self._project_id))
                 return result
 
+            except asyncio.CancelledError as e:
+                # Handle task cancellation (e.g., from server errors during tool execution)
+                self._logger.error("Tool execution cancelled: %s", str(e))
+                # Create error result instead of crashing
+                from mcp.types import CallToolResult, TextContent
+                error_result = CallToolResult(
+                    content=[TextContent(
+                        type="text",
+                        text=f"Error: Tool execution was cancelled (likely due to server timeout or error). Tool: {tool_name}"
+                    )],
+                    isError=True
+                )
+                send_message(callbacks, message=CallbackMessage(
+                    source=self.id, type=MessageType.ERROR, data="Task cancelled",
+                    project_id=self._project_id))
+                send_message(callbacks, message=CallbackMessage(
+                    source=self.id, type=MessageType.STATUS, data=Status.FAILED,
+                    project_id=self._project_id))
+                return error_result
             except Exception as e:
                 attempt += 1
                 self._logger.warning(
@@ -272,6 +291,9 @@ class MCPClient(metaclass=AutodocABCMeta):
                 await self._exit_stack.aclose()
                 self._session = None
                 self._stdio_context = None
+            except asyncio.CancelledError as e:
+                # Suppress CancelledError during cleanup to prevent it from propagating
+                self._logger.error("Cleanup cancelled for client %s: %s", self._name, str(e))
             except Exception as e:
                 self._logger.error("Error during cleanup of client %s: %s", self._name, str(e))
 
