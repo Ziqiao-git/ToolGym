@@ -30,23 +30,23 @@ Analysis Pipeline:
 
 Usage:
     # 1. Run evaluation only (generate scores)
-    python analyze_scripts/analyze_budget_experiment.py --evaluate \\
-        --model google/gemini-pro-preview \\
+    python analyze_scripts/analyze_budget_experiment.py --evaluate \
+        --model google/gemini-3-pro-preview \
         --pass-number 1
 
     # 2. Analyze existing evaluation results
-    python analyze_scripts/analyze_budget_experiment.py --analyze \\
-        --model google/gemini-pro-preview \\
+    python analyze_scripts/analyze_budget_experiment.py --analyze \
+        --model google/gemini-3-pro-preview \
         --pass-number 1
 
     # 3. Full pipeline (evaluate + analyze)
-    python analyze_scripts/analyze_budget_experiment.py --full \\
-        --model google/gemini-pro-preview \\
+    python analyze_scripts/analyze_budget_experiment.py --full \
+        --model google/gemini-3-pro-preview \
         --pass-number 1
 
     # 4. Compare multiple models
-    python analyze_scripts/analyze_budget_experiment.py --analyze \\
-        --models "google/gemini-pro-preview,openai/gpt-4o,deepseek/deepseek-v3.2" \\
+    python analyze_scripts/analyze_budget_experiment.py --analyze \
+        --models "google/gemini-pro-preview,openai/gpt-4o,deepseek/deepseek-v3.2" \
         --pass-number 1
 
 Data Requirements:

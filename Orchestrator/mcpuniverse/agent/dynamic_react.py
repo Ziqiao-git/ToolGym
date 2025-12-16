@@ -194,12 +194,35 @@ class DynamicReActAgent(ReAct):
                     timeout=600.0
                 )
 
-            # Start callback handler if OAuth is being used
+            # Build client - use the callback_handler in a context manager
+            # This ensures proper cleanup even if errors occur
             if callback_handler:
-                await callback_handler.__aenter__()
+                # Use async with to properly manage the OAuth callback handler lifecycle
+                # This prevents "exit cancel scope in different task" errors
+                try:
+                    async with callback_handler:
+                        client = await self._mcp_manager.build_client(
+                            server_name,
+                            transport="streamable_http",
+                            auth=auth_provider
+                        )
+                        self._mcp_clients[server_name] = client
 
-            try:
-                # Build client with optional OAuth
+                        # Load tools
+                        tools = await client.list_tools()
+                        self._tools[server_name] = tools
+
+                        self.loaded_servers.add(server_name)
+                        self.dynamically_loaded_servers.add(server_name)
+                        self._logger.info(f"✅ Loaded {len(tools)} tools from {server_name}")
+
+                        return (True, "")
+                except Exception as e:
+                    # The async with will handle cleanup automatically
+                    self._logger.warning(f"Error during OAuth server loading: {e}")
+                    raise  # Re-raise to be caught by outer exception handler
+            else:
+                # No OAuth - simpler path
                 client = await self._mcp_manager.build_client(
                     server_name,
                     transport="streamable_http",
@@ -212,30 +235,25 @@ class DynamicReActAgent(ReAct):
                 self._tools[server_name] = tools
 
                 self.loaded_servers.add(server_name)
-                self.dynamically_loaded_servers.add(server_name)  # Track as dynamically loaded
+                self.dynamically_loaded_servers.add(server_name)
                 self._logger.info(f"✅ Loaded {len(tools)} tools from {server_name}")
 
                 return (True, "")
-            finally:
-                # Close callback handler if it was opened
-                if callback_handler:
-                    try:
-                        await callback_handler.__aexit__(None, None, None)
-                    except Exception as e:
-                        self._logger.warning(f"Error closing OAuth callback handler: {e}")
 
         except asyncio.CancelledError as e:
             # Handle asyncio task cancellation (e.g., from cleanup errors)
             # This prevents the cancellation from propagating and crashing the agent
-            self._logger.error(f"✗ Server loading cancelled for {server_name}: {e}")
+            self._logger.warning(f"⚠ Server loading cancelled for {server_name} (non-critical)")
             return (False, f"task_cancelled: {str(e)[:100] if str(e) else 'asyncio task was cancelled during server loading'}")
         except Exception as e:
             error_msg = str(e)
             error_type = type(e).__name__
-            self._logger.error(f"✗ Failed to load server {server_name}: {e}")
+            self._logger.warning(f"⚠ Failed to load server {server_name}: {error_type} - {error_msg[:200]}")
 
             # Categorize error type
-            if "403" in error_msg or "Forbidden" in error_msg:
+            if "421" in error_msg or "Misdirected Request" in error_msg:
+                return (False, f"http_421_misdirected: Server may be misconfigured or OAuth issue")
+            elif "403" in error_msg or "Forbidden" in error_msg:
                 return (False, f"http_403_forbidden: {error_msg[:100]}")
             elif "404" in error_msg or "Not Found" in error_msg:
                 return (False, f"http_404_not_found: {error_msg[:100]}")
@@ -287,12 +305,34 @@ class DynamicReActAgent(ReAct):
                     load_error_reason = error_reason if not success else None
 
                     if not success:
-                        # Return error as tool result
+                        # Return error as tool result with helpful guidance
                         from mcp.types import CallToolResult, TextContent
+
+                        # Provide helpful error message based on error type
+                        if "421" in error_reason or "misdirected" in error_reason.lower():
+                            error_msg = (
+                                f"⚠ Server '{server_name}' is currently unavailable (HTTP 421 - Misdirected Request). "
+                                f"This Smithery server may be misconfigured or experiencing OAuth issues.\n\n"
+                                f"💡 Suggestion: Try using search_tools again with a similar query to find alternative tools "
+                                f"from different servers that can accomplish the same task."
+                            )
+                        elif "cancelled" in error_reason.lower():
+                            error_msg = (
+                                f"⚠ Server '{server_name}' connection was cancelled during loading. "
+                                f"This may be due to network issues or server timeout.\n\n"
+                                f"💡 Suggestion: Search for alternative tools using search_tools with the same capability description."
+                            )
+                        else:
+                            error_msg = (
+                                f"⚠ Server '{server_name}' could not be loaded. Reason: {error_reason}\n\n"
+                                f"💡 Suggestion: Use search_tools to find alternative tools from different servers."
+                            )
+
+                        self._logger.warning(f"Returning error to agent for failed server load: {server_name}")
                         return CallToolResult(
                             content=[TextContent(
                                 type="text",
-                                text=f"Error: Server '{server_name}' could not be loaded. Reason: {error_reason}"
+                                text=error_msg
                             )]
                         )
 
@@ -406,14 +446,22 @@ class DynamicReActAgent(ReAct):
                         await client.close()
                     elif hasattr(client, '__aexit__'):
                         await client.__aexit__(None, None, None)
+                except asyncio.CancelledError:
+                    # Suppress CancelledError during cleanup
+                    self._logger.warning(f"Cleanup cancelled for client {server_name} (suppressed)")
                 except Exception as e:
                     self._logger.warning(f"Error closing client {server_name}: {e}")
 
         # Close the parent agent's clients
         try:
             await super().cleanup()
+        except asyncio.CancelledError:
+            # Suppress CancelledError during parent cleanup
+            self._logger.warning("Parent cleanup cancelled (suppressed)")
         except AttributeError:
             # Parent class might not have cleanup method
             pass
+        except Exception as e:
+            self._logger.warning(f"Error during parent cleanup: {e}")
 
         self._logger.info("✓ Cleanup complete")

@@ -5,6 +5,7 @@ Base classes for agents
 import os
 import uuid
 import json
+import asyncio
 from abc import abstractmethod
 from typing import List, Any, Dict, Union, Optional, Literal
 from dataclasses import dataclass, field
@@ -292,16 +293,19 @@ class BaseAgent(Executor, ExportConfigMixin, metaclass=ComponentABCMeta):
                     "error": ""
                 })
                 tracer.add(trace_data)
-            except Exception as e:
+            except asyncio.CancelledError as e:
+                # Handle CancelledError from server loading failures
+                # This prevents cleanup/loading errors from crashing the entire execution
+                error_msg = "Execution was cancelled due to server loading issues"
                 trace_data.update({
                     "messages": [message] if not isinstance(message, str) else message,
                     "response": "",
                     "response_type": "str",
-                    "error": str(e)
+                    "error": error_msg
                 })
                 tracer.add(trace_data)
                 send_message(callbacks, message=CallbackMessage(
-                    source=self.id, type=MessageType.ERROR, data=str(e),
+                    source=self.id, type=MessageType.ERROR, data=error_msg,
                     project_id=self._project_id))
                 send_message(callbacks, message=CallbackMessage(
                     source=self.id, type=MessageType.EVENT, data=Event.AFTER_CALL,
@@ -309,7 +313,45 @@ class BaseAgent(Executor, ExportConfigMixin, metaclass=ComponentABCMeta):
                 send_message(callbacks, message=CallbackMessage(
                     source=self.id, type=MessageType.STATUS, data=Status.FAILED,
                     project_id=self._project_id))
-                raise e
+                # Return a proper AgentResponse instead of raising
+                # This allows graceful degradation
+                return AgentResponse(
+                    name=self.name,
+                    class_name=self.__class__.__name__,
+                    response=error_msg,
+                    trace_id=trace_data.get("trace_id", "")
+                )
+            except Exception as e:
+                # Handle all other exceptions (TimeoutError, APIError, etc.)
+                # Provide user-friendly error messages for common issues
+                error_msg = str(e)
+                if isinstance(e, asyncio.TimeoutError):
+                    error_msg = "LLM request timed out after multiple retries. Please try again or use a different model."
+
+                trace_data.update({
+                    "messages": [message] if not isinstance(message, str) else message,
+                    "response": "",
+                    "response_type": "str",
+                    "error": error_msg
+                })
+                tracer.add(trace_data)
+                send_message(callbacks, message=CallbackMessage(
+                    source=self.id, type=MessageType.ERROR, data=error_msg,
+                    project_id=self._project_id))
+                send_message(callbacks, message=CallbackMessage(
+                    source=self.id, type=MessageType.EVENT, data=Event.AFTER_CALL,
+                    metadata={"method": "execute"}, project_id=self._project_id))
+                send_message(callbacks, message=CallbackMessage(
+                    source=self.id, type=MessageType.STATUS, data=Status.FAILED,
+                    project_id=self._project_id))
+                # Return AgentResponse instead of raising to allow graceful degradation
+                # This prevents the entire application from crashing due to recoverable errors
+                return AgentResponse(
+                    name=self.name,
+                    class_name=self.__class__.__name__,
+                    response=error_msg,
+                    trace_id=trace_data.get("trace_id", "")
+                )
 
             send_message(callbacks, message=CallbackMessage(
                 source=self.id, type=MessageType.RESPONSE, data=response.get_response(),
@@ -342,8 +384,19 @@ class BaseAgent(Executor, ExportConfigMixin, metaclass=ComponentABCMeta):
         if not self._initialized:
             return
         await self._cleanup()
-        for _, client in list(self._mcp_clients.items())[::-1]:
-            await client.cleanup()
+        for client_name, client in list(self._mcp_clients.items())[::-1]:
+            try:
+                await client.cleanup()
+            except asyncio.CancelledError:
+                # Suppress CancelledError during cleanup
+                # This can happen when MCP SDK's anyio task groups encounter errors
+                pass
+            except Exception as e:
+                # Suppress all cleanup errors to ensure all clients get a chance to cleanup
+                # Log but don't propagate - cleanup should be best-effort
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.warning(f"Error cleaning up MCP client {client_name}: {e}")
         self._initialized = False
 
     def dump_config(self) -> Dict:

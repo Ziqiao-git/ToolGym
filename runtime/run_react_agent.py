@@ -363,20 +363,34 @@ Remember:
     print("Running ReAct Agent...")
     print(f"{'='*60}\n")
 
-    response = await agent.execute(query_text)
+    response = None
+    try:
+        response = await agent.execute(query_text)
 
-    print(f"\n{'='*60}")
-    print("Agent Response:")
-    print(f"{'='*60}")
-    print(response.response)
-    print(f"{'='*60}\n")
+        print(f"\n{'='*60}")
+        print("Agent Response:")
+        print(f"{'='*60}")
+        print(response.response)
+        print(f"{'='*60}\n")
+    except asyncio.CancelledError:
+        print("\n⚠ Agent execution was cancelled (possibly due to server connection issues)")
+        print("This may happen when a dynamically loaded server fails to connect.")
+        raise  # Re-raise to signal failure to the test harness
+    except Exception as e:
+        print(f"\n❌ Agent execution failed: {e}")
+        raise  # Re-raise to signal failure to the test harness
+    finally:
+        # Properly cleanup MCP clients (even if execution failed)
+        try:
+            print("Cleaning up MCP connections...")
+            await agent.cleanup()
+        except asyncio.CancelledError:
+            print("⚠ Cleanup was cancelled (suppressed)")
+        except Exception as cleanup_error:
+            print(f"⚠ Error during cleanup: {cleanup_error}")
 
-    # Properly cleanup MCP clients
-    print("Cleaning up MCP connections...")
-    await agent.cleanup()
-
-    # Save trajectory if requested
-    if args.save_trajectory:
+    # Save trajectory if requested (only if execution succeeded)
+    if args.save_trajectory and response is not None:
         from datetime import datetime
 
         # Determine trajectory directory

@@ -100,13 +100,14 @@ async def run_single_query(
                 }
             else:
                 error_msg = stderr.decode() if stderr else "Unknown error"
-                print(f"[{query_index + 1}] ✗ Query {query_uuid} failed: {error_msg[:200]}")
+                print(f"[{query_index + 1}] ✗ Query {query_uuid} failed:")
+                print(error_msg)  # Print full error message
                 return {
                     "index": query_index + 1,
                     "uuid": query_uuid,
                     "budget_level": budget_level,
                     "status": "failed",
-                    "error": error_msg[:500]
+                    "error": error_msg  # Store full error message
                 }
         except Exception as e:
             print(f"[{query_index + 1}] ✗ Query {query_uuid} failed with exception: {e}")
