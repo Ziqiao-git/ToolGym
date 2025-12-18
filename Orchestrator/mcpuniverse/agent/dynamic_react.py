@@ -33,7 +33,7 @@ class DynamicReActAgent(ReAct):
         llm: BaseLLM,
         server_configs: Dict[str, Any],
         config: Dict | str = None,
-        enable_compression: bool = True,
+        enable_compression: bool = False,
         model_context_limit: int = 200000,
     ):
         """
@@ -386,6 +386,24 @@ class DynamicReActAgent(ReAct):
                 except Exception as e:
                     self._logger.error(f"❌ Failed to compress tool result: {e}")
                     # Keep original result on error
+            elif not self.enable_compression and result_str and len(result_str) > 50000:
+                # When compression is disabled but result is too large, truncate with warning
+                from mcp.types import CallToolResult, TextContent
+                truncated_str = (
+                    f"⚠️ Tool result is too long ({len(result_str)} characters, exceeds 50000 limit).\n"
+                    f"Compression is disabled. Showing first 1000 characters only.\n\n"
+                    f"--- Result Preview (first 1000 chars) ---\n"
+                    f"{result_str[:1000]}\n"
+                    f"--- Truncated ({len(result_str) - 1000} characters omitted) ---"
+                )
+                result = CallToolResult(
+                    content=[TextContent(type="text", text=truncated_str)]
+                )
+                result_str = truncated_str
+                self._logger.warning(
+                    f"⚠️  Tool result truncated: {len(original_result_str)} → {len(truncated_str)} chars "
+                    f"(compression disabled, result too large)"
+                )
 
             # Build trajectory entry
             trajectory_entry = {

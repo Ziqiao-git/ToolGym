@@ -66,12 +66,9 @@ import json
 import argparse
 import subprocess
 import statistics
-import numpy as np
-import matplotlib.pyplot as plt
 from pathlib import Path
 from collections import defaultdict
-from typing import Dict, Any, List, Optional, Tuple
-from datetime import datetime
+from typing import Dict, Any, List, Optional
 
 # Add project root to path
 PROJECT_ROOT = Path(__file__).parent.parent
@@ -122,15 +119,24 @@ def extract_trajectory_metrics(traj_path: Path, budget: int) -> Dict[str, Any]:
 
         # Count non-search tool calls
         cost_used = 0
-        steps = traj.get("steps", [])
 
-        for step in steps:
-            action = step.get("action", {})
-            tool_name = action.get("tool", "")
-
-            # Only count non-search tools
-            if tool_name and not is_search_tool(tool_name):
-                cost_used += 1
+        # Try new format first (execution.tool_calls)
+        if "execution" in traj:
+            tool_calls = traj.get("execution", {}).get("tool_calls", [])
+            for call in tool_calls:
+                tool_name = call.get("tool", "")
+                # Only count non-search tools
+                if tool_name and not is_search_tool(tool_name):
+                    cost_used += 1
+        else:
+            # Fallback to old format (steps)
+            steps = traj.get("steps", [])
+            for step in steps:
+                action = step.get("action", {})
+                tool_name = action.get("tool", "")
+                # Only count non-search tools
+                if tool_name and not is_search_tool(tool_name):
+                    cost_used += 1
 
         # Check compliance
         compliance = 1 if cost_used <= budget else 0
@@ -140,7 +146,11 @@ def extract_trajectory_metrics(traj_path: Path, budget: int) -> Dict[str, Any]:
         query_uuid = metadata.get("query_uuid", "")
 
         # Check if final answer exists
-        final_answer = traj.get("final_answer", "")
+        # Try new format first
+        final_answer = traj.get("execution", {}).get("final_response", "")
+        if not final_answer:
+            # Fallback to old format
+            final_answer = traj.get("final_answer", "")
         has_final_answer = bool(final_answer and final_answer.strip())
 
         return {
@@ -256,6 +266,63 @@ def run_commonllm_judge(
 
         results[budget_level] = dict(budget_scores)
         print(f"\n  Total evaluated: {len(budget_scores)} queries")
+
+    return results
+
+
+def load_evaluation_scores(
+    model: str,
+    pass_number: int,
+    budget_levels: List[str],
+    judge_models: List[str]
+) -> Dict[str, Dict[str, List[float]]]:
+    """
+    Load existing evaluation scores from disk.
+
+    Returns:
+        Dict[budget_level, Dict[query_uuid, List[scores_from_judges]]]
+    """
+    print("\n" + "=" * 80)
+    print("LOADING EXISTING EVALUATION SCORES")
+    print("=" * 80 + "\n")
+
+    results = {}
+
+    for budget_level in budget_levels:
+        budget_scores = defaultdict(list)
+
+        for judge_model in judge_models:
+            eval_output_dir = (
+                PROJECT_ROOT / "evaluation" / "Budget_test" / model.replace("/", "-") /
+                budget_level / f"pass@{pass_number}" / judge_model.replace("/", "-")
+            )
+
+            if not eval_output_dir.exists():
+                print(f"⚠ Not found: {budget_level}/{judge_model.split('/')[-1]}")
+                continue
+
+            # Read from nested directory structure
+            eval_files = list(eval_output_dir.glob("**/eval_*.json"))
+
+            for eval_file in eval_files:
+                try:
+                    with open(eval_file, 'r') as f:
+                        eval_data = json.load(f)
+
+                    filename = eval_file.stem
+                    if filename.startswith("eval_"):
+                        query_uuid = filename[5:]  # Remove "eval_" prefix
+                        # Get score from final_answer_evaluation
+                        final_answer_eval = eval_data.get("final_answer_evaluation", {})
+                        score = final_answer_eval.get("final_answer_score", 0.0)
+                        budget_scores[query_uuid].append(score)
+
+                except Exception as e:
+                    continue
+
+            print(f"✓ Loaded {len(eval_files)} scores: {budget_level}/{judge_model.split('/')[-1]}")
+
+        results[budget_level] = dict(budget_scores)
 
     return results
 
@@ -417,102 +484,140 @@ def calculate_key_metrics(
     return metrics
 
 
-def plot_quality_vs_cost(
-    results: Dict[str, Dict[str, Dict[str, float]]],
-    output_path: Path
-):
-    """
-    Plot Quality vs Cost curves for all models.
-
-    Args:
-        results: Dict[model_name, Dict[budget_level, aggregated_metrics]]
-        output_path: Path to save the plot
-    """
-    plt.figure(figsize=(10, 6))
-
-    for model_name, aggregated in results.items():
-        # Extract points for budget 3, 5, 7
-        costs = []
-        qualities = []
-
-        for budget_level in ["budget_3", "budget_5", "budget_7"]:
-            if budget_level in aggregated:
-                C = aggregated[budget_level].get("C")
-                Q = aggregated[budget_level].get("Q")
-                if C is not None and Q is not None:
-                    costs.append(C)
-                    qualities.append(Q)
-
-        if len(costs) >= 2:
-            # Plot line with markers
-            label = model_name.split("/")[-1] if "/" in model_name else model_name
-            plt.plot(costs, qualities, marker='o', linewidth=2, markersize=8, label=label)
-
-    plt.xlabel("Mean Cost (Non-search Tool Calls)", fontsize=12)
-    plt.ylabel("Mean Quality (Judge Score)", fontsize=12)
-    plt.title("Quality vs Cost Tradeoff", fontsize=14, fontweight='bold')
-    plt.legend(fontsize=10)
-    plt.grid(True, alpha=0.3)
-    plt.tight_layout()
-
-    # Save plot
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    plt.savefig(output_path, dpi=300, bbox_inches='tight')
-    print(f"\n✓ Plot saved to: {output_path}")
-
-    plt.close()
-
-
 def print_summary_table(
-    results: Dict[str, Dict[str, Any]]
+    results: Dict[str, Dict[str, Any]],
+    aggregated: Dict[str, Dict[str, Dict[str, float]]]
 ):
     """
-    Print a summary table with all metrics.
+    Print a detailed summary table with all metrics.
 
     Args:
         results: Dict[model_name, key_metrics]
+        aggregated: Dict[model_name, Dict[budget_level, aggregated_metrics]]
     """
-    print("\n" + "=" * 120)
-    print("SUMMARY TABLE")
-    print("=" * 120)
+    print("\n" + "=" * 140)
+    print(" " * 50 + "BUDGET CONSTRAINT EXPERIMENT RESULTS")
+    print("=" * 140)
 
-    # Header
-    header = f"{'Model':<30} {'Q3':>8} {'Q5':>8} {'Q7':>8} {'R3':>8} {'R5':>8} {'R7':>8} {'Slope3→5':>10} {'Slope5→7':>10} {'AUC':>10}"
-    print(header)
-    print("-" * 120)
-
-    # Rows
-    for model_name, metrics in results.items():
+    for model_name in results.keys():
         model_short = model_name.split("/")[-1] if "/" in model_name else model_name
+        metrics = results[model_name]
+        model_agg = aggregated[model_name]
 
-        Q3 = f"{metrics['Q3']:.3f}" if metrics['Q3'] is not None else "N/A"
-        Q5 = f"{metrics['Q5']:.3f}" if metrics['Q5'] is not None else "N/A"
-        Q7 = f"{metrics['Q7']:.3f}" if metrics['Q7'] is not None else "N/A"
+        print(f"\n┌─ Model: {model_short}")
+        print("│")
 
-        R3 = f"{metrics['R3']:.2%}" if metrics['R3'] is not None else "N/A"
-        R5 = f"{metrics['R5']:.2%}" if metrics['R5'] is not None else "N/A"
-        R7 = f"{metrics['R7']:.2%}" if metrics['R7'] is not None else "N/A"
+        # Quality & Cost per Budget Level
+        print("│  ┌─ Quality & Cost per Budget Level:")
+        print("│  │")
+        print("│  │  Budget Level  │  Mean Quality (Q)  │  Mean Cost (C)  │  Compliance Rate (R)  │  Sample Size")
+        print("│  │  " + "─" * 95)
 
-        slope_3to5 = f"{metrics['slope_3to5']:.4f}" if metrics['slope_3to5'] is not None else "N/A"
-        slope_5to7 = f"{metrics['slope_5to7']:.4f}" if metrics['slope_5to7'] is not None else "N/A"
+        for budget_level in ["budget_3", "budget_5", "budget_7", "baseline"]:
+            if budget_level in model_agg:
+                agg = model_agg[budget_level]
+                Q = agg.get("Q")
+                C = agg.get("C")
+                R = agg.get("R")
+                n = agg.get("n", 0)
 
-        auc = f"{metrics['AUC']:.3f}" if metrics['AUC'] is not None else "N/A"
+                Q_str = f"{Q:.3f}" if Q is not None else "N/A    "
+                C_str = f"{C:.2f}" if C is not None else "N/A   "
+                R_str = f"{R:.1%}" if R is not None else "N/A     "
 
-        row = f"{model_short:<30} {Q3:>8} {Q5:>8} {Q7:>8} {R3:>8} {R5:>8} {R7:>8} {slope_3to5:>10} {slope_5to7:>10} {auc:>10}"
-        print(row)
+                if budget_level == "baseline":
+                    print(f"│  │  Baseline    │      {Q_str}         │      {C_str}      │        {R_str}         │      {n}")
+                else:
+                    budget_num = budget_level.split("_")[1]
+                    print(f"│  │  Budget {budget_num}    │      {Q_str}         │      {C_str}      │        {R_str}         │      {n}")
 
-    print("=" * 120)
+        print("│  │")
 
-    # Interpretation guide
-    print("\nMetrics Interpretation:")
-    print("  Q3/Q5/Q7:      Mean quality at each budget level (higher is better)")
-    print("  R3/R5/R7:      Compliance rate - % of queries within budget (higher is better)")
-    print("  Slope3→5/5→7:  Marginal quality gain per extra tool call (higher is better)")
-    print("  AUC:           Overall quality-cost tradeoff efficiency (higher is better)")
-    print("\nKey Questions:")
-    print("  - Who's cheap & good?     → High AUC, high Q3")
-    print("  - Who's budget-conscious? → High R3/R5/R7")
-    print("  - Who relies on tools?    → High slopes (gains a lot from more calls)")
+        # Marginal Benefits (Slopes)
+        print("│  ├─ Marginal Benefits (Quality gain per additional tool call):")
+        print("│  │")
+
+        slope_3to5 = metrics['slope_3to5']
+        slope_5to7 = metrics['slope_5to7']
+
+        slope_3to5_str = f"{slope_3to5:.4f}" if slope_3to5 is not None else "N/A"
+        slope_5to7_str = f"{slope_5to7:.4f}" if slope_5to7 is not None else "N/A"
+
+        print(f"│  │    Budget 3 → 5:  {slope_3to5_str} quality gain per tool call")
+        print(f"│  │    Budget 5 → 7:  {slope_5to7_str} quality gain per tool call")
+        print("│  │")
+
+        # Overall Tradeoff
+        print("│  └─ Overall Tradeoff:")
+        print("│")
+
+        auc = metrics['AUC']
+        auc_str = f"{auc:.3f}" if auc is not None else "N/A"
+
+        print(f"│       AUC (Area Under Curve):  {auc_str}")
+        print("│       → Higher AUC = Better quality-cost tradeoff efficiency")
+        print("│")
+
+        # Key Insights
+        print("│  📊 Key Insights:")
+
+        # Baseline comparison
+        if "baseline" in model_agg:
+            baseline_Q = model_agg["baseline"].get("Q")
+            baseline_C = model_agg["baseline"].get("C")
+            Q3 = metrics.get('Q3')
+
+            if baseline_Q is not None and Q3 is not None:
+                quality_retention = (Q3 / baseline_Q) * 100 if baseline_Q > 0 else 0
+                print(f"│     • Baseline Quality: {baseline_Q:.3f} (Cost: {baseline_C:.2f})")
+                print(f"│     • Budget 3 retains {quality_retention:.1f}% of baseline quality")
+
+                if quality_retention >= 90:
+                    print("│       ✓ Excellent quality retention under tight budget")
+                elif quality_retention >= 75:
+                    print("│       ~ Good quality retention under tight budget")
+                else:
+                    print("│       ✗ Significant quality drop under tight budget")
+
+        print("│")
+
+        # Budget consciousness
+        R3 = metrics.get('R3', 0)
+        R5 = metrics.get('R5', 0)
+        R7 = metrics.get('R7', 0)
+        if all(r is not None and r >= 0.95 for r in [R3, R5, R7]):
+            print("│     ✓ Excellent budget compliance (>95% across all levels)")
+        elif all(r is not None and r >= 0.80 for r in [R3, R5, R7]):
+            print("│     ~ Good budget compliance (>80% across all levels)")
+        else:
+            print("│     ✗ Budget compliance needs improvement")
+
+        # Quality efficiency
+        Q3 = metrics.get('Q3')
+        if Q3 is not None and Q3 >= 0.7:
+            print("│     ✓ High quality even with tight budget (Q3 ≥ 0.7)")
+        elif Q3 is not None and Q3 >= 0.5:
+            print("│     ~ Moderate quality with tight budget (Q3 ≥ 0.5)")
+        else:
+            print("│     ✗ Low quality with tight budget (Q3 < 0.5)")
+
+        # Tool dependency
+        if slope_5to7 is not None and slope_3to5 is not None:
+            if slope_5to7 > slope_3to5 * 2:
+                print("│     ⚠ High tool dependency: Quality drops sharply with fewer tool calls")
+            elif slope_5to7 < slope_3to5 * 0.5:
+                print("│     ✓ Low tool dependency: Maintains quality with budget constraints")
+
+        print("└" + "─" * 139)
+
+    print("\n" + "=" * 140)
+    print("\n📖 Metrics Guide:")
+    print("   • Quality (Q):      Judge score from 0-1 (higher is better)")
+    print("   • Cost (C):         Mean number of non-search tool calls")
+    print("   • Compliance (R):   % of queries staying within budget")
+    print("   • Slope:            ΔQ/ΔC = quality gain per additional tool call")
+    print("   • AUC:              Area under quality-cost curve (efficiency measure)")
+    print("=" * 140)
 
 
 def analyze_budget_experiment(
@@ -531,8 +636,6 @@ def analyze_budget_experiment(
         evaluation_results: Optional pre-computed evaluation results
                            Dict[model, Dict[budget_level, Dict[query_uuid, scores]]]
     """
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-
     all_aggregated = {}
     all_metrics = {}
 
@@ -554,30 +657,8 @@ def analyze_budget_experiment(
         all_aggregated[model] = aggregated
         all_metrics[model] = metrics
 
-    # Generate visualization
-    analysis_dir = PROJECT_ROOT / "analysis" / "Budget_test"
-    plot_path = analysis_dir / f"quality_vs_cost_{timestamp}.png"
-    plot_quality_vs_cost(all_aggregated, plot_path)
-
     # Print summary table
-    print_summary_table(all_metrics)
-
-    # Save summary JSON
-    summary_path = analysis_dir / f"summary_{timestamp}.json"
-    summary_data = {
-        "timestamp": datetime.now().isoformat(),
-        "models": models,
-        "pass_number": pass_number,
-        "budget_levels": budget_levels,
-        "aggregated": all_aggregated,
-        "metrics": all_metrics
-    }
-
-    summary_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(summary_path, 'w') as f:
-        json.dump(summary_data, f, indent=2)
-
-    print(f"\n✓ Summary saved to: {summary_path}")
+    print_summary_table(all_metrics, all_aggregated)
 
 
 def main():
@@ -604,8 +685,8 @@ def main():
     parser.add_argument("--pass-number", type=int, default=1,
                        help="Pass number (default: 1)")
     parser.add_argument("--budget-levels", type=str,
-                       default="budget_3,budget_5,budget_7",
-                       help="Comma-separated budget levels (default: budget_3,budget_5,budget_7)")
+                       default="budget_3,budget_5,budget_7,baseline",
+                       help="Comma-separated budget levels (default: budget_3,budget_5,budget_7,baseline)")
 
     # Judge configuration
     parser.add_argument("--judges", type=str,
@@ -657,6 +738,21 @@ def main():
 
     # Step 2: Analysis
     if args.analyze or args.full:
+        # Load existing evaluation scores if not already evaluated
+        if not evaluation_results:
+            for model in models:
+                print(f"\n{'#'*80}")
+                print(f"LOADING SCORES FOR MODEL: {model}")
+                print(f"{'#'*80}")
+
+                results = load_evaluation_scores(
+                    model=model,
+                    pass_number=args.pass_number,
+                    budget_levels=budget_levels,
+                    judge_models=judge_models
+                )
+                evaluation_results[model] = results
+
         analyze_budget_experiment(
             models=models,
             pass_number=args.pass_number,

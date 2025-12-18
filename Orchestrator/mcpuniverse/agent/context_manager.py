@@ -51,9 +51,9 @@ class ContextManager:
 
         # Create default fast/cheap summarizer model if not provided
         if summarizer_llm is None:
-            summarizer_config = {"model_name": "openai/gpt-4o-mini"}
+            summarizer_config = {"model_name": "google/gemini-2.5-flash"}
             self.summarizer_llm = OpenRouterModel(config=summarizer_config)
-            self._logger.info("Using default summarizer: openai/gpt-4o-mini")
+            self._logger.info("Using default summarizer: google/gemini-2.5-flash")
         else:
             self.summarizer_llm = summarizer_llm
 

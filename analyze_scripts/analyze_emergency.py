@@ -21,7 +21,12 @@ Usage:
     # 3. Show scores from existing evaluations + recovery
     python analyze_scripts/analyze_emergency.py --show-scores
 
-    # 4. Custom options
+    # 4. Generate leaderboards for all models
+    #    - Part 1: Recovery score ranking (how well models recover from failures)
+    #    - Part 2: Robustness ranking (how much final answer quality drops)
+    python analyze_scripts/analyze_emergency.py --leaderboard
+
+    # 5. Custom options
     python analyze_scripts/analyze_emergency.py --evaluate \\
         --model claude-3.5-sonnet \\
         --pass-number 1 \\
@@ -468,6 +473,372 @@ def analyze_recovery(
             print(f"\nNo intercepted queries found")
 
 
+def calculate_recovery_score_for_model(
+    model: str,
+    pass_number: int,
+    strategy: str,
+) -> Optional[Dict[str, Any]]:
+    """
+    Calculate recovery score for a specific model and strategy.
+
+    Returns:
+        Dict with recovery_score, total_queries, intercepted_queries, etc.
+        Or None if no data found.
+    """
+    traj_dir = PROJECT_ROOT / "trajectories" / "Emergency_test" / model / f"pass@{pass_number}" / strategy
+
+    if not traj_dir.exists():
+        return None
+
+    traj_files = list(traj_dir.glob("trajectory_*.json"))
+
+    if not traj_files:
+        return None
+
+    total_queries = 0
+    intercepted_queries = 0
+    total_interceptions = 0
+    recovery_scores = []
+    recovery_actions = defaultdict(int)
+
+    for traj_file in traj_files:
+        try:
+            with open(traj_file, 'r') as f:
+                traj = json.load(f)
+
+            total_queries += 1
+
+            # Check if intercepted
+            stats = traj.get("metadata", {}).get("interception_stats", {})
+            if not stats.get("intercepted", False):
+                continue
+
+            intercepted_queries += 1
+            interception_count = stats.get("interception_count", 0)
+            total_interceptions += interception_count
+
+            # Analyze recovery behavior from reasoning_trace
+            reasoning_trace = traj.get("reasoning_trace", [])
+            interception_log = stats.get("interception_log", [])
+            error_msg = "Tool temporarily unavailable" if not interception_log else interception_log[0].get("error_message", "")
+
+            # Find intercepted calls in reasoning trace
+            for i, entry in enumerate(reasoning_trace):
+                if entry.get("type") == "result" and error_msg in entry.get("content", ""):
+                    # Found an intercepted tool call
+                    failed_tool = None
+                    for j in range(i-1, max(0, i-3), -1):
+                        if reasoning_trace[j].get("type") == "action":
+                            action_str = reasoning_trace[j].get("content", "")
+                            if "Using tool `" in action_str:
+                                tool_start = action_str.find("`") + 1
+                                tool_end = action_str.find("`", tool_start)
+                                failed_tool = action_str[tool_start:tool_end]
+                                break
+
+                    # Find next action after failure
+                    next_tool = None
+                    next_success = False
+
+                    for j in range(i+1, min(len(reasoning_trace), i+10)):
+                        if reasoning_trace[j].get("type") == "action":
+                            action_str = reasoning_trace[j].get("content", "")
+                            if "Using tool `" in action_str:
+                                tool_start = action_str.find("`") + 1
+                                tool_end = action_str.find("`", tool_start)
+                                next_tool = action_str[tool_start:tool_end]
+
+                                # Check if search_tools
+                                if next_tool == "search_tools":
+                                    recovery_scores.append(0.6)
+                                    recovery_actions["search_tools"] += 1
+                                    break
+
+                                # Check if it succeeded
+                                for k in range(j+1, min(len(reasoning_trace), j+5)):
+                                    if reasoning_trace[k].get("type") == "result":
+                                        result_content = reasoning_trace[k].get("content", "")
+                                        next_success = error_msg not in result_content
+                                        break
+
+                                # Score recovery
+                                if failed_tool == next_tool:
+                                    if next_success:
+                                        recovery_scores.append(1.0)
+                                        recovery_actions["retry_same_success"] += 1
+                                    else:
+                                        recovery_scores.append(0.2)
+                                        recovery_actions["retry_same_fail"] += 1
+                                else:
+                                    if next_success:
+                                        recovery_scores.append(0.8)
+                                        recovery_actions["switch_tool_success"] += 1
+                                    else:
+                                        recovery_scores.append(0.2)
+                                        recovery_actions["switch_tool_fail"] += 1
+                                break
+
+                    # If no next tool found, gave up
+                    if next_tool is None:
+                        recovery_scores.append(0.0)
+                        recovery_actions["gave_up"] += 1
+
+        except Exception as e:
+            continue
+
+    if not recovery_scores:
+        return None
+
+    return {
+        "recovery_score": statistics.mean(recovery_scores),
+        "total_queries": total_queries,
+        "intercepted_queries": intercepted_queries,
+        "total_interceptions": total_interceptions,
+        "recovery_count": len(recovery_scores),
+        "recovery_actions": dict(recovery_actions),
+    }
+
+
+def calculate_final_answer_scores(
+    model: str,
+    pass_number: int,
+    strategy: str,
+    judge_models: List[str],
+) -> Optional[float]:
+    """
+    Calculate average final answer score for a specific model and strategy.
+
+    Returns:
+        Average score across all queries and judges, or None if no data found.
+    """
+    eval_base = PROJECT_ROOT / "evaluation" / "Emergency_test"
+    strategy_scores = defaultdict(list)
+
+    for judge_model in judge_models:
+        eval_output_dir = (
+            eval_base / model / f"pass@{pass_number}" / strategy /
+            judge_model.replace("/", "-")
+        )
+
+        if not eval_output_dir.exists():
+            continue
+
+        # Read evaluation files
+        eval_files = list(eval_output_dir.glob("**/eval_*.json"))
+
+        for eval_file in eval_files:
+            try:
+                with open(eval_file, 'r') as f:
+                    eval_data = json.load(f)
+
+                filename = eval_file.stem
+                if filename.startswith("eval_"):
+                    query_uuid = filename[5:]
+                    final_answer_eval = eval_data.get("final_answer_evaluation", {})
+                    score = final_answer_eval.get("final_answer_score", 0.0)
+                    strategy_scores[query_uuid].append(score)
+
+            except Exception:
+                continue
+
+    if not strategy_scores:
+        return None
+
+    # Average across judges for each query, then average across queries
+    query_avg_scores = []
+    for query_uuid, judge_scores in strategy_scores.items():
+        if judge_scores:
+            query_avg_scores.append(statistics.mean(judge_scores))
+
+    if not query_avg_scores:
+        return None
+
+    return statistics.mean(query_avg_scores)
+
+
+def generate_leaderboard(
+    pass_number: int,
+    judge_models: List[str],
+):
+    """
+    Generate two types of leaderboards for all models:
+    1. Recovery score leaderboard (first_non_search and random_20)
+    2. Final answer robustness leaderboard (score drop percentage)
+
+    Args:
+        pass_number: Pass number to analyze
+        judge_models: List of judge models for final answer evaluation
+    """
+    print("\n" + "=" * 80)
+    print("MODEL LEADERBOARD GENERATION")
+    print("=" * 80)
+    print(f"Pass: {pass_number}")
+    print(f"Judges: {', '.join(judge_models)}\n")
+
+    # ========================================================================
+    # Part 1: Recovery Score Leaderboard
+    # ========================================================================
+    print("\n" + "=" * 80)
+    print("PART 1: RECOVERY SCORE LEADERBOARD")
+    print("=" * 80)
+    print("\nRecovery Score Methodology:")
+    print("  - Retry same tool (success): 1.0")
+    print("  - Switch tool (success):     0.8")
+    print("  - Search new tools:          0.6")
+    print("  - Retry/switch (fail):       0.2")
+    print("  - Give up:                   0.0\n")
+
+    # Find all models in trajectories/Emergency_test/
+    traj_base = PROJECT_ROOT / "trajectories" / "Emergency_test"
+
+    if not traj_base.exists():
+        print(f"Error: Trajectory directory not found: {traj_base}")
+        return
+
+    # Get all model directories
+    model_dirs = [d for d in traj_base.iterdir() if d.is_dir()]
+    models = [d.name for d in model_dirs]
+
+    if not models:
+        print(f"No models found in {traj_base}")
+        return
+
+    print(f"Found {len(models)} model(s): {', '.join(models)}\n")
+
+    # For each strategy, collect recovery scores for all models
+    strategies_to_compare = ["first_non_search", "random_20"]
+
+    for strategy in strategies_to_compare:
+        print(f"\n{'='*80}")
+        print(f"RECOVERY LEADERBOARD: {strategy.upper()}")
+        print(f"{'='*80}\n")
+
+        model_recovery_stats = {}
+
+        for model in models:
+            recovery_data = calculate_recovery_score_for_model(model, pass_number, strategy)
+
+            if recovery_data:
+                model_recovery_stats[model] = recovery_data
+
+        # Sort models by recovery score (descending)
+        sorted_models = sorted(
+            model_recovery_stats.items(),
+            key=lambda x: x[1]["recovery_score"],
+            reverse=True
+        )
+
+        # Print leaderboard
+        if sorted_models:
+            print(f"{'Rank':<6} {'Model':<30} {'Recovery':<12} {'Intercepted':<14} {'Total Queries'}")
+            print("-" * 80)
+
+            for rank, (model, stats) in enumerate(sorted_models, 1):
+                recovery = stats["recovery_score"]
+                intercepted = stats["intercepted_queries"]
+                total = stats["total_queries"]
+
+                print(f"{rank:<6} {model:<30} {recovery:.3f}        {intercepted:<14} {total}")
+
+            print(f"\nTop model: {sorted_models[0][0]} (recovery score: {sorted_models[0][1]['recovery_score']:.3f})")
+
+            # Show detailed recovery actions for top model
+            _, top_stats = sorted_models[0]
+            print(f"\nTop model recovery actions breakdown:")
+            actions = top_stats["recovery_actions"]
+            print(f"  - Retry same (success): {actions.get('retry_same_success', 0)}")
+            print(f"  - Switch tool (success): {actions.get('switch_tool_success', 0)}")
+            print(f"  - Search tools: {actions.get('search_tools', 0)}")
+            print(f"  - Retry/switch (fail): {actions.get('retry_same_fail', 0) + actions.get('switch_tool_fail', 0)}")
+            print(f"  - Gave up: {actions.get('gave_up', 0)}")
+        else:
+            print(f"No recovery data found for strategy: {strategy}")
+
+    # ========================================================================
+    # Part 2: Final Answer Robustness Leaderboard
+    # ========================================================================
+    print("\n" + "=" * 80)
+    print("PART 2: FINAL ANSWER ROBUSTNESS LEADERBOARD")
+    print("=" * 80)
+    print("\nMeasures how much final answer quality drops when tools fail.")
+    print("Lower score drop % = more robust model\n")
+
+    # Find all models in evaluation/Emergency_test/
+    eval_base = PROJECT_ROOT / "evaluation" / "Emergency_test"
+
+    if not eval_base.exists():
+        print(f"Error: Evaluation directory not found: {eval_base}")
+        return
+
+    # Get all model directories
+    eval_model_dirs = [d for d in eval_base.iterdir() if d.is_dir()]
+    eval_models = [d.name for d in eval_model_dirs]
+
+    if not eval_models:
+        print(f"No models found in {eval_base}")
+        return
+
+    print(f"Found {len(eval_models)} model(s) with evaluations: {', '.join(eval_models)}\n")
+
+    for strategy in strategies_to_compare:
+        print(f"\n{'='*80}")
+        print(f"ROBUSTNESS LEADERBOARD: {strategy.upper()}")
+        print(f"{'='*80}\n")
+
+        model_robustness_stats = {}
+
+        for model in eval_models:
+            # Get baseline score (no_interception)
+            baseline_score = calculate_final_answer_scores(model, pass_number, "no_interception", judge_models)
+
+            # Get strategy score (with interception)
+            strategy_score = calculate_final_answer_scores(model, pass_number, strategy, judge_models)
+
+            if baseline_score is not None and strategy_score is not None and baseline_score > 0:
+                # Calculate score drop
+                score_drop = baseline_score - strategy_score
+                score_drop_pct = (score_drop / baseline_score) * 100
+
+                model_robustness_stats[model] = {
+                    "baseline_score": baseline_score,
+                    "strategy_score": strategy_score,
+                    "score_drop": score_drop,
+                    "score_drop_pct": score_drop_pct,
+                }
+
+        # Sort models by score drop percentage (ascending - lower is better)
+        sorted_models = sorted(
+            model_robustness_stats.items(),
+            key=lambda x: x[1]["score_drop_pct"],
+            reverse=False
+        )
+
+        # Print leaderboard
+        if sorted_models:
+            print(f"{'Rank':<6} {'Model':<30} {'Baseline':<12} {'w/Failure':<12} {'Drop':<12} {'Drop %'}")
+            print("-" * 90)
+
+            for rank, (model, stats) in enumerate(sorted_models, 1):
+                baseline = stats["baseline_score"]
+                strategy_s = stats["strategy_score"]
+                drop = stats["score_drop"]
+                drop_pct = stats["score_drop_pct"]
+
+                print(f"{rank:<6} {model:<30} {baseline:.3f}        {strategy_s:.3f}        {drop:.3f}        {drop_pct:.1f}%")
+
+            best_model, best_stats = sorted_models[0]
+            print(f"\nMost robust model: {best_model}")
+            print(f"  Baseline score: {best_stats['baseline_score']:.3f}")
+            print(f"  Score w/failures: {best_stats['strategy_score']:.3f}")
+            print(f"  Score drop: {best_stats['score_drop']:.3f} ({best_stats['score_drop_pct']:.1f}%)")
+        else:
+            print(f"No evaluation data found for strategy: {strategy}")
+
+    print("\n" + "=" * 80)
+    print("LEADERBOARD GENERATION COMPLETE")
+    print("=" * 80)
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Analyze emergency test results"
@@ -503,10 +874,20 @@ def main():
         action="store_true",
         help="Only show recovery analysis"
     )
+    parser.add_argument(
+        "--leaderboard",
+        action="store_true",
+        help="Generate leaderboards for all models (first_non_search and random_20)"
+    )
 
     args = parser.parse_args()
 
     judge_models = [j.strip() for j in args.judges.split(",")]
+
+    # If leaderboard mode, generate leaderboards and exit
+    if args.leaderboard:
+        generate_leaderboard(args.pass_number, judge_models)
+        return
 
     print("=" * 80)
     print("EMERGENCY TEST ANALYSIS")
