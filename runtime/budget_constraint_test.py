@@ -77,6 +77,7 @@ async def run_single_query(
             "--batch-id", batch_id,
             "--save-trajectory",
             "--output-dir", str(output_dir),
+            "--disable-compression",
         ]
 
         print(f"[{query_index + 1}] Starting query {query_uuid} (budget: {budget_level})...")
