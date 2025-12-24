@@ -30,11 +30,14 @@ usage() {
     echo "Options:"
     echo "  --dry-run              Show what would be generated without actually running"
     echo "  --max-concurrent N     Run N trajectories in parallel (default: 5)"
-    echo "  --max-iterations N     Max reasoning iterations per query (default: 10)"
+    echo "  --max-iterations N     Max reasoning iterations per query (default: 20)"
+    echo "  --loop                 Keep retrying until all trajectories are complete"
+    echo "  --max-retries N        Maximum retry rounds when using --loop (default: 10)"
     echo ""
     echo "Example:"
     echo "  $0 trajectories/claude-3.5 anthropic/claude-3.5-sonnet"
     echo "  $0 trajectories/deepseek-v3.2 deepseek/deepseek-v3.2 --max-concurrent 3"
+    echo "  $0 trajectories/deepseek-v3.2 deepseek/deepseek-v3.2 --loop --max-retries 5"
     exit 1
 }
 
@@ -51,6 +54,9 @@ MAX_ITERATIONS=20  # Default iterations for trajectory generation
 
 # Parse optional arguments
 shift 2
+LOOP_UNTIL_COMPLETE=false
+MAX_RETRIES=10  # Maximum retry rounds to prevent infinite loops
+
 while [ $# -gt 0 ]; do
     case "$1" in
         --dry-run)
@@ -63,6 +69,14 @@ while [ $# -gt 0 ]; do
             ;;
         --max-iterations)
             MAX_ITERATIONS="$2"
+            shift 2
+            ;;
+        --loop)
+            LOOP_UNTIL_COMPLETE=true
+            shift
+            ;;
+        --max-retries)
+            MAX_RETRIES="$2"
             shift 2
             ;;
         *)
@@ -119,92 +133,6 @@ find_missing_uuids() {
     done
 }
 
-echo ""
-echo -e "${YELLOW}Scanning for missing trajectories...${NC}"
-echo "=============================================="
-
-MISSING_TOTAL=0
-declare -a MISSING_PASS1 MISSING_PASS2 MISSING_PASS3
-
-# Check each pass
-for pass in 1 2 3; do
-    existing_count=$(get_existing_uuids $pass | wc -l | tr -d ' ')
-    missing_uuids=$(find_missing_uuids $pass)
-    missing_count=$(echo "$missing_uuids" | grep -c . 2>/dev/null || echo 0)
-
-    echo -e "pass@${pass}: ${existing_count}/${TOTAL_QUERIES} (${RED}${missing_count} missing${NC})"
-
-    if [ "$missing_count" -gt 0 ]; then
-        MISSING_TOTAL=$((MISSING_TOTAL + missing_count))
-        if [ $pass -eq 1 ]; then
-            MISSING_PASS1=($missing_uuids)
-        elif [ $pass -eq 2 ]; then
-            MISSING_PASS2=($missing_uuids)
-        else
-            MISSING_PASS3=($missing_uuids)
-        fi
-    fi
-done
-
-echo "=============================================="
-echo -e "${YELLOW}Total missing: ${MISSING_TOTAL}${NC}"
-echo ""
-
-if [ $MISSING_TOTAL -eq 0 ]; then
-    echo -e "${GREEN}All trajectories are complete! Nothing to generate.${NC}"
-    exit 0
-fi
-
-# Show what will be generated
-echo -e "${YELLOW}Will generate the following trajectories:${NC}"
-echo ""
-
-for uuid in "${MISSING_PASS1[@]}"; do
-    [ -n "$uuid" ] && echo "  pass@1: $uuid"
-done
-for uuid in "${MISSING_PASS2[@]}"; do
-    [ -n "$uuid" ] && echo "  pass@2: $uuid"
-done
-for uuid in "${MISSING_PASS3[@]}"; do
-    [ -n "$uuid" ] && echo "  pass@3: $uuid"
-done
-
-echo ""
-
-if [ "$DRY_RUN" = true ]; then
-    echo -e "${YELLOW}[DRY RUN] Would generate $MISSING_TOTAL trajectories (max-concurrent: $MAX_CONCURRENT)${NC}"
-    exit 0
-fi
-
-# Ask for confirmation
-read -p "Generate $MISSING_TOTAL missing trajectories with $MAX_CONCURRENT concurrent workers? [y/N] " confirm
-if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
-    echo "Aborted."
-    exit 0
-fi
-
-echo ""
-echo -e "${GREEN}Starting generation with ${MAX_CONCURRENT} concurrent workers...${NC}"
-echo ""
-
-# Create temp directory for tracking results
-TEMP_DIR=$(mktemp -d)
-trap "rm -rf $TEMP_DIR" EXIT
-
-# Build list of all tasks (uuid:pass_num)
-TASK_FILE="$TEMP_DIR/tasks.txt"
-for uuid in "${MISSING_PASS1[@]}"; do
-    [ -n "$uuid" ] && echo "${uuid}:1" >> "$TASK_FILE"
-done
-for uuid in "${MISSING_PASS2[@]}"; do
-    [ -n "$uuid" ] && echo "${uuid}:2" >> "$TASK_FILE"
-done
-for uuid in "${MISSING_PASS3[@]}"; do
-    [ -n "$uuid" ] && echo "${uuid}:3" >> "$TASK_FILE"
-done
-
-TOTAL_TASKS=$(wc -l < "$TASK_FILE" | tr -d ' ')
-
 # Function to generate a single trajectory (called by parallel workers)
 generate_single() {
     local task=$1
@@ -233,25 +161,167 @@ generate_single() {
 }
 
 export -f generate_single
-export SCRIPT_DIR QUERY_FILE MODEL TRAJECTORY_DIR TEMP_DIR MAX_ITERATIONS
+export SCRIPT_DIR QUERY_FILE MODEL TRAJECTORY_DIR MAX_ITERATIONS
 export RED GREEN YELLOW BLUE NC
 
-# Run tasks in parallel using xargs
-# Each line in TASK_FILE is "uuid:pass_num"
-task_num=0
-cat "$TASK_FILE" | while read task; do
-    task_num=$((task_num + 1))
-    echo "$task $task_num $TOTAL_TASKS"
-done | xargs -P "$MAX_CONCURRENT" -L 1 bash -c 'generate_single $0 $1 $2'
+# Main function to run one round of generation
+run_generation_round() {
+    local round_num=$1
 
-# Count results
-GENERATED=$(find "$TEMP_DIR" -name "result_*" -exec cat {} \; | grep -c "success" 2>/dev/null || echo 0)
-FAILED=$(find "$TEMP_DIR" -name "result_*" -exec cat {} \; | grep -c "failed" 2>/dev/null || echo 0)
+    echo ""
+    if [ "$LOOP_UNTIL_COMPLETE" = true ]; then
+        echo -e "${BLUE}========== ROUND ${round_num}/${MAX_RETRIES} ==========${NC}"
+    fi
+    echo -e "${YELLOW}Scanning for missing trajectories...${NC}"
+    echo "=============================================="
 
-echo ""
-echo "=============================================="
-echo -e "${GREEN}Generation complete!${NC}"
-echo -e "  Generated: ${GREEN}${GENERATED}${NC}"
-echo -e "  Failed: ${RED}${FAILED}${NC}"
-echo -e "  Concurrent workers: ${MAX_CONCURRENT}"
-echo "=============================================="
+    MISSING_TOTAL=0
+    MISSING_PASS1=()
+    MISSING_PASS2=()
+    MISSING_PASS3=()
+
+    # Check each pass
+    for pass in 1 2 3; do
+        existing_count=$(get_existing_uuids $pass | wc -l | tr -d ' ')
+        missing_uuids=$(find_missing_uuids $pass)
+        missing_count=$(echo "$missing_uuids" | grep -c . 2>/dev/null | tr -d '[:space:]' || echo 0)
+        [ -z "$missing_count" ] && missing_count=0
+
+        echo -e "pass@${pass}: ${existing_count}/${TOTAL_QUERIES} (${RED}${missing_count} missing${NC})"
+
+        if [ "$missing_count" -gt 0 ]; then
+            MISSING_TOTAL=$((MISSING_TOTAL + missing_count))
+            if [ $pass -eq 1 ]; then
+                MISSING_PASS1=($missing_uuids)
+            elif [ $pass -eq 2 ]; then
+                MISSING_PASS2=($missing_uuids)
+            else
+                MISSING_PASS3=($missing_uuids)
+            fi
+        fi
+    done
+
+    echo "=============================================="
+    echo -e "${YELLOW}Total missing: ${MISSING_TOTAL}${NC}"
+    echo ""
+
+    if [ $MISSING_TOTAL -eq 0 ]; then
+        echo -e "${GREEN}All trajectories are complete! Nothing to generate.${NC}"
+        return 0  # Success - all complete
+    fi
+
+    # Show what will be generated
+    echo -e "${YELLOW}Will generate the following trajectories:${NC}"
+    echo ""
+
+    for uuid in "${MISSING_PASS1[@]}"; do
+        [ -n "$uuid" ] && echo "  pass@1: $uuid"
+    done
+    for uuid in "${MISSING_PASS2[@]}"; do
+        [ -n "$uuid" ] && echo "  pass@2: $uuid"
+    done
+    for uuid in "${MISSING_PASS3[@]}"; do
+        [ -n "$uuid" ] && echo "  pass@3: $uuid"
+    done
+
+    echo ""
+
+    if [ "$DRY_RUN" = true ]; then
+        echo -e "${YELLOW}[DRY RUN] Would generate $MISSING_TOTAL trajectories (max-concurrent: $MAX_CONCURRENT)${NC}"
+        return 0
+    fi
+
+    # Ask for confirmation only on first round (or if not looping)
+    if [ "$round_num" -eq 1 ]; then
+        if [ "$LOOP_UNTIL_COMPLETE" = true ]; then
+            read -p "Generate missing trajectories with $MAX_CONCURRENT concurrent workers (will retry up to $MAX_RETRIES times)? [y/N] " confirm
+        else
+            read -p "Generate $MISSING_TOTAL missing trajectories with $MAX_CONCURRENT concurrent workers? [y/N] " confirm
+        fi
+        if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
+            echo "Aborted."
+            exit 0
+        fi
+    fi
+
+    echo ""
+    echo -e "${GREEN}Starting generation with ${MAX_CONCURRENT} concurrent workers...${NC}"
+    echo ""
+
+    # Create temp directory for tracking results
+    TEMP_DIR=$(mktemp -d)
+    export TEMP_DIR
+
+    # Build list of all tasks (uuid:pass_num)
+    TASK_FILE="$TEMP_DIR/tasks.txt"
+    for uuid in "${MISSING_PASS1[@]}"; do
+        [ -n "$uuid" ] && echo "${uuid}:1" >> "$TASK_FILE"
+    done
+    for uuid in "${MISSING_PASS2[@]}"; do
+        [ -n "$uuid" ] && echo "${uuid}:2" >> "$TASK_FILE"
+    done
+    for uuid in "${MISSING_PASS3[@]}"; do
+        [ -n "$uuid" ] && echo "${uuid}:3" >> "$TASK_FILE"
+    done
+
+    TOTAL_TASKS=$(wc -l < "$TASK_FILE" | tr -d ' ')
+
+    # Run tasks in parallel using xargs
+    # Each line in TASK_FILE is "uuid:pass_num"
+    task_num=0
+    cat "$TASK_FILE" | while read task; do
+        task_num=$((task_num + 1))
+        echo "$task $task_num $TOTAL_TASKS"
+    done | xargs -P "$MAX_CONCURRENT" -L 1 bash -c 'generate_single $0 $1 $2'
+
+    # Count results
+    GENERATED=$(find "$TEMP_DIR" -name "result_*" -exec cat {} \; | grep -c "success" 2>/dev/null || echo 0)
+    FAILED=$(find "$TEMP_DIR" -name "result_*" -exec cat {} \; | grep -c "failed" 2>/dev/null || echo 0)
+
+    # Cleanup temp directory
+    rm -rf "$TEMP_DIR"
+
+    echo ""
+    echo "=============================================="
+    echo -e "${GREEN}Round ${round_num} complete!${NC}"
+    echo -e "  Generated: ${GREEN}${GENERATED}${NC}"
+    echo -e "  Failed: ${RED}${FAILED}${NC}"
+    echo -e "  Concurrent workers: ${MAX_CONCURRENT}"
+    echo "=============================================="
+
+    # Return 1 if there are still failures (to continue looping)
+    if [ "$FAILED" -gt 0 ]; then
+        return 1
+    fi
+    return 0
+}
+
+# Main execution
+if [ "$LOOP_UNTIL_COMPLETE" = true ]; then
+    echo -e "${BLUE}Running in loop mode (max $MAX_RETRIES retries)${NC}"
+
+    for round in $(seq 1 $MAX_RETRIES); do
+        if run_generation_round $round; then
+            echo ""
+            echo -e "${GREEN}=============================================="
+            echo -e "ALL TRAJECTORIES COMPLETE!"
+            echo -e "==============================================${NC}"
+            exit 0
+        fi
+
+        if [ $round -lt $MAX_RETRIES ]; then
+            echo ""
+            echo -e "${YELLOW}Some trajectories failed. Retrying in 5 seconds...${NC}"
+            sleep 5
+        fi
+    done
+
+    echo ""
+    echo -e "${RED}=============================================="
+    echo -e "MAX RETRIES ($MAX_RETRIES) REACHED"
+    echo -e "Some trajectories may still be missing."
+    echo -e "==============================================${NC}"
+    exit 1
+else
+    run_generation_round 1
+fi

@@ -54,13 +54,14 @@ MAX_RETRIES = 3
 MAX_CONCURRENT = 5
 
 
-GOALORIENTED_SEED_SYSTEM_PROMPT = """You are an expert at creating realistic user scenarios with hidden goals.
+GOALORIENTED_SEED_SYSTEM_PROMPT = """You are an expert at creating realistic user scenarios with hidden goals and real-world constraints.
 
 Goal:
 Generate ONE realistic scenario with:
 1. **Seed Query**: The user's first question (specific + actionable)
 2. **Hidden Goal**: What the user wants to achieve overall (broader than seed query)
 3. **Reference Tools**: MCP tools needed to achieve the goal
+4. **Constraints**: Real-world constraints that affect how the goal should be achieved
 
 In servers_summary, each entry follows this format:
 <server_namespace>/<server_name>/<tool_name>: <tool_description>
@@ -71,44 +72,67 @@ IMPORTANT: The goal should:
 - Be ACHIEVABLE using available MCP tools
 - Be MEASURABLE (clear when complete)
 - Represent a realistic real-world task
+- Include REAL-WORLD CONSTRAINTS that affect planning
 
-GOAL CATEGORIES (with examples):
+CONSTRAINT CATEGORIES (include 1-3 per scenario):
+- **Temporal**: Deadlines, time windows, schedules, urgency (e.g., "within the next 2 weeks", "before December")
+- **Financial**: Budget limits, cost considerations (e.g., "under $500", "budget-friendly options")
+- **Resource**: Capacity limits, availability (e.g., "for a group of 4", "vegetarian options only")
+- **Quality**: Standards, requirements (e.g., "highly-rated only", "must have parking")
+- **Scope**: Priorities, must-haves (e.g., "focus on beginner-friendly", "must be open-source")
+- **Geographic**: Location constraints (e.g., "within 30 miles", "in the downtown area")
+- **Preference**: User preferences (e.g., "prefer outdoor activities", "avoid crowded places")
+
+GOAL CATEGORIES (with constraint examples):
 
 **1. Trip Planning**
 - Seed: "What are the upcoming events in Bodrum?"
 - Goal: "I'm planning a weekend trip to Bodrum and need to know what events are happening, what the weather will be like, where to eat, and where to stay."
+- Constraints: ["budget under $1000 for the whole trip", "must be family-friendly", "prefer beachfront hotels"]
 - Sub-goals: Find events, check weather, get restaurants, find hotels
 
 **2. Research Report**
 - Seed: "Find recent papers on arXiv about small language models"
 - Goal: "I'm writing a research report on small language models and need to find recent papers, understand the key methods being used, identify top researchers, and analyze current trends."
+- Constraints: ["papers from 2024 or later only", "focus on models under 7B parameters", "must have code available"]
 - Sub-goals: Find papers, understand methods, identify researchers, analyze trends
 
 **3. Investment Decision**
 - Seed: "Get the latest stock price for Tesla"
 - Goal: "I'm deciding whether to invest in Tesla and need the current stock price, recent news about the company, financial performance data, and competitor comparison."
+- Constraints: ["investment amount around $5000", "time horizon of 2-3 years", "moderate risk tolerance"]
 - Sub-goals: Get price, find news, get financials, compare competitors
 
 **4. Product Comparison**
 - Seed: "Search for laptop reviews on Reddit"
 - Goal: "I'm buying a new laptop and need to read reviews, compare specifications, check current prices, and see availability in my area."
+- Constraints: ["budget max $1500", "must have 16GB+ RAM", "prefer lightweight under 4 lbs"]
 - Sub-goals: Read reviews, compare specs, check prices, verify availability
 
 **5. Problem Diagnosis**
 - Seed: "Search GitHub issues about Python memory leaks"
 - Goal: "My Python application has memory leaks and I need to understand common causes, find potential solutions, see if others fixed similar issues, and verify fixes work."
+- Constraints: ["using Python 3.11", "Django web application", "must not require major refactoring"]
 - Sub-goals: Understand causes, find solutions, check similar issues, verify fixes
 
 **6. Event Discovery**
 - Seed: "What tech conferences are happening in 2025?"
 - Goal: "I want to attend tech conferences in 2025 and need to find upcoming events, understand the topics covered, check ticket availability, and see speaker lineups."
+- Constraints: ["within the US only", "budget under $2000 including travel", "focus on AI/ML topics"]
 - Sub-goals: Find events, check topics, verify tickets, review speakers
 
 FORMULA FOR SEED QUERIES:
-[Clear Action] + [Specific Subject] + [Optional: Context]
+[Clear Action] + [Specific Subject] + [Optional: Context/Constraint]
 
 FORMULA FOR GOALS:
 "I'm [doing task] and need to [step 1], [step 2], [step 3], and [step 4]."
+
+FORMULA FOR CONSTRAINTS:
+Each constraint should be:
+- Specific and measurable when possible
+- Realistic and commonly encountered
+- Relevant to the goal category
+- Affecting how tools should be used or results filtered
 
 ⚠️ **CONTENT RESTRICTIONS**
 - No personal, financial, medical, or confidential data
@@ -130,6 +154,11 @@ OUTPUT FORMAT (strict JSON):
 {
   "seed_query": "...",
   "goal": "I'm [doing task] and need to [sub-goal 1], [sub-goal 2], [sub-goal 3], and [sub-goal 4].",
+  "constraints": [
+    "constraint 1 (specific and measurable)",
+    "constraint 2",
+    "constraint 3 (optional)"
+  ],
   "reference_tools": [
     {
       "server": "...",
@@ -183,6 +212,10 @@ async def generate_one_goaloriented_seed(
                 required = ["seed_query", "goal", "reference_tools", "goal_category", "complexity"]
                 if not all(k in data for k in required):
                     raise ValueError(f"Missing required fields. Got: {list(data.keys())}")
+
+                # Ensure constraints field exists (default to empty list if missing)
+                if "constraints" not in data:
+                    data["constraints"] = []
 
                 return data
 
@@ -338,6 +371,7 @@ async def main():
         items.append({
             "query": seed['seed_query'],
             "goal": seed['goal'],
+            "constraints": seed.get('constraints', []),
             "reference_tools": seed['reference_tools'],
             "goal_category": seed.get('goal_category', 'unknown'),
             "complexity": seed.get('complexity', 'medium')
@@ -374,6 +408,8 @@ async def main():
         for i, item in enumerate(items[:3], 1):
             print(f"\n{i}. QUERY: {item['query']}")
             print(f"   GOAL: {item['goal']}")
+            if item.get('constraints'):
+                print(f"   CONSTRAINTS: {item['constraints']}")
             print(f"   TOOLS ({len(item['reference_tools'])}): {', '.join(t['tool'] for t in item['reference_tools'])}")
             print(f"   CATEGORY: {item['goal_category']} | COMPLEXITY: {item['complexity']}")
 

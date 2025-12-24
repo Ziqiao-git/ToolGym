@@ -9,9 +9,10 @@ Unlike the standard multi-turn agent (which asks exploratory follow-ups), the go
 ### Key Features
 
 - **Hidden User Goal**: User has a concrete goal (e.g., "plan a trip") hidden from the agent
+- **Real-World Constraints**: Goals include practical constraints (budget, time, preferences) that affect how the goal should be achieved
 - **Sub-Goal Decomposition**: Goal is automatically broken into 3-6 measurable sub-goals
 - **Progress Tracking**: Tracks which sub-goals are completed each turn
-- **Goal-Based Evaluation**: Satisfaction considers goal progress + tool usage + response quality
+- **Goal-Based Evaluation**: Satisfaction considers goal progress + tool usage + response quality + constraint adherence
 - **Goal-Driven Follow-Ups**: Questions work toward completing remaining sub-goals
 - **Early Termination**: Conversation ends when goal achieved (even if fewer turns than max)
 
@@ -176,6 +177,11 @@ Output format:
     {
       "query": "What events are in Bodrum?",
       "goal": "I'm planning a trip and need events, weather, restaurants, hotels.",
+      "constraints": [
+        "budget under $1000 for the whole trip",
+        "must be family-friendly",
+        "prefer beachfront hotels"
+      ],
       "reference_tools": [...],
       "goal_category": "trip_planning",
       "complexity": "medium"
@@ -201,6 +207,20 @@ python runtime/run_goaloriented_agent.py \
   --persona curious_researcher \
   --save-trajectory
 ```
+
+## Constraint Categories
+
+Each goal can include 1-3 real-world constraints from these categories:
+
+| Category | Description | Examples |
+|----------|-------------|----------|
+| **Temporal** | Deadlines, time windows, schedules | "within the next 2 weeks", "before December" |
+| **Financial** | Budget limits, cost considerations | "under $500", "budget-friendly options" |
+| **Resource** | Capacity limits, availability | "for a group of 4", "vegetarian options only" |
+| **Quality** | Standards, requirements | "highly-rated only", "must have parking" |
+| **Scope** | Priorities, must-haves | "focus on beginner-friendly", "must be open-source" |
+| **Geographic** | Location constraints | "within 30 miles", "in the downtown area" |
+| **Preference** | User preferences | "prefer outdoor activities", "avoid crowded places" |
 
 ## Goal Categories
 
@@ -248,6 +268,11 @@ The system supports various goal types:
   "metadata": {
     "seed_query": "What events are in Bodrum?",
     "user_goal": "I'm planning a trip to Bodrum and need events, weather, restaurants, hotels.",
+    "constraints": [
+      "budget under $1000 for the whole trip",
+      "must be family-friendly",
+      "prefer beachfront hotels"
+    ],
     "sub_goals": [
       "Find upcoming events in Bodrum",
       "Check weather forecast",
