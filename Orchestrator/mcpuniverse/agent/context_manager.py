@@ -2,7 +2,7 @@
 """
 Context Manager for ReAct Agent - Two-Layer Compression Strategy
 
-Layer 1: Tool Result Streaming Compression (Single result > 50K chars)
+Layer 1: Tool Result Streaming Compression (Single result > threshold)
 Layer 2: Trajectory Global Compression (Total context > 80% capacity)
 
 Key Design Principles:
@@ -10,14 +10,69 @@ Key Design Principles:
 - Only compress the "result" field content
 - Never delete any reasoning steps
 - Leave "thought" and "action" fields completely unchanged
+- Dynamically adjust thresholds based on model context window (fetched from OpenRouter API)
 """
 from __future__ import annotations
 
+import os
 import logging
-from typing import Dict, List, Any
+import requests
+from typing import Dict, List, Any, Optional
+from functools import lru_cache
 from mcpuniverse.llm.base import BaseLLM
 from mcpuniverse.common.logger import get_logger
 from mcpuniverse.llm.openrouter import OpenRouterModel, OpenRouterConfig
+
+
+# Default context limit if API fetch fails (conservative)
+DEFAULT_CONTEXT_LIMIT_TOKENS = 32000
+# Approximate chars per token ratio
+CHARS_PER_TOKEN = 4
+
+
+@lru_cache(maxsize=128)
+def get_model_context_limit(model_name: str) -> int:
+    """
+    Fetch the context window limit for a model from OpenRouter API.
+
+    Args:
+        model_name: The model identifier (e.g., "anthropic/claude-3.5-sonnet")
+
+    Returns:
+        Context window size in tokens
+    """
+    logger = get_logger("ContextManager")
+
+    try:
+        api_key = os.getenv("OPENROUTER_API_KEY", "")
+        headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
+
+        response = requests.get(
+            "https://openrouter.ai/api/v1/models",
+            headers=headers,
+            timeout=10
+        )
+        response.raise_for_status()
+
+        models_data = response.json().get("data", [])
+        for model in models_data:
+            if model.get("id") == model_name:
+                context_length = model.get("context_length", DEFAULT_CONTEXT_LIMIT_TOKENS)
+                logger.info(f"Fetched context limit for {model_name}: {context_length} tokens")
+                return context_length
+
+        # Model not found in list
+        logger.warning(f"Model {model_name} not found in OpenRouter API, using default {DEFAULT_CONTEXT_LIMIT_TOKENS}")
+        return DEFAULT_CONTEXT_LIMIT_TOKENS
+
+    except Exception as e:
+        logger.warning(f"Failed to fetch model context limit from API: {e}, using default {DEFAULT_CONTEXT_LIMIT_TOKENS}")
+        return DEFAULT_CONTEXT_LIMIT_TOKENS
+
+
+def tokens_to_chars(tokens: int) -> int:
+    """Convert token count to approximate character count."""
+    return tokens * CHARS_PER_TOKEN
 
 
 class ContextManager:
@@ -32,7 +87,7 @@ class ContextManager:
         self,
         llm: BaseLLM,
         summarizer_llm: BaseLLM = None,  # Optional separate LLM for summarization
-        model_context_limit: int = 200000,  # Claude 3.5 Sonnet context window
+        model_context_limit: int = None,  # Auto-detect from model if None
         system_prompt_length: int = 5000,   # Estimated system prompt size
         instruction_length: int = 3000,     # Estimated instruction size
     ):
@@ -42,28 +97,41 @@ class ContextManager:
         Args:
             llm: Language model for main agent
             summarizer_llm: Optional separate LLM for summarization (if None, uses llm)
-            model_context_limit: Total context window (in characters, ~2.5 chars per token)
+            model_context_limit: Total context window in chars. If None, auto-detect from OpenRouter API
             system_prompt_length: Estimated system prompt size
             instruction_length: Estimated instruction size
         """
         self.llm = llm
         self._logger = get_logger("ContextManager")
 
-        # Create default fast/cheap summarizer model if not provided
+        # Get model name from LLM config
+        model_name = getattr(getattr(llm, 'config', None), 'model_name', None) or getattr(llm, 'model_name', 'unknown')
+
+        # Use the same LLM for summarization if not provided
         if summarizer_llm is None:
-            summarizer_config = {"model_name": "google/gemini-2.5-flash"}
-            self.summarizer_llm = OpenRouterModel(config=summarizer_config)
-            self._logger.info("Using default summarizer: google/gemini-2.5-flash")
+            self.summarizer_llm = llm
+            self._logger.info(f"Using same model for summarization: {model_name}")
         else:
             self.summarizer_llm = summarizer_llm
 
-        self.model_context_limit = model_context_limit
+        # Auto-detect context limit from OpenRouter API if not provided
+        if model_context_limit is None:
+            context_tokens = get_model_context_limit(model_name)
+            self.model_context_limit = tokens_to_chars(context_tokens)
+            self._logger.info(f"Auto-detected context limit for {model_name}: {context_tokens} tokens (~{self.model_context_limit} chars)")
+        else:
+            self.model_context_limit = model_context_limit
+
         self.system_prompt_length = system_prompt_length
         self.instruction_length = instruction_length
 
-        # Layer 1 parameters
-        self.single_result_threshold = 50000  # Trigger streaming if single result > 50K
-        self.chunk_size = 50000  # Process 20K chars at a time
+        # Dynamic Layer 1 parameters based on context limit
+        # Single result threshold: 10% of context limit (min 50K, max 500K)
+        self.single_result_threshold = max(50000, min(500000, self.model_context_limit // 10))
+        # Chunk size: 5% of context limit (min 25K, max 200K)
+        self.chunk_size = max(25000, min(200000, self.model_context_limit // 20))
+
+        self._logger.info(f"Compression thresholds: single_result={self.single_result_threshold}, chunk_size={self.chunk_size}")
 
         # Layer 2 parameters
         self.global_compression_threshold = 0.8  # Trigger at 80% capacity
