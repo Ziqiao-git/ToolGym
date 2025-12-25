@@ -1,17 +1,17 @@
 """
-Minimal Smithery OAuth test against @rftsngl/newsmcp_mediastackapi.
+Minimal Smithery OAuth test - lists tools and calls the first one.
 
 Run:
-  python MCP_INFO_MGR/server_test_script/test_newsmcp_mediastackapi.py
+  python MCP_INFO_MGR/test_mcp.py
 
 On first run a browser opens for Smithery OAuth; tokens are cached under ~/.mcp/smithery_tokens/.
 """
 import asyncio
 import sys
+import json
 from pathlib import Path
 
 # Make Orchestrator imports available without installing as a package.
-# File now lives in MCP_INFO_MGR/, so repo root is parents[1].
 REPO_ROOT = Path(__file__).resolve().parents[1]
 ORCH_DIR = REPO_ROOT / "Orchestrator"
 sys.path.insert(0, str(ORCH_DIR))
@@ -21,13 +21,13 @@ from mcp.client.streamable_http import streamablehttp_client  # type: ignore
 from mcpuniverse.mcp.oauth import create_smithery_auth  # type: ignore
 
 
-SERVER_URL = "https://server.smithery.ai/@rftsngl/newsmcp_mediastackapi/mcp"
+SERVER_URL = "https://server.smithery.ai/@aahl/mcp-aktools"
 
 
 async def main() -> None:
     auth_provider, callback_handler = create_smithery_auth(
         server_url=SERVER_URL,
-        client_name="Local newsmcp test",
+        client_name="Local MCP test",
     )
 
     async with callback_handler:
@@ -35,18 +35,24 @@ async def main() -> None:
             async with ClientSession(read, write) as session:
                 await session.initialize()
 
+                # List all tools
                 tools_result = await session.list_tools()
-                tool_names = ", ".join(tool.name for tool in tools_result.tools)
-                print(f"Tools: {tool_names}")
+                tools = tools_result.tools
+                print(f"Found {len(tools)} tools:")
+                for i, tool in enumerate(tools):
+                    print(f"  [{i}] {tool.name}: {tool.description[:80] if tool.description else 'No description'}...")
 
-                # Smoke-test the main tool with a small query
-                resp = await session.call_tool(
-                    "get_latest_news",
-                    {"keywords": "ai", "limit": 3},
-                )
-                print("get_latest_news response:")
-                print(resp)
+                if not tools:
+                    print("No tools available!")
+                    return
 
+                # Get the first tool
+                first_tool = tools[0]
+                print(f"\n--- Testing first tool: {first_tool.name} ---")
+                print(f"Description: {first_tool.description}")
+                print(f"Input schema: {json.dumps(first_tool.inputSchema, indent=2)}")
+
+               
 
 if __name__ == "__main__":
     asyncio.run(main())

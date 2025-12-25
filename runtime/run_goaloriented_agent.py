@@ -868,10 +868,17 @@ async def main():
     print(f"Queries to run: {len(items)}")
     print(f"{'='*70}\n")
 
-    # Setup
-    all_server_configs = json.loads(
-        (PROJECT_ROOT / "MCP_INFO_MGR/mcp_data/usable/remote_server_configs.json").read_text()
+    # Setup - load simple server list and convert to config format
+    server_list = json.loads(
+        (PROJECT_ROOT / "MCP_INFO_MGR/mcp_data/working/remote_servers.json").read_text()
     )
+    all_server_configs = {
+        server: {
+            "streamable_http": {"url": f"https://server.smithery.ai/{server}", "headers": {}},
+            "env": {}
+        }
+        for server in server_list
+    }
 
     # Run each conversation
     trajectories = []

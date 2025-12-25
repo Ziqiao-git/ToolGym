@@ -854,11 +854,19 @@ async def main():
         print("Error: No queries found in file")
         return 1
 
-    # Load all server configurations
-    configs_path = PROJECT_ROOT / "MCP_INFO_MGR" / "mcp_data" / "working" / "remote_server_configs.json"
+    # Load all server configurations (simple list of server names)
+    configs_path = PROJECT_ROOT / "MCP_INFO_MGR" / "mcp_data" / "working" / "remote_servers.json"
     print(f"Loading server configs from {configs_path}...")
     with configs_path.open("r") as f:
-        all_server_configs = json.load(f)
+        server_list = json.load(f)
+    # Convert simple list to config dict format
+    all_server_configs = {
+        server: {
+            "streamable_http": {"url": f"https://server.smithery.ai/{server}", "headers": {}},
+            "env": {}
+        }
+        for server in server_list
+    }
     print(f"✓ Loaded {len(all_server_configs)} server configurations\n")
 
     # Verify queries
