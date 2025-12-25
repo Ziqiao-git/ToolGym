@@ -360,9 +360,9 @@ async def main_async():
         description="Generate single-turn queries requiring multiple tools"
     )
     parser.add_argument(
-        "--config",
-        required=True,
-        help="Working servers config JSON file"
+        "--tools",
+        default=None,
+        help="Tool descriptions NDJSON file (default: MCP_INFO_MGR/mcp_data/working/tool_descriptions.ndjson)"
     )
     parser.add_argument(
         "--out",
@@ -410,27 +410,23 @@ async def main_async():
     global MODEL_NAME
     MODEL_NAME = args.model
 
-    # Load working server configs
-    print(f"Loading server configs from {args.config}...")
-    with open(args.config, "r", encoding="utf-8") as f:
-        server_configs = json.load(f)
-
-    print(f"Loaded {len(server_configs)} working servers")
-
     # Load tool descriptions
-    tool_desc_path = Path(__file__).parent.parent / "MCP_INFO_MGR" / "mcp_data" / "indexed" / "tool_descriptions.ndjson"
+    if args.tools:
+        tool_desc_path = Path(args.tools)
+    else:
+        tool_desc_path = Path(__file__).parent.parent / "MCP_INFO_MGR" / "mcp_data" / "working" / "tool_descriptions.ndjson"
+
     print(f"Loading tool descriptions from {tool_desc_path}...")
 
     with open(tool_desc_path, "r", encoding="utf-8") as f:
         all_tools = [json.loads(line) for line in f if line.strip()]
 
-    # Filter to working servers only
-    working_server_names = set(server_configs.keys())
-    working_tools = [t for t in all_tools if t.get("qualifiedName") in working_server_names]
+    # Only include servers with status='ok' (successfully fetched tools)
+    working_tools = [t for t in all_tools if t.get("status") == "ok" and t.get("tools")]
 
     # Count total tools
     total_tool_count = sum(len(s.get("tools", [])) for s in working_tools)
-    print(f"Filtered to {len(working_tools)} working servers with {total_tool_count} total tools")
+    print(f"Loaded {len(working_tools)} working servers with {total_tool_count} total tools")
 
     if total_tool_count < args.min_tools:
         print(f"⚠️  Warning: Only {total_tool_count} tools available, but min_tools is {args.min_tools}")
