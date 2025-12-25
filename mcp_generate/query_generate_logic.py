@@ -5,7 +5,7 @@
 query_generate_logic.py
 
 Based on query_generate.py
-Generate queries having logic condition
+Generate queries having if-then logic condition
 
 用法:
   python query_generate_logic.py --in tool_descriptions.ndjson --out generated_queries.json --num-queries 20
