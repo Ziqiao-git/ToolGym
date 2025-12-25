@@ -2,25 +2,34 @@
 """
 Run Goal-Oriented Multi-Turn Agent
 
-A goal-driven conversational agent where the simulated user has a hidden goal
-that drives follow-up questions and evaluation.
+A goal-driven conversational agent where the simulated user tracks subgoal completion
+across turns based on the query.
 
 Features:
-- Hidden user goal decomposed into measurable sub-goals
+- Query automatically decomposed into measurable sub-goals
 - Progress tracking across conversation turns
-- Evaluation based on: goal progress + tool usage + quality
-- Terminates when goal achieved OR user frustrated
+- Evaluation based on: subgoal progress + tool usage + quality
+- Terminates when all subgoals achieved OR user frustrated
 
 Usage:
-    # Single query with goal
+    # Single query (subgoals generated automatically from query)
     python runtime/run_goaloriented_agent.py "What events are in Bodrum?" \
-        --goal "I'm planning a trip and need events, weather, restaurants, hotels" \
         --persona curious_researcher
 
-    # Batch from seeds file
+    # Single query from JSON file by index
     python runtime/run_goaloriented_agent.py \
-        --seeds mcp_generate/requests/goaloriented_seeds_test.json \
+        --seeds mcp_generate/requests/multitool_10_20.json \
+        --query-index 0 \
         --persona curious_researcher \
+        --save-trajectory
+
+    # Batch mode - parallel execution of multiple queries
+    python runtime/run_goaloriented_agent.py \
+        --seeds mcp_generate/requests/multitool_10_20.json \
+        --persona curious_researcher \
+        --model google/gemini-3-pro-preview \
+        --user-model google/gemini-3-pro-preview \
+        --max-concurrent 5 \
         --save-trajectory
 """
 from __future__ import annotations
@@ -47,6 +56,131 @@ from mcpuniverse.mcp.manager import MCPManager
 from mcpuniverse.llm.manager import ModelManager
 from mcpuniverse.agent.dynamic_react import DynamicReActAgent
 from dotenv import load_dotenv
+
+
+# ============================================================================
+# Agent Instruction
+# ============================================================================
+
+AGENT_INSTRUCTION = """You are an intelligent agent that can discover and use MCP tools dynamically.
+
+════════════════════════════════════════════════════════════════════════
+🚨 CRITICAL: YOU MUST FOLLOW THIS COMPLETE WORKFLOW 🚨
+════════════════════════════════════════════════════════════════════════
+
+Your job has TWO phases that you MUST complete:
+
+PHASE 1: DISCOVER TOOLS (using meta-mcp/search_tools)
+PHASE 2: EXECUTE TOOLS (using the tools you discovered)
+
+⚠️  NEVER stop after Phase 1! You must ALWAYS proceed to Phase 2! ⚠️
+
+════════════════════════════════════════════════════════════════════════
+COMPLETE WORKFLOW - FOLLOW EVERY STEP:
+════════════════════════════════════════════════════════════════════════
+
+Step 1: DISCOVER tools using search_tools
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+- Call: meta-mcp/search_tools
+- Purpose: Find which tools can help answer the user's question
+- Parameters:
+  * query: Natural language description of what you need
+  * top_k: Number of results (default 5, increase if needed)
+  * min_score: Relevance threshold (0.0-1.0, default 0.3)
+
+Example:
+Action: search_tools
+Action Input: {"query": "search GitHub repositories", "top_k": 10, "min_score": 0.3}
+
+Step 2: READ search results carefully
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+- The results show: server name, tool name, description, parameters
+- Example result: "**@smithery-ai/github** / `search_repositories` - Search for repositories on GitHub"
+- Extract: server = "@smithery-ai/github", tool = "search_repositories"
+
+Step 3: 🚨 EXECUTE THE DISCOVERED TOOL 🚨
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⚠️  THIS IS THE MOST CRITICAL STEP - DO NOT SKIP! ⚠️
+
+- Take the server and tool name from search results
+- Call that tool with appropriate arguments based on its parameters
+- The server will be loaded automatically when you call the tool
+- Example:
+  Action: search_repositories
+  Action Input: {"query": "machine learning", "sort": "stars"}
+
+Step 4: READ the tool results
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+- The tool returns actual data (repositories, weather, papers, etc.)
+- This is the information you need to answer the user's question
+
+Step 5: ANSWER the user's question
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+- Use the tool results to provide a complete answer
+- Include specific data from the tool output
+- Be helpful and informative
+
+════════════════════════════════════════════════════════════════════════
+🚨 CRITICAL RULES - MEMORIZE THESE 🚨
+════════════════════════════════════════════════════════════════════════
+
+1. search_tools is NOT a data retrieval tool - it's a tool DISCOVERY tool
+   ❌ WRONG: "I found tools about GitHub, here are the results"
+   ✅ RIGHT: "I found the search_repositories tool, now I'll use it"
+
+2. You MUST execute tools after discovering them
+   ❌ WRONG: Call search_tools → Return search results to user
+   ✅ RIGHT: Call search_tools → Call discovered tool → Return tool results to user
+
+3. If search_tools returns results, you MUST try to use at least one tool
+   - Don't make excuses like "I can't access that tool"
+   - The tools will be loaded automatically when you call them
+   - Just use the server and tool name from search results
+
+4. For complex queries requiring multiple types of data:
+   - Call search_tools multiple times with different focused queries
+   - Each search_tools call should focus on ONE capability
+   - Execute the tools you discover from each search
+
+════════════════════════════════════════════════════════════════════════
+COMPLETE EXAMPLE WORKFLOW:
+════════════════════════════════════════════════════════════════════════
+
+User Query: "Find machine learning repositories on GitHub"
+
+Iteration 1:
+  Thought: I need to find tools that can search GitHub repositories
+  Action: search_tools
+  Action Input: {"query": "search GitHub repositories", "top_k": 5}
+  Observation: Found 5 relevant tools for: 'search GitHub repositories'
+               1. **@smithery-ai/github** / `search_repositories`
+                  Score: 0.856
+                  Description: Search for repositories on GitHub
+                  Parameters: query, sort, order
+
+Iteration 2:
+  Thought: Great! I found the search_repositories tool. Now I'll use it to actually search for machine learning repositories.
+  Action: search_repositories
+  Action Input: {"query": "machine learning", "sort": "stars", "order": "desc"}
+  Observation: [
+    {"name": "tensorflow/tensorflow", "stars": 175000, ...},
+    {"name": "pytorch/pytorch", "stars": 65000, ...},
+    ...
+  ]
+
+Iteration 3:
+  Thought: Perfect! I got actual repository results. Now I can answer the user.
+  Action: Final Answer
+  Action Input: Here are the top machine learning repositories on GitHub:
+                1. tensorflow/tensorflow (175,000 stars) - ...
+                2. pytorch/pytorch (65,000 stars) - ...
+
+════════════════════════════════════════════════════════════════════════
+
+Remember:
+- Phase 1 (search_tools) = Find which tools exist
+- Phase 2 (execute tools) = Actually use those tools to get data
+- You must complete BOTH phases to answer the user's question!"""
 
 
 # ============================================================================
@@ -243,48 +377,49 @@ def _load_first_json_obj(text: str):
     # 如果没找到顶层 JSON，直接尝试原文
     return json.loads(s)
 
-class GoalTracker:
-    """Tracks sub-goal completion throughout conversation."""
+class SubgoalTracker:
+    """Tracks sub-goal completion throughout conversation. Decomposes query into subgoals."""
 
-    def __init__(self, llm, goal: str):
+    def __init__(self, llm, query: str):
         self.llm = llm
-        self.goal = goal
+        self.query = query
         self.sub_goals: List[str] = []
         self.completed: List[str] = []
         self.remaining: List[str] = []
 
-    async def decompose_goal(self) -> List[str]:
-        """Use LLM to break goal into 3-6 measurable sub-goals."""
-        prompt = f"""You are analyzing a user's goal to break it into measurable sub-goals.
+    async def decompose_query(self) -> List[str]:
+        """Use LLM to break user query into 3-6 measurable sub-goals."""
+        prompt = f"""You are analyzing a user's query to break it into measurable sub-goals.
 
-USER GOAL:
-{self.goal}
+USER QUERY:
+{self.query}
 
 Your task:
-Break this goal into 3-6 clear, measurable sub-goals that can be achieved through information gathering.
+Break this query into 3-6 clear, measurable sub-goals that represent what information or tasks the user needs.
 
 Each sub-goal should:
 - Be specific and measurable (clear when completed)
-- Represent one type of information needed
+- Represent one type of information or task needed
 - Be achievable through tool usage
 
 EXAMPLES:
 
-Goal: "I'm planning a trip to Bodrum and need events, weather, restaurants, hotels"
+Query: "What events are happening in Bodrum next week?"
 Sub-goals:
 1. Find upcoming events in Bodrum
-2. Check weather forecast for Bodrum
-3. Get restaurant recommendations in Bodrum
-4. Find hotel options in Bodrum
+2. Get event dates and details
+3. Identify event locations and venues
 
-Goal: "I'm researching small language models and need papers, methods, researchers, trends"
+Query: "I'm a junior investment analyst... planning a due-diligence trip to San Francisco..."
 Sub-goals:
-1. Find recent papers on small language models
-2. Understand key methods being used
-3. Identify top researchers in the field
-4. Analyze current research trends
+1. Find and book round-trip flights from Austin to San Francisco within budget
+2. Assess flight weather risk using TAFs for departure/arrival dates
+3. Verify startup's Bitcoin UTXO sat ranges and technical claims
+4. Check founders' academic credentials and publication records
+5. Analyze public partner company financials and valuation
+6. Set up WhatsApp group coordination for the trip team
 
-Now break down the user's goal.
+Now break down the user's query into sub-goals.
 
 Output format (strict JSON):
 {{
@@ -306,9 +441,9 @@ Output format (strict JSON):
             return self.sub_goals
 
         except Exception as e:
-            print(f"⚠️  Error decomposing goal: {e}")
-            # Fallback: create simple sub-goals from goal text
-            self.sub_goals = [f"Complete task: {self.goal}"]
+            print(f"⚠️  Error decomposing query: {e}")
+            # Fallback: create simple sub-goals from query
+            self.sub_goals = [f"Answer the query: {self.query}"]
             self.remaining = self.sub_goals.copy()
             return self.sub_goals
 
@@ -325,9 +460,9 @@ Output format (strict JSON):
                 "progress": 1.0
             }
 
-        prompt = f"""You are evaluating progress toward a user's goal.
+        prompt = f"""You are evaluating progress toward completing a user's query.
 
-USER GOAL: {self.goal}
+ORIGINAL QUERY: {self.query}
 
 REMAINING SUB-GOALS:
 {chr(10).join(f"{i+1}. {sg}" for i, sg in enumerate(self.remaining))}
@@ -409,14 +544,14 @@ Output format (strict JSON):
 # ============================================================================
 
 class GoalOrientedUser:
-    """Simulated user with hidden goal driving questions."""
+    """Simulated user tracking subgoal progress across turns."""
 
-    def __init__(self, llm, persona_name: str, goal: str, goal_tracker: GoalTracker):
+    def __init__(self, llm, persona_name: str, query: str, subgoal_tracker: SubgoalTracker):
         self.llm = llm
         self.persona_name = persona_name
         self.persona = USER_PERSONAS[persona_name]
-        self.goal = goal
-        self.goal_tracker = goal_tracker
+        self.query = query
+        self.subgoal_tracker = subgoal_tracker
 
     def _format_tool_usage(self, tool_calls: List[Dict] = None) -> str:
         """Format tool usage information for display."""
@@ -474,17 +609,17 @@ class GoalOrientedUser:
             for h in conversation_history[-3:]  # Last 3 turns
         ]) if conversation_history else "No previous turns"
 
-        prompt = f"""You are a simulated user with a HIDDEN GOAL evaluating an AI agent's response.
+        prompt = f"""You are a simulated user evaluating an AI agent's response and tracking progress on your query.
 
 **YOUR PERSONA:**
 - Name: {self.persona_name}
 - Description: {self.persona['description']}
 - Behavior: {self.persona['behavior']}
 
-**YOUR HIDDEN GOAL (agent doesn't know this):**
-{self.goal}
+**YOUR ORIGINAL QUERY:**
+{self.query}
 
-**GOAL PROGRESS:**
+**SUBGOAL PROGRESS:**
 {self._format_goal_progress(completed_sub_goals, remaining_sub_goals, goal_progress)}
 
 {f"Progress this turn: {progress_reasoning}" if progress_reasoning else ""}
@@ -508,10 +643,10 @@ Evaluate the agent's response and decide whether to CONTINUE or TERMINATE the co
 
 **EVALUATION CRITERIA:**
 
-1. **Goal Progress** (Most Important):
-   - Did this response move me closer to completing my goal?
-   - Which sub-goals (if any) did it help complete?
-   - Are there blocking issues preventing goal progress?
+1. **Subgoal Progress** (Most Important):
+   - Did this response help complete any remaining sub-goals?
+   - Which sub-goals (if any) were addressed?
+   - Are there blocking issues preventing progress?
 
 2. **Tool Usage**:
    - Did agent use external tools OR answer from internal knowledge?
@@ -520,23 +655,23 @@ Evaluate the agent's response and decide whether to CONTINUE or TERMINATE the co
 
 3. **Response Quality**:
    - Is information specific and actionable?
-   - Can I use this to make progress on my goal?
+   - Can I use this to make progress on my query?
    - Is it grounded in tool results?
 
 **SATISFACTION CALCULATION:**
 - Base satisfaction: Quality of response (0.0-1.0)
 - Tool usage penalty: No tools → -0.3 to -0.5
-- Goal progress bonus: Moved toward goal → +0.1 to +0.2
-- Goal progress penalty: No progress toward goal → -0.2 to -0.3
-- Goal completion bonus: All sub-goals done → +0.2
+- Subgoal progress bonus: Completed subgoals → +0.1 to +0.2
+- Subgoal progress penalty: No progress → -0.2 to -0.3
+- Query completion bonus: All sub-goals done → +0.2
 
 **PENALTY RULES:**
 - No tools used → satisfaction ≤ 0.4 (frustrated)
-- No goal progress despite tools → satisfaction ≤ 0.5 (somewhat frustrated)
-- Goal achieved → satisfaction ≥ 0.8 (satisfied)
+- No subgoal progress despite tools → satisfaction ≤ 0.5 (somewhat frustrated)
+- All subgoals achieved → satisfaction ≥ 0.8 (satisfied)
 
 **TERMINATION DECISION:**
-- If all sub-goals completed (progress = 100%) → TERMINATE with "goal_achieved"
+- If all sub-goals completed (progress = 100%) → TERMINATE with "subgoals_achieved"
 - If satisfaction >= {self.persona['satisfaction_threshold']} → TERMINATE with "satisfied"
 - If satisfaction <= {self.persona['frustration_threshold']} → TERMINATE with "frustrated"
 - If turn >= {self.persona['max_turns']} → TERMINATE with "max_turns"
@@ -544,9 +679,9 @@ Evaluate the agent's response and decide whether to CONTINUE or TERMINATE the co
 
 **FOLLOW-UP QUESTION (if continuing):**
 Your follow-up should work toward completing REMAINING sub-goals.
-- Pick a remaining sub-goal
-- Ask a question that helps agent discover tools needed for that sub-goal
-- Be natural and conversational (don't reveal your hidden goal)
+- Pick a remaining sub-goal that hasn't been addressed yet
+- Ask a natural question that helps the agent work on that sub-goal
+- Be conversational and build on what the agent has already provided
 
 **OUTPUT FORMAT (strict JSON):**
 {{
@@ -592,18 +727,18 @@ Evaluate the agent's response now."""
 # ============================================================================
 
 class GoalOrientedController:
-    """Orchestrates goal-oriented multi-turn conversations."""
+    """Orchestrates goal-oriented multi-turn conversations with subgoal tracking."""
 
     def __init__(
         self,
         agent: DynamicReActAgent,
         goal_oriented_user: GoalOrientedUser,
-        goal_tracker: GoalTracker,
+        subgoal_tracker: SubgoalTracker,
         max_turns: int
     ):
         self.agent = agent
         self.user = goal_oriented_user
-        self.goal_tracker = goal_tracker
+        self.subgoal_tracker = subgoal_tracker
         self.max_turns = max_turns
         self.turns: List[GoalTurn] = []
 
@@ -625,18 +760,18 @@ class GoalOrientedController:
         print("🎯 STARTING GOAL-ORIENTED CONVERSATION")
         print("="*70)
         print(f"Seed Query: {seed_query}")
-        print(f"Hidden Goal: {self.user.goal}")
+        print(f"Original Query: {self.user.query}")
         print(f"Persona: {self.user.persona_name}")
         print("="*70 + "\n")
 
         # Reset turns for new conversation
         self.turns = []
 
-        # Step 1: Decompose goal into sub-goals
-        print("📋 Decomposing goal into sub-goals...")
-        await self.goal_tracker.decompose_goal()
-        print(f"✓ Identified {len(self.goal_tracker.sub_goals)} sub-goals:")
-        for i, sg in enumerate(self.goal_tracker.sub_goals, 1):
+        # Step 1: Decompose query into sub-goals
+        print("📋 Decomposing query into sub-goals...")
+        await self.subgoal_tracker.decompose_query()
+        print(f"✓ Identified {len(self.subgoal_tracker.sub_goals)} sub-goals:")
+        for i, sg in enumerate(self.subgoal_tracker.sub_goals, 1):
             print(f"  {i}. {sg}")
         print()
 
@@ -693,9 +828,9 @@ class GoalOrientedController:
                 if entry.get("type") == "result"
             ]
 
-            # 3c. Evaluate goal progress
-            print("📊 Evaluating goal progress...")
-            progress_info = await self.goal_tracker.evaluate_progress(
+            # 3c. Evaluate subgoal progress
+            print("📊 Evaluating subgoal progress...")
+            progress_info = await self.subgoal_tracker.evaluate_progress(
                 agent_response, turn_tool_calls
             )
 
@@ -714,8 +849,8 @@ class GoalOrientedController:
                 conversation_history=self._format_history(),
                 current_turn=turn_num,
                 tool_calls=turn_tool_calls,
-                completed_sub_goals=self.goal_tracker.completed,
-                remaining_sub_goals=self.goal_tracker.remaining,
+                completed_sub_goals=self.subgoal_tracker.completed,
+                remaining_sub_goals=self.subgoal_tracker.remaining,
                 goal_progress=progress_info["progress"],
                 progress_reasoning=progress_info.get("reasoning", "")
             )
@@ -735,7 +870,7 @@ class GoalOrientedController:
                 available_servers=available_servers,
                 available_tool_count=available_tool_count,
                 completed_sub_goals=completed_this_turn,
-                remaining_sub_goals=self.goal_tracker.remaining.copy(),
+                remaining_sub_goals=self.subgoal_tracker.remaining.copy(),
                 goal_progress=progress_info["progress"],
                 user_decision=decision["decision"],
                 termination_reason=decision.get("termination_reason"),
@@ -762,7 +897,7 @@ class GoalOrientedController:
         print("📝 CONVERSATION SUMMARY")
         print("="*70)
         print(f"Total turns: {len(self.turns)}")
-        print(f"Goal completion: {self.goal_tracker.progress_percentage:.0%}")
+        print(f"Subgoal completion: {self.subgoal_tracker.progress_percentage:.0%}")
         print(f"Final satisfaction: {self.turns[-1].satisfaction_level:.2f}")
 
         dynamically_loaded = list(getattr(self.agent, 'dynamically_loaded_servers', set()))
@@ -771,10 +906,10 @@ class GoalOrientedController:
             conversation_id=f"goal_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
             seed_query=seed_query,
             user_persona=self.user.persona_name,
-            user_goal=self.user.goal,
-            sub_goals=self.goal_tracker.sub_goals,
-            goal_completion_rate=self.goal_tracker.progress_percentage,
-            goal_achieved=self.goal_tracker.is_complete,
+            user_goal=self.user.query,  # Store original query as "user_goal"
+            sub_goals=self.subgoal_tracker.sub_goals,
+            goal_completion_rate=self.subgoal_tracker.progress_percentage,
+            goal_achieved=self.subgoal_tracker.is_complete,
             turns=self.turns,
             total_turns=len(self.turns),
             final_decision=self.turns[-1].user_decision if self.turns else "NONE",
@@ -794,6 +929,91 @@ class GoalOrientedController:
 # Main Entry Point
 # ============================================================================
 
+async def run_single_conversation(
+    query_item: Dict,
+    query_index: int,
+    args,
+    all_server_configs: Dict,  # Not used but kept for compatibility
+    semaphore: asyncio.Semaphore
+) -> Dict:
+    """Run a single goal-oriented conversation with subprocess to avoid shared state issues."""
+    async with semaphore:
+        # Prepare temporary file for this query item
+        import tempfile
+        import os
+
+        temp_file = tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False, encoding='utf-8')
+        temp_data = {
+            "items": [query_item]
+        }
+        json.dump(temp_data, temp_file, ensure_ascii=False, indent=2)
+        temp_file.close()
+
+        try:
+            cmd = [
+                sys.executable,
+                str(PROJECT_ROOT / "runtime" / "run_goaloriented_agent.py"),
+                "--seeds", temp_file.name,
+                "--query-index", "0",
+                "--persona", args.persona,
+                "--model", args.model,
+                "--user-model", args.user_model,
+                "--max-iterations", str(args.max_iterations),
+            ]
+
+            if args.max_turns:
+                cmd.extend(["--max-turns", str(args.max_turns)])
+
+            if args.save_trajectory:
+                cmd.append("--save-trajectory")
+
+            if args.batch_id:
+                cmd.extend(["--batch-id", args.batch_id])
+
+            query_uuid = query_item.get("uuid", f"query_{query_index}")
+            print(f"[{query_index + 1}] Starting conversation for query {query_uuid}...")
+
+            process = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+
+            _, stderr = await process.communicate()
+
+            if process.returncode == 0:
+                print(f"[{query_index + 1}] ✓ Conversation {query_uuid} completed successfully")
+                return {
+                    "index": query_index + 1,
+                    "uuid": query_uuid,
+                    "status": "success"
+                }
+            else:
+                error_msg = stderr.decode() if stderr else "Unknown error"
+                print(f"[{query_index + 1}] ✗ Conversation {query_uuid} failed: {error_msg[:200]}")
+                return {
+                    "index": query_index + 1,
+                    "uuid": query_uuid,
+                    "status": "failed",
+                    "error": error_msg[:500]
+                }
+        except Exception as e:
+            query_uuid = query_item.get("uuid", f"query_{query_index}")
+            print(f"[{query_index + 1}] ✗ Conversation {query_uuid} failed with exception: {e}")
+            return {
+                "index": query_index + 1,
+                "uuid": query_uuid,
+                "status": "failed",
+                "error": str(e)
+            }
+        finally:
+            # Clean up temp file
+            try:
+                os.unlink(temp_file.name)
+            except:
+                pass
+
+
 async def main():
     parser = argparse.ArgumentParser(
         description="Run Goal-Oriented Multi-Turn Agent"
@@ -804,12 +1024,13 @@ async def main():
         help="Initial seed query"
     )
     parser.add_argument(
-        "--goal",
-        help="User's hidden goal (if not using --seeds)"
+        "--seeds",
+        help="JSON file with seed queries (multitool format without 'goal' field)"
     )
     parser.add_argument(
-        "--seeds",
-        help="JSON file with seed queries and goals"
+        "--query-index",
+        type=int,
+        help="Index of query to run from the JSON file (0-based, for single execution)"
     )
     parser.add_argument(
         "--persona",
@@ -836,7 +1057,7 @@ async def main():
     parser.add_argument(
         "--max-iterations",
         type=int,
-        default=10,
+        default=20,
         help="Max agent reasoning iterations per turn"
     )
     parser.add_argument(
@@ -844,21 +1065,38 @@ async def main():
         action="store_true",
         help="Save conversation trajectory to JSON"
     )
+    parser.add_argument(
+        "--max-concurrent",
+        type=int,
+        default=5,
+        help="Maximum number of concurrent conversations (default: 5)"
+    )
+    parser.add_argument(
+        "--batch-id",
+        help="Batch ID for grouping related trajectories together"
+    )
 
     args = parser.parse_args()
 
     # Load environment
     load_dotenv(str(ORCHESTRATOR_DIR / ".env"))
 
-    # Load queries and goals
+    # Load queries - now expecting multitool format (no 'goal' field)
     if args.seeds:
         with open(args.seeds) as f:
             data = json.load(f)
             items = data["items"]
-    elif args.query and args.goal:
-        items = [{"query": args.query, "goal": args.goal}]
+
+        # If query-index specified, run single conversation
+        if args.query_index is not None:
+            if args.query_index < 0 or args.query_index >= len(items):
+                parser.error(f"Query index {args.query_index} out of range (0-{len(items)-1})")
+            items = [items[args.query_index]]
+    elif args.query:
+        # Single query from command line (no goal needed - will be generated by user simulator)
+        items = [{"query": args.query}]
     else:
-        parser.error("Must provide either (query + goal) or --seeds file")
+        parser.error("Must provide either 'query' or --seeds file")
 
     print(f"\n🎯 Goal-Oriented Multi-Turn Agent")
     print(f"{'='*70}")
@@ -866,6 +1104,7 @@ async def main():
     print(f"User model: {args.user_model}")
     print(f"Persona: {args.persona}")
     print(f"Queries to run: {len(items)}")
+    print(f"Max concurrent: {args.max_concurrent}")
     print(f"{'='*70}\n")
 
     # Setup - load simple server list and convert to config format
@@ -880,20 +1119,22 @@ async def main():
         for server in server_list
     }
 
-    # Run each conversation
-    trajectories = []
-    results_summary = []
+    # Determine execution mode
+    if args.query_index is not None or len(items) == 1:
+        # Single conversation mode - run directly without subprocess
+        trajectories = []
+        results_summary = []
 
-    for query_idx, item in enumerate(items):
+        query_idx = 0
+        item = items[0]
         seed_query = item["query"]
-        user_goal = item["goal"]
 
         print(f"\n{'#'*70}")
-        print(f"CONVERSATION {query_idx + 1}/{len(items)}")
+        print(f"SINGLE CONVERSATION MODE")
         print(f"{'#'*70}\n")
 
         try:
-            # Create fresh components for each conversation
+            # Create fresh components for this conversation
             mcp_manager = MCPManager()
             model_manager = ModelManager()
 
@@ -909,7 +1150,14 @@ async def main():
             agent_llm = model_manager.build_model("openrouter", config={"model_name": args.model})
             user_llm = model_manager.build_model("openrouter", config={"model_name": args.user_model})
 
-            react_config = {"max_iterations": args.max_iterations}
+            # React config matching run_react_agent
+            react_config = {
+                "name": "goal-oriented-react-agent",
+                "instruction": AGENT_INSTRUCTION,
+                "max_iterations": args.max_iterations,
+                "summarize_tool_response": "auto",  # Enable smart summarization
+                "summarize_threshold": 100000,      # Summarize if response > 100k chars
+            }
 
             # Create fresh agent
             fresh_agent = DynamicReActAgent(
@@ -920,23 +1168,23 @@ async def main():
             )
             await fresh_agent.initialize(mcp_servers=[{"name": "meta-mcp"}])
 
-            # Create goal tracker
-            goal_tracker = GoalTracker(llm=user_llm, goal=user_goal)
+            # Create subgoal tracker (will decompose query into subgoals)
+            subgoal_tracker = SubgoalTracker(llm=user_llm, query=seed_query)
 
             # Create goal-oriented user
             max_turns = args.max_turns or USER_PERSONAS[args.persona]["max_turns"]
             goal_user = GoalOrientedUser(
                 llm=user_llm,
                 persona_name=args.persona,
-                goal=user_goal,
-                goal_tracker=goal_tracker
+                query=seed_query,
+                subgoal_tracker=subgoal_tracker
             )
 
             # Create controller
             controller = GoalOrientedController(
                 agent=fresh_agent,
                 goal_oriented_user=goal_user,
-                goal_tracker=goal_tracker,
+                subgoal_tracker=subgoal_tracker,
                 max_turns=max_turns
             )
 
@@ -962,7 +1210,6 @@ async def main():
             results_summary.append({
                 "query_index": query_idx,
                 "seed_query": seed_query,
-                "user_goal": user_goal,
                 "success": trajectory.goal_achieved or trajectory.final_satisfaction >= 0.7,
                 "total_turns": trajectory.total_turns,
                 "goal_completion_rate": trajectory.goal_completion_rate,
@@ -987,10 +1234,60 @@ async def main():
             results_summary.append({
                 "query_index": query_idx,
                 "seed_query": seed_query,
-                "user_goal": user_goal,
                 "success": False,
                 "error": str(e),
             })
+
+    else:
+        # Batch mode - run multiple conversations in parallel with subprocesses
+        print(f"\n{'#'*70}")
+        print(f"BATCH MODE - PARALLEL EXECUTION")
+        print(f"{'#'*70}\n")
+
+        import uuid as uuid_module
+        batch_id = args.batch_id or str(uuid_module.uuid4())[:8]
+
+        print(f"Batch ID: {batch_id}")
+        print(f"Total conversations: {len(items)}")
+        print(f"Max concurrent: {args.max_concurrent}\n")
+
+        # Create semaphore to limit concurrency
+        semaphore = asyncio.Semaphore(args.max_concurrent)
+
+        # Create tasks for all conversations
+        tasks = []
+        for idx, query_item in enumerate(items):
+            # Ensure each item has UUID
+            if "uuid" not in query_item:
+                query_item["uuid"] = str(uuid_module.uuid4())
+
+            task = run_single_conversation(
+                query_item=query_item,
+                query_index=idx,
+                args=args,
+                all_server_configs=all_server_configs,
+                semaphore=semaphore
+            )
+            tasks.append(task)
+
+        # Run all tasks in parallel
+        print(f"Starting {len(items)} conversations with max concurrency of {args.max_concurrent}...\n")
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        # Process results (handle any exceptions)
+        results_summary = []
+        for i, result in enumerate(results):
+            if isinstance(result, Exception):
+                results_summary.append({
+                    "index": i + 1,
+                    "uuid": items[i].get("uuid"),
+                    "status": "failed",
+                    "error": str(result)
+                })
+            else:
+                results_summary.append(result)
+
+        trajectories = []  # Trajectories are saved individually in subprocess mode
 
     # Print batch summary if multiple queries
     if len(items) > 1:

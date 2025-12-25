@@ -13,7 +13,8 @@ Usage:
     --out mcp_generate/requests/multitool_10_20.json \
     --num-queries 20 \
     --min-tools 10 \
-    --max-tools 20
+    --max-tools 20 \
+    --model openai/gpt-5.1
 """
 
 import json
@@ -75,25 +76,29 @@ IMPORTANT RULES:
 - Create a SINGLE coherent query, not multiple separate tasks
 - Each tool should have a clear purpose in achieving the overall goal
 - The query should be detailed enough that it's obvious which tools are needed
-- Include 2-3 specific constraints (budget, timeline, preferences, requirements)
+- Include at least 4 specific constraints (budget, timeline, preferences, requirements, quality standards, etc.)
 
 OUTPUT FORMAT (strict JSON):
 {
   "query": "Detailed user query that requires all the tools...",
   "constraints": [
     "constraint 1 (specific and measurable)",
-    "constraint 2",
-    "constraint 3 (optional)"
+    "constraint 2 (specific and measurable)",
+    "constraint 3 (specific and measurable)",
+    "constraint 4 (specific and measurable)",
+    ... (add as many constraints as make sense for a realistic, complex task - at least 4, but can be more)
   ],
   "tool_reasons": {
-    "tool_name_1": "One sentence explaining why this tool is needed",
-    "tool_name_2": "One sentence explaining why this tool is needed",
-    ... (provide a reason for EVERY tool)
+    "tool_name_1": "One sentence explaining why this specific tool is needed for this task",
+    "tool_name_2": "One sentence explaining why this specific tool is needed for this task",
+    ... (provide a detailed reason for EVERY tool - explain the specific value it adds)
   },
   "task_category": "research|investigation|planning|technical|market_analysis|other"
 }
 
-CRITICAL: The "tool_reasons" object MUST contain an entry for EVERY tool provided in the input. Do not skip any tools.
+CRITICAL:
+- The "constraints" array should contain at least 4 specific, measurable constraints, but can include more if the task naturally requires them. Don't artificially limit yourself.
+- The "tool_reasons" object MUST contain an entry for EVERY tool provided in the input. Each reason should be specific to how that tool contributes to solving the query - not generic phrases like "required for task". Explain what specific information or capability each tool provides.
 """
 
 
@@ -106,16 +111,25 @@ Generate ONE realistic, coherent user query that would require using ALL {tool_c
 Requirements:
 - The query should represent a genuine real-world task
 - ALL {tool_count} tools must work together toward a single unified goal
-- Include 2-3 specific real-world constraints
+- Include at least 4 specific real-world constraints (can be more if the task naturally requires them)
 - Make sure the query naturally requires EVERY tool listed above
 
 Return a JSON object with:
 - "query": The detailed user query
-- "constraints": List of 2-3 specific constraints
-- "tool_reasons": A JSON object mapping EACH tool name to why it's needed (MUST have {tool_count} entries)
+- "constraints": List of at least 4 specific, measurable constraints (more is fine)
+- "tool_reasons": A JSON object mapping EACH tool name to a SPECIFIC explanation of why it's needed and what value it provides (MUST have exactly {tool_count} entries)
 - "task_category": One of research|investigation|planning|technical|market_analysis|other
 
-CRITICAL: Your "tool_reasons" object MUST contain exactly {tool_count} entries - one for each tool listed above.
+CRITICAL:
+1. Your "tool_reasons" object MUST contain exactly {tool_count} entries - one for each tool listed above
+2. Each tool reason must be SPECIFIC - explain what information or capability that particular tool provides for THIS query
+3. DO NOT use generic phrases like "Required for completing the task" - be specific about each tool's role
+4. Example of GOOD tool_reasons:
+   - "stock_indicators_a": "Provides key financial metrics (P/E, revenue growth, debt ratios) for Chinese A-share companies to evaluate investment opportunities"
+   - "get_news_data": "Fetches recent news articles about selected stocks to assess sentiment and identify risks"
+5. Example of BAD tool_reasons (too generic):
+   - "stock_indicators_a": "Required for completing the task"
+   - "get_news_data": "Needed for the analysis"
 """
 
 
@@ -219,7 +233,7 @@ async def generate_multitool_query(
                         {"role": "user", "content": user_prompt},
                     ],
                     temperature=0.8,
-                    max_tokens=4000,  # Larger for more tools
+                    max_tokens=8000,  # Larger for more tools
                     response_format={"type": "json_object"},
                 )
 
