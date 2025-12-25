@@ -1,12 +1,12 @@
 """
-Fetch tool descriptions for new reachable servers.
+Fetch tool descriptions for new servers.
 
 Usage:
-    python mcp_data/fetch_new_tools.py          # Fetch all servers
-    python mcp_data/fetch_new_tools.py --retry  # Retry only failed servers
+    python MCP_INFO_MGR/mcp_data/fetch_new_tools.py          # Fetch all servers
+    python MCP_INFO_MGR/mcp_data/fetch_new_tools.py --retry  # Retry only failed servers
 
-This script reads the new_reachable_servers.ndjson file and fetches tool descriptions
-for each server, saving the results to new_tool_descriptions.ndjson.
+This script reads working/new_remote_servers.json (simple JSON array of server names)
+and fetches tool descriptions for each server via Smithery OAuth.
 
 With --retry flag, it will read the output file and retry only servers that failed.
 
@@ -133,7 +133,21 @@ async def fetch_tools_for_server(
     return result
 
 
-def load_servers(filepath: Path) -> list[dict]:
+def load_servers_from_json(filepath: Path) -> list[dict]:
+    """Load servers from simple JSON array of server names."""
+    with filepath.open('r', encoding='utf-8') as f:
+        server_names = json.load(f)
+    # Convert to list of dicts with qualifiedName and url
+    return [
+        {
+            "qualifiedName": name,
+            "url": f"https://server.smithery.ai/{name}"
+        }
+        for name in server_names
+    ]
+
+
+def load_servers_from_ndjson(filepath: Path) -> list[dict]:
     """Load servers from NDJSON file."""
     servers = []
     with filepath.open('r', encoding='utf-8') as f:
@@ -155,8 +169,8 @@ async def main():
     script_dir = Path(__file__).parent
 
     # Define file paths
-    input_file = script_dir / "usable" / "new_reachable_servers.ndjson"
-    output_file = script_dir / "raw" / "new_tool_descriptions.ndjson"
+    input_file = script_dir / "working" / "new_remote_servers.json"
+    output_file = script_dir / "working" / "new_tool_descriptions.ndjson"
 
     # Load environment variables
     load_dotenv(str(ORCHESTRATOR_DIR / ".env"))
@@ -175,7 +189,7 @@ async def main():
             return 1
 
         print(f"Loading previous results from {output_file}...")
-        previous_results = load_servers(output_file)
+        previous_results = load_servers_from_ndjson(output_file)
         print(f"Loaded {len(previous_results)} previous results")
 
         # Filter for failed servers
@@ -207,12 +221,11 @@ async def main():
         # Check input file
         if not input_file.exists():
             print(f"Error: Input file not found: {input_file}", file=sys.stderr)
-            print("Please run filter_new_servers.py first.", file=sys.stderr)
             return 1
 
-        # Load servers
+        # Load servers from simple JSON array
         print(f"Loading servers from {input_file}...")
-        servers = load_servers(input_file)
+        servers = load_servers_from_json(input_file)
         print(f"Loaded {len(servers)} servers")
 
         if len(servers) == 0:

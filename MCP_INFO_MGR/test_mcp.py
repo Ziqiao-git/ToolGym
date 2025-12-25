@@ -21,7 +21,7 @@ from mcp.client.streamable_http import streamablehttp_client  # type: ignore
 from mcpuniverse.mcp.oauth import create_smithery_auth  # type: ignore
 
 
-SERVER_URL = "https://server.smithery.ai/@aahl/mcp-aktools"
+SERVER_URL = "https://server.smithery.ai/@harn1shmodi/vsguard"
 
 
 async def main() -> None:
