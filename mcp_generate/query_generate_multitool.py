@@ -21,6 +21,7 @@ import argparse
 import os
 import asyncio
 import sys
+import re
 from typing import List, Dict, Any, Optional
 from tqdm import tqdm
 from pathlib import Path
@@ -60,7 +61,7 @@ The query should:
 1. **Be Realistic**: Represent a genuine real-world task someone would ask an AI assistant
 2. **Be Coherent**: All tools should work together toward a unified goal (not a random list of unrelated tasks)
 3. **Have Natural Flow**: Tools should be used in a logical sequence where outputs inform next steps
-4. **Include Constraints**: Add real-world constraints (time, budget, preferences) that make the task grounded
+4. **Embed Constraints IMPLICITLY**: Constraints should be woven naturally into the query text, NOT stated as explicit rules
 
 TASK CATEGORIES that naturally combine many tools:
 
@@ -79,22 +80,111 @@ TASK CATEGORIES that naturally combine many tools:
 **5. Market/Competitive Analysis**
 - "I'm evaluating [market/opportunity] and need financial data, news, research papers, social trends, and regulatory information."
 
+═══════════════════════════════════════════════════════════════════════════════
+CRITICAL: IMPLICIT CONSTRAINTS (embedded in natural language)
+═══════════════════════════════════════════════════════════════════════════════
+
+Constraints must be IMPLICIT in the query text—the agent should infer good behavior from context, not follow explicit rules.
+
+CONSTRAINT TYPES AND HOW TO EMBED THEM IMPLICITLY:
+
+1. **NO_REDUNDANCY** - Imply efficiency without saying "don't repeat"
+   ❌ EXPLICIT (bad): "Do not call the same tool twice with identical parameters"
+   ✅ IMPLICIT (good):
+      - "Work efficiently—each data fetch should add new information"
+      - "Use batch endpoints where available instead of multiple individual calls"
+      - "The report should be comprehensive but streamlined"
+      - "Reuse data you've already fetched (e.g., use the same ticker for news that you analyzed for financials)"
+
+2. **SERVER_DIVERSITY** - Imply cross-referencing without counting servers
+   ❌ EXPLICIT (bad): "Must use tools from at least 5 different servers"
+   ✅ IMPLICIT (good):
+      - "Cross-reference data from independent sources to catch blind spots"
+      - "Don't rely on a single provider—verify findings across platforms"
+      - "The analysis should triangulate information from multiple providers"
+
+3. **SEQUENCE_ORDER** - Imply logical flow without prescribing order
+   ❌ EXPLICIT (bad): "Search before fetching details"
+   ✅ IMPLICIT (good):
+      - "First discover what's available, then dive into the most relevant items"
+      - "Identify the top candidates from search results, then fetch their full details in one batch"
+      - "Check current permissions before making changes, then report what changed"
+      - "Gather all context before taking actions"
+
+4. **DATA_COVERAGE** - Imply breadth through task structure
+   ❌ EXPLICIT (bad): "Must analyze at least 3 companies"
+   ✅ IMPLICIT (good):
+      - "Compare AAPL, MSFT, and GOOGL side-by-side"
+      - "Analyze the top 3 players in this space"
+      - "Check conditions in at least a few major cities"
+
+5. **RESPONSE_CONTENT** - Imply deliverables naturally
+   ❌ EXPLICIT (bad): "Must provide at least 3 recommendations"
+   ✅ IMPLICIT (good):
+      - "End with actionable recommendations based on the data"
+      - "Include a recommendations section with concrete next steps"
+      - "Summarize findings in a comparison table"
+
+6. **TOOL_COUNT** - Imply efficiency without hard limits
+   ❌ EXPLICIT (bad): "Use no more than 20 tool calls"
+   ✅ IMPLICIT (good):
+      - "Be efficient—don't make unnecessary API calls"
+      - "The workflow should be comprehensive but not wasteful"
+
+7. **TOOL_TYPE_PRIORITY** - Imply preferences through task framing
+   ❌ EXPLICIT (bad): "Prioritize search tools before fetch tools"
+   ✅ IMPLICIT (good):
+      - "Start by discovering what resources exist, then retrieve the most relevant ones"
+      - "Prefer authoritative/official sources when available"
+
+═══════════════════════════════════════════════════════════════════════════════
+QUERY STRUCTURE GUIDELINES
+═══════════════════════════════════════════════════════════════════════════════
+
+The query should have this natural structure:
+
+1. **Context/Goal**: What the user is trying to accomplish
+2. **Efficiency Framing**: A sentence implying the agent should work smart
+   - Example: "This needs to pull data from many independent sources for credibility, but work efficiently—each call should add new information."
+3. **Deliverables**: What the output should contain (implies RESPONSE_CONTENT)
+4. **Workflow Sections**: Detailed requirements that imply SEQUENCE_ORDER
+   - Use phrases like "first... then...", "after gathering X, use it to...", "identify candidates, then fetch details"
+5. **Data Reuse Hints**: Suggest reusing fetched data (implies NO_REDUNDANCY)
+   - Example: "For the tickers you're already analyzing, also check their news"
+
+═══════════════════════════════════════════════════════════════════════════════
+FORBIDDEN PATTERNS
+═══════════════════════════════════════════════════════════════════════════════
+
+DO NOT include these explicit constraint phrasings in the query:
+- "Use at least N different servers/sources"
+- "Do not call the same tool twice"
+- "Must use no more than N tool calls"
+- "Each constraint must be..."
+- Any meta-language about constraints
+
+The query should read like a natural user request, not a test specification.
+
 IMPORTANT RULES:
 - Use EVERY tool provided in the input - do not skip any
 - Create a SINGLE coherent query, not multiple separate tasks
 - Each tool should have a clear purpose in achieving the overall goal
 - The query should be detailed enough that it's obvious which tools are needed
-- Include at least 4 specific constraints (budget, timeline, preferences, requirements, quality standards, etc.)
+- Constraints are embedded IMPLICITLY in the query text (the agent must infer them)
+- The "constraints" array captures what the evaluator should check, but these are NOT shown to the agent
 
 OUTPUT FORMAT (strict JSON):
 {
-  "query": "Detailed user query that requires all the tools...",
+  "query": "Detailed user query with IMPLICIT constraints woven into natural language...",
   "constraints": [
-    "constraint 1 (specific and measurable)",
-    "constraint 2 (specific and measurable)",
-    "constraint 3 (specific and measurable)",
-    "constraint 4 (specific and measurable)",
-    ... (add as many constraints as make sense for a realistic, complex task - at least 4, but can be more)
+    {
+      "type": "TOOL_COUNT|SERVER_DIVERSITY|SERVER_RESTRICTION|DATA_COVERAGE|RESPONSE_CONTENT|NO_REDUNDANCY|TOOL_TYPE_PRIORITY|SEQUENCE_ORDER",
+      "description": "What the evaluator checks (NOT shown to agent)",
+      "implicit_phrasing": "The natural language in the query that implies this constraint",
+      "verification": {
+        // Type-specific verification parameters
+      }
+    }
   ],
   "tool_reasons": {
     "tool_name_1": "One sentence explaining why this specific tool is needed for this task",
@@ -104,9 +194,40 @@ OUTPUT FORMAT (strict JSON):
   "task_category": "research|investigation|planning|technical|market_analysis|other"
 }
 
+CONSTRAINT VERIFICATION SCHEMAS:
+
+For TOOL_COUNT:
+  {"max_calls": 15} or {"min_calls": 5, "max_calls": 20}
+
+For SERVER_DIVERSITY:
+  {"min_servers": 5}
+
+For SERVER_RESTRICTION:
+  {"required_servers": ["@smithery-ai/national-weather-service"]} or
+  {"preferred_servers": ["@semantic-scholar", "@arxiv"], "min_preferred": 2}
+
+For DATA_COVERAGE:
+  {"min_entities": 5, "entity_type": "companies"} or
+  {"required_keywords": ["machine learning", "neural networks"]}
+
+For RESPONSE_CONTENT:
+  {"must_include": ["comparison", "recommendation"]} or
+  {"min_recommendations": 3}
+
+For NO_REDUNDANCY:
+  {"check_duplicate_calls": true}
+
+For TOOL_TYPE_PRIORITY:
+  {"preferred_types": ["search", "official"], "min_preferred_ratio": 0.5}
+
+For SEQUENCE_ORDER:
+  {"required_sequence": [["search", "fetch"], ["gather", "analyze"]]}
+
 CRITICAL:
-- The "constraints" array should contain at least 4 specific, measurable constraints, but can include more if the task naturally requires them. Don't artificially limit yourself.
-- The "tool_reasons" object MUST contain an entry for EVERY tool provided in the input. Each reason should be specific to how that tool contributes to solving the query - not generic phrases like "required for task". Explain what specific information or capability each tool provides.
+- Generate 3-6 constraints, ALL must be from the ALLOWED types
+- Each constraint MUST have "type", "description", "implicit_phrasing", and "verification"
+- The "implicit_phrasing" field shows WHERE in the query this constraint is implied
+- The "tool_reasons" object MUST contain an entry for EVERY tool provided in the input
 """
 
 
@@ -119,26 +240,264 @@ Generate ONE realistic, coherent user query that would require using ALL {tool_c
 Requirements:
 - The query should represent a genuine real-world task
 - ALL {tool_count} tools must work together toward a single unified goal
-- Include at least 4 specific real-world constraints (can be more if the task naturally requires them)
+- Constraints must be IMPLICIT in the query text (agent infers them, not reads them as rules)
 - Make sure the query naturally requires EVERY tool listed above
 
 Return a JSON object with:
-- "query": The detailed user query
-- "constraints": List of at least 4 specific, measurable constraints (more is fine)
-- "tool_reasons": A JSON object mapping EACH tool name to a SPECIFIC explanation of why it's needed and what value it provides (MUST have exactly {tool_count} entries)
+- "query": The detailed user query with IMPLICIT constraints woven into natural language
+- "constraints": Array of 3-6 constraint objects for the EVALUATOR (not shown to agent)
+- "tool_reasons": A JSON object mapping EACH tool name to a SPECIFIC explanation of why it's needed (MUST have exactly {tool_count} entries)
 - "task_category": One of research|investigation|planning|technical|market_analysis|other
+
+CONSTRAINT FORMAT EXAMPLE (with implicit_phrasing showing WHERE in query the constraint is implied):
+[
+  {{
+    "type": "SERVER_DIVERSITY",
+    "description": "Agent should use tools from multiple independent providers",
+    "implicit_phrasing": "Cross-reference data from independent sources to catch blind spots",
+    "verification": {{"min_servers": 5}}
+  }},
+  {{
+    "type": "NO_REDUNDANCY",
+    "description": "Agent should not make duplicate tool calls",
+    "implicit_phrasing": "Work efficiently—use batch endpoints where available instead of multiple individual calls",
+    "verification": {{"check_duplicate_calls": true}}
+  }},
+  {{
+    "type": "SEQUENCE_ORDER",
+    "description": "Agent should search before fetching details",
+    "implicit_phrasing": "First identify the top candidates from search results, then fetch their full details",
+    "verification": {{"required_sequence": [["search", "fetch"]]}}
+  }},
+  {{
+    "type": "RESPONSE_CONTENT",
+    "description": "Final response must include recommendations",
+    "implicit_phrasing": "End with actionable recommendations based on the data gathered",
+    "verification": {{"must_include": ["recommendation"], "min_recommendations": 3}}
+  }}
+]
 
 CRITICAL:
 1. Your "tool_reasons" object MUST contain exactly {tool_count} entries - one for each tool listed above
 2. Each tool reason must be SPECIFIC - explain what information or capability that particular tool provides for THIS query
-3. DO NOT use generic phrases like "Required for completing the task" - be specific about each tool's role
-4. Example of GOOD tool_reasons:
-   - "stock_indicators_a": "Provides key financial metrics (P/E, revenue growth, debt ratios) for Chinese A-share companies to evaluate investment opportunities"
-   - "get_news_data": "Fetches recent news articles about selected stocks to assess sentiment and identify risks"
-5. Example of BAD tool_reasons (too generic):
-   - "stock_indicators_a": "Required for completing the task"
-   - "get_news_data": "Needed for the analysis"
+3. Constraints must be IMPLIED in the query, NOT stated as explicit rules
+4. The "implicit_phrasing" field must quote or paraphrase the EXACT text in the query that implies the constraint
+5. DO NOT include explicit constraint language like "must use N servers" or "do not repeat calls"
 """
+
+
+async def _verify_constraints(
+    query: str,
+    constraints: List[Dict],
+    sampled_tools: List[Dict]
+) -> List[Dict]:
+    """
+    Verify and fix constraints using a second LLM pass.
+    Ensures:
+    1. Each constraint has implicit_phrasing field
+    2. Verification schemas use standard format
+    3. Duplicate constraint types are merged
+    4. Invalid constraints are removed
+    """
+    if not constraints:
+        return []
+
+    # Build context about available tools
+    servers = set(t["server"] for t in sampled_tools)
+    tool_names = [t["tool"] for t in sampled_tools]
+
+    verification_prompt = f"""You are a constraint validator and normalizer. Your job is to:
+1. Verify constraints are OBJECTIVELY VERIFIABLE
+2. Ensure each constraint has an "implicit_phrasing" field that quotes the query text
+3. Standardize verification schemas to the expected format
+4. Merge duplicate constraint types into single entries
+
+QUERY:
+{query}
+
+AVAILABLE TOOLS ({len(sampled_tools)} tools from {len(servers)} servers):
+Servers: {', '.join(list(servers)[:10])}{'...' if len(servers) > 10 else ''}
+
+CONSTRAINTS TO VERIFY AND NORMALIZE:
+{json.dumps(constraints, indent=2)}
+
+═══════════════════════════════════════════════════════════════════════════════
+REQUIRED OUTPUT FORMAT FOR EACH CONSTRAINT:
+═══════════════════════════════════════════════════════════════════════════════
+
+Each constraint MUST have exactly these 4 fields:
+{{
+  "type": "CONSTRAINT_TYPE",
+  "description": "What the evaluator checks",
+  "implicit_phrasing": "The EXACT text from the query that implies this constraint",
+  "verification": {{ /* standard schema */ }}
+}}
+
+═══════════════════════════════════════════════════════════════════════════════
+STANDARD VERIFICATION SCHEMAS (use these exact formats):
+═══════════════════════════════════════════════════════════════════════════════
+
+TOOL_COUNT:
+  {{"max_calls": 25}} or {{"min_calls": 10, "max_calls": 30}}
+
+SERVER_DIVERSITY:
+  {{"min_servers": 5}}
+
+NO_REDUNDANCY:
+  {{"check_duplicate_calls": true}}
+
+SEQUENCE_ORDER:
+  {{"required_sequence": [["search", "fetch"], ["list", "get"]]}}
+
+DATA_COVERAGE:
+  {{"min_entities": 3, "entity_type": "companies"}}
+
+RESPONSE_CONTENT:
+  {{"must_include": ["recommendation", "comparison"], "min_recommendations": 5}}
+
+═══════════════════════════════════════════════════════════════════════════════
+YOUR TASKS:
+═══════════════════════════════════════════════════════════════════════════════
+
+1. For each constraint, find the text in the QUERY that implies it and put in "implicit_phrasing"
+2. Convert complex verification schemas to the standard simple format above
+3. If multiple constraints have the same type, MERGE them into one
+4. REMOVE constraints that cannot be verified (time-based, budget-based, subjective)
+5. Ensure 3-6 total constraints in output
+
+OUTPUT FORMAT (strict JSON):
+{{
+  "verified_constraints": [
+    {{
+      "type": "SERVER_DIVERSITY",
+      "description": "Agent should use tools from multiple independent providers",
+      "implicit_phrasing": "cross-referencing across different platforms builds credibility",
+      "verification": {{"min_servers": 10}}
+    }},
+    {{
+      "type": "NO_REDUNDANCY",
+      "description": "Agent should not make duplicate tool calls",
+      "implicit_phrasing": "Work efficiently—each API call should fetch new, unique information",
+      "verification": {{"check_duplicate_calls": true}}
+    }}
+    // ... more constraints
+  ],
+  "removed": [
+    {{"original": "...", "reason": "..."}}
+  ],
+  "merges": [
+    "Merged 2 RESPONSE_CONTENT constraints into one"
+  ]
+}}
+
+Verify and normalize the constraints now."""
+
+    try:
+        resp = await CLIENT.chat.completions.create(
+            model=MODEL_NAME,
+            messages=[
+                {"role": "system", "content": "You are a constraint validator and normalizer. Output valid JSON only."},
+                {"role": "user", "content": verification_prompt},
+            ],
+            temperature=0.3,
+            max_tokens=6000,
+            response_format={"type": "json_object"},
+        )
+
+        text = resp.choices[0].message.content
+        if not text or not text.strip():
+            print("  ⚠️ Verifier returned empty response, keeping original constraints")
+            return constraints
+
+        result = json.loads(text.strip())
+        verified = result.get("verified_constraints", [])
+        removed = result.get("removed", [])
+        merges = result.get("merges", [])
+
+        if removed:
+            print(f"  🔍 Verifier removed {len(removed)} invalid constraints:")
+            for r in removed[:3]:
+                print(f"     - {r.get('original', 'unknown')[:50]}... ({r.get('reason', 'invalid')})")
+
+        if merges:
+            print(f"  🔗 Verifier merged constraints: {len(merges)} merges")
+            for m in merges[:2]:
+                print(f"     - {m[:60]}...")
+
+        # Final validation: ensure all constraints have required fields
+        valid_constraints = []
+        for c in verified:
+            if all(k in c for k in ["type", "description", "implicit_phrasing", "verification"]):
+                valid_constraints.append(c)
+            else:
+                missing = [k for k in ["type", "description", "implicit_phrasing", "verification"] if k not in c]
+                print(f"  ⚠️ Constraint missing fields {missing}, skipping: {c.get('type', 'unknown')}")
+
+        print(f"  ✓ Final constraint count: {len(valid_constraints)}")
+        return valid_constraints
+
+    except Exception as e:
+        print(f"  ⚠️ Constraint verification failed: {e}, keeping original")
+        return constraints
+
+
+def _infer_constraint_type(constraint_str: str) -> Optional[Dict]:
+    """
+    Try to infer a structured constraint from a plain string.
+    Returns None if the constraint is unverifiable.
+    """
+    constraint_lower = constraint_str.lower()
+
+    # Tool count patterns
+    if any(p in constraint_lower for p in ["tool call", "tool usage", "fewer than", "at most", "no more than"]):
+        # Try to extract number
+        match = re.search(r'(\d+)\s*(tool|call)', constraint_lower)
+        if match:
+            return {
+                "type": "TOOL_COUNT",
+                "description": constraint_str,
+                "verification": {"max_calls": int(match.group(1))}
+            }
+
+    # Server diversity patterns
+    if any(p in constraint_lower for p in ["different server", "multiple source", "independent source", "cross-reference"]):
+        match = re.search(r'(\d+)\s*(different|server|source)', constraint_lower)
+        min_servers = int(match.group(1)) if match else 3
+        return {
+            "type": "SERVER_DIVERSITY",
+            "description": constraint_str,
+            "verification": {"min_servers": min_servers}
+        }
+
+    # Data coverage patterns
+    if any(p in constraint_lower for p in ["at least", "cover", "analyze", "compare"]) and \
+       any(p in constraint_lower for p in ["compan", "stock", "cit", "keyword", "topic"]):
+        match = re.search(r'(\d+)', constraint_lower)
+        min_entities = int(match.group(1)) if match else 3
+        return {
+            "type": "DATA_COVERAGE",
+            "description": constraint_str,
+            "verification": {"min_entities": min_entities, "entity_type": "items"}
+        }
+
+    # Response content patterns
+    if any(p in constraint_lower for p in ["must include", "should contain", "provide", "recommendation"]):
+        return {
+            "type": "RESPONSE_CONTENT",
+            "description": constraint_str,
+            "verification": {"must_include": ["recommendation"]}
+        }
+
+    # No redundancy patterns
+    if any(p in constraint_lower for p in ["redundan", "duplicate", "same tool twice"]):
+        return {
+            "type": "NO_REDUNDANCY",
+            "description": constraint_str,
+            "verification": {"check_duplicate_calls": True}
+        }
+
+    # Cannot infer - likely unverifiable (time, budget, quality, etc.)
+    return None
 
 
 def sample_diverse_tools(
@@ -457,9 +816,50 @@ async def generate_multitool_query(
                 data["complexity"] = data.get("complexity", "high")
                 data["task_category"] = data.get("task_category", "other")
 
-                # Ensure constraints exists
-                if "constraints" not in data:
+                # Validate and normalize constraints
+                raw_constraints = data.get("constraints", [])
+                validated_constraints = []
+
+                VALID_CONSTRAINT_TYPES = {
+                    "TOOL_COUNT", "SERVER_DIVERSITY", "SERVER_RESTRICTION",
+                    "DATA_COVERAGE", "RESPONSE_CONTENT", "NO_REDUNDANCY",
+                    "TOOL_TYPE_PRIORITY", "SEQUENCE_ORDER"
+                }
+
+                for c in raw_constraints:
+                    if isinstance(c, dict):
+                        # New structured format
+                        if c.get("type") in VALID_CONSTRAINT_TYPES:
+                            validated_constraints.append({
+                                "type": c["type"],
+                                "description": c.get("description", ""),
+                                "verification": c.get("verification", {})
+                            })
+                        else:
+                            # Unknown type - skip with warning
+                            print(f"  ⚠️ Skipping invalid constraint type: {c.get('type')}")
+                    elif isinstance(c, str):
+                        # Old string format - try to infer type (backwards compat)
+                        inferred = _infer_constraint_type(c)
+                        if inferred:
+                            validated_constraints.append(inferred)
+                        else:
+                            print(f"  ⚠️ Skipping unverifiable constraint: {c[:50]}...")
+
+                # Run verification pass to double-check constraints
+                if validated_constraints:
+                    print(f"  🔍 Running constraint verifier...")
+                    verified_constraints = await _verify_constraints(
+                        query=data["query"],
+                        constraints=validated_constraints,
+                        sampled_tools=sampled_tools
+                    )
+                    data["constraints"] = verified_constraints
+                else:
                     data["constraints"] = []
+
+                if len(data["constraints"]) < 3:
+                    print(f"  ⚠️ Only {len(data['constraints'])} valid constraints after verification (expected 3-6)")
 
                 return data
 
