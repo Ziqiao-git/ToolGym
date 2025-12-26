@@ -261,7 +261,6 @@ class GoalTurn:
     goal_progress: float  # 0.0-1.0 overall progress
 
     # Constraint tracking (NEW)
-    constraints_satisfied: List[str]  # Constraints satisfied in this turn
     constraints_violated: List[str]  # Constraints violated in this turn
     constraint_satisfaction_rate: float  # 0.0-1.0 constraint satisfaction rate
 
@@ -285,7 +284,6 @@ class GoalTurn:
             "completed_sub_goals": self.completed_sub_goals,
             "remaining_sub_goals": self.remaining_sub_goals,
             "goal_progress": self.goal_progress,
-            "constraints_satisfied": self.constraints_satisfied,
             "constraints_violated": self.constraints_violated,
             "constraint_satisfaction_rate": self.constraint_satisfaction_rate,
             "user_decision": self.user_decision,
@@ -413,8 +411,7 @@ class SubgoalTracker:
         self.sub_goals: List[str] = []
         self.completed: List[str] = []
         self.remaining: List[str] = []
-        self.satisfied_constraints: List[str] = []
-        self.violated_constraints: List[str] = []
+        self.violated_constraints: List[str] = []  # Track cumulative violations
 
     async def decompose_query(self) -> List[str]:
         """Use LLM to break user query into 3-6 measurable sub-goals."""
@@ -481,13 +478,12 @@ Output format (strict JSON):
         agent_response: str,
         tool_calls: List[Dict]
     ) -> Dict:
-        """Evaluate which sub-goals were addressed and constraints satisfied in current turn."""
+        """Evaluate which sub-goals were addressed and which constraints were violated in current turn."""
         if not self.remaining and not self.constraints:
             return {
                 "completed_this_turn": [],
                 "remaining": [],
                 "progress": 1.0,
-                "constraints_satisfied": [],
                 "constraints_violated": [],
                 "constraint_satisfaction_rate": 1.0
             }
@@ -495,11 +491,11 @@ Output format (strict JSON):
         constraint_section = ""
         if self.constraints:
             constraint_section = f"""
-CONSTRAINTS TO CHECK:
+CONSTRAINTS TO CHECK (numbered list):
 {chr(10).join(f"{i+1}. {c}" for i, c in enumerate(self.constraints))}
 """
 
-        prompt = f"""You are evaluating progress toward completing a user's query and checking constraint satisfaction.
+        prompt = f"""You are evaluating progress toward completing a user's query and checking for constraint violations.
 
 ORIGINAL QUERY: {self.query}
 
@@ -514,33 +510,35 @@ TOOLS USED:
 
 Your task:
 1. Determine which (if any) of the REMAINING sub-goals were COMPLETED by this agent response.
-2. Evaluate which constraints were SATISFIED or VIOLATED based on the agent's actions and response.
+2. Identify which constraints (if any) were VIOLATED by the agent's actions or response.
 
 A sub-goal is COMPLETED if:
 - Agent provided specific, actionable information addressing it
 - Information came from tool usage (not agent's internal knowledge)
 - User could reasonably act on this information
 
-A constraint is SATISFIED if:
-- The agent's response and actions respect the constraint
-- The constraint's requirements are met or will be met by the proposed solution
+A constraint is VIOLATED if and ONLY if:
+- The agent's response or actions ACTIVELY break or contradict the constraint
+- The agent explicitly ignored a constraint that was relevant to this turn
+- The proposed solution explicitly cannot meet the constraint's requirements
 
-A constraint is VIOLATED if:
-- The agent's response or actions clearly break the constraint
-- The proposed solution cannot meet the constraint's requirements
+**IMPORTANT**: A constraint is NOT violated if:
+- The constraint is simply not applicable or relevant to this turn's content
+- The agent hasn't addressed the constraint yet (but hasn't violated it either)
+- The agent's response is neutral with respect to the constraint
 
-**CRITICAL**: When returning constraint texts, you MUST copy the EXACT text from the "CONSTRAINTS TO CHECK" list above.
-- Do NOT add prefixes like "major constraint:" or "important:"
-- Do NOT paraphrase or summarize
-- Do NOT abbreviate
-- Copy and paste the complete constraint text character-for-character
+**Example**: If a constraint is "use Python 3.10+", it's only violated if the agent explicitly suggested Python 2.7 or an incompatible version. If the turn doesn't involve Python version discussion at all, it's NOT violated.
+
+**CRITICAL**: When returning constraint violations, you MUST use the CONSTRAINT NUMBER from the "CONSTRAINTS TO CHECK" list above.
+- Return constraint numbers as integers (e.g., 1, 2, 3)
+- Do NOT return the full constraint text (to avoid string matching issues)
+- Only return numbers for constraints that were ACTIVELY VIOLATED (not just "not yet addressed")
 
 Output format (strict JSON):
 {{
   "completed_this_turn": ["exact sub-goal text from REMAINING SUB-GOALS list", "..."],
-  "constraints_satisfied": ["exact constraint text from CONSTRAINTS TO CHECK list", "..."],
-  "constraints_violated": ["exact constraint text from CONSTRAINTS TO CHECK list", "..."],
-  "reasoning": "Brief explanation of what was completed and constraint evaluation"
+  "constraints_violated_indices": [1, 3, 5],  // Array of constraint numbers (1-indexed) that were violated, or empty array []
+  "reasoning": "Brief explanation of what was completed and which constraints (if any) were violated"
 }}"""
 
         try:
@@ -555,25 +553,27 @@ Output format (strict JSON):
                     self.remaining.remove(sg)
                     self.completed.append(sg)
 
-            # Track constraints (only count constraints that are in the original list)
-            satisfied_this_turn = data.get("constraints_satisfied", [])
-            violated_this_turn = data.get("constraints_violated", [])
+            # Track constraint violations using indices (robust approach)
+            violated_indices = data.get("constraints_violated_indices", [])
+            violated_this_turn = []
 
-            for c in satisfied_this_turn:
-                # Only track if it's in the original constraints list
-                if c in self.constraints and c not in self.satisfied_constraints:
-                    self.satisfied_constraints.append(c)
-
-            for c in violated_this_turn:
-                # Only track if it's in the original constraints list
-                if c in self.constraints and c not in self.violated_constraints:
-                    self.violated_constraints.append(c)
+            for idx in violated_indices:
+                # Convert 1-indexed to 0-indexed
+                constraint_idx = idx - 1
+                if 0 <= constraint_idx < len(self.constraints):
+                    constraint_text = self.constraints[constraint_idx]
+                    violated_this_turn.append(constraint_text)
+                    # Track cumulative violations (avoid duplicates)
+                    if constraint_text not in self.violated_constraints:
+                        self.violated_constraints.append(constraint_text)
 
             # Calculate constraint satisfaction rate
+            # Rate = 1 - (number of violated constraints / total constraints)
             total_constraints = len(self.constraints)
             if total_constraints > 0:
-                # Ensure rate never exceeds 1.0
-                constraint_rate = min(1.0, len(self.satisfied_constraints) / total_constraints)
+                constraint_rate = 1.0 - (len(self.violated_constraints) / total_constraints)
+                # Ensure rate is between 0.0 and 1.0
+                constraint_rate = max(0.0, min(1.0, constraint_rate))
             else:
                 constraint_rate = 1.0
 
@@ -581,7 +581,6 @@ Output format (strict JSON):
                 "completed_this_turn": completed_this_turn,
                 "remaining": self.remaining.copy(),
                 "progress": self.progress_percentage,
-                "constraints_satisfied": satisfied_this_turn,
                 "constraints_violated": violated_this_turn,
                 "constraint_satisfaction_rate": constraint_rate,
                 "reasoning": data.get("reasoning", "")
@@ -593,9 +592,8 @@ Output format (strict JSON):
                 "completed_this_turn": [],
                 "remaining": self.remaining.copy(),
                 "progress": self.progress_percentage,
-                "constraints_satisfied": [],
                 "constraints_violated": [],
-                "constraint_satisfaction_rate": 0.0,
+                "constraint_satisfaction_rate": 1.0,  # Default to fully satisfied on error
                 "reasoning": ""
             }
 
@@ -751,7 +749,6 @@ Generate the bonus question now."""
         completed_sub_goals: List[str],
         remaining_sub_goals: List[str],
         goal_progress: float,
-        constraints_satisfied: List[str],
         constraints_violated: List[str],
         constraint_satisfaction_rate: float,
         progress_reasoning: str = ""
@@ -772,14 +769,14 @@ Generate the bonus question now."""
 **CONSTRAINT SATISFACTION:**
 Overall constraint satisfaction rate: {constraint_satisfaction_rate:.0%}
 
-Satisfied constraints this turn:
-{chr(10).join(f"  ✅ {c}" for c in constraints_satisfied) if constraints_satisfied else "  (none this turn)"}
-
 Violated constraints this turn:
 {chr(10).join(f"  ❌ {c}" for c in constraints_violated) if constraints_violated else "  (none this turn)"}
 
+All cumulative violations so far:
+{chr(10).join(f"  ❌ {c}" for c in self.subgoal_tracker.violated_constraints) if self.subgoal_tracker.violated_constraints else "  (no violations so far)"}
+
 All constraints:
-{chr(10).join(f"  • {c}" for c in self.subgoal_tracker.constraints)}
+{chr(10).join(f"  {i+1}. {c}" for i, c in enumerate(self.subgoal_tracker.constraints))}
 """
 
         prompt = f"""You are a simulated user evaluating an AI agent's response and tracking progress on your query.
@@ -1093,16 +1090,16 @@ class GoalOrientedController:
             print(f"📈 Overall progress: {progress_info['progress']:.0%}")
 
             # Print constraint info
-            constraints_satisfied = progress_info.get("constraints_satisfied", [])
             constraints_violated = progress_info.get("constraints_violated", [])
             constraint_rate = progress_info.get("constraint_satisfaction_rate", 1.0)
 
             if self.subgoal_tracker.constraints:
                 print(f"🔒 Constraint satisfaction: {constraint_rate:.0%}")
-                if constraints_satisfied:
-                    print(f"  ✅ Satisfied: {', '.join(constraints_satisfied[:2])}{'...' if len(constraints_satisfied) > 2 else ''}")
                 if constraints_violated:
-                    print(f"  ❌ Violated: {', '.join(constraints_violated[:2])}{'...' if len(constraints_violated) > 2 else ''}")
+                    print(f"  ❌ Violated this turn: {', '.join(constraints_violated[:2])}{'...' if len(constraints_violated) > 2 else ''}")
+                else:
+                    print(f"  ✅ No violations this turn")
+                print(f"  📊 Cumulative violations: {len(self.subgoal_tracker.violated_constraints)}/{len(self.subgoal_tracker.constraints)}")
             print()
 
             # 3d. User evaluates and decides
@@ -1116,7 +1113,6 @@ class GoalOrientedController:
                 completed_sub_goals=self.subgoal_tracker.completed,
                 remaining_sub_goals=self.subgoal_tracker.remaining,
                 goal_progress=progress_info["progress"],
-                constraints_satisfied=constraints_satisfied,
                 constraints_violated=constraints_violated,
                 constraint_satisfaction_rate=constraint_rate,
                 progress_reasoning=progress_info.get("reasoning", "")
@@ -1138,7 +1134,6 @@ class GoalOrientedController:
                 completed_sub_goals=completed_this_turn,
                 remaining_sub_goals=self.subgoal_tracker.remaining.copy(),
                 goal_progress=progress_info["progress"],
-                constraints_satisfied=constraints_satisfied,
                 constraints_violated=constraints_violated,
                 constraint_satisfaction_rate=constraint_rate,
                 user_decision=decision["decision"],
@@ -1176,7 +1171,6 @@ class GoalOrientedController:
                     self.subgoal_tracker.sub_goals = []
                     self.subgoal_tracker.completed = []
                     self.subgoal_tracker.remaining = []
-                    self.subgoal_tracker.satisfied_constraints = []
                     self.subgoal_tracker.violated_constraints = []
 
                     # Decompose bonus question into subgoals
@@ -1224,9 +1218,10 @@ class GoalOrientedController:
         dynamically_loaded = list(getattr(self.agent, 'dynamically_loaded_servers', set()))
 
         # Calculate overall constraint satisfaction
+        # Rate = 1 - (cumulative violations / total constraints)
         total_constraints = len(self.subgoal_tracker.constraints)
         if total_constraints > 0:
-            overall_constraint_rate = len(self.subgoal_tracker.satisfied_constraints) / total_constraints
+            overall_constraint_rate = 1.0 - (len(self.subgoal_tracker.violated_constraints) / total_constraints)
         else:
             overall_constraint_rate = 1.0
 
