@@ -643,7 +643,7 @@ Output format (strict JSON):
         responses_summary = ""
         if all_responses:
             responses_summary = "\n".join([
-                f"Turn {r['turn']}: {r['response'][:200]}{'...' if len(r['response']) > 200 else ''}"
+                f"Turn {r['turn']}: {r['response']}"
                 for r in all_responses[:10]  # Show first 10 turns
             ])
             if len(all_responses) > 10:
@@ -675,7 +675,7 @@ TOOL TYPE CLASSIFICATION:
 {tool_type_info}
 
 LATEST AGENT RESPONSE:
-{final_response[:1000]}{'...' if len(final_response) > 1000 else ''}
+{final_response}
 
 ALL AGENT RESPONSES (for entity/data coverage checks):
 {responses_summary if responses_summary else "No responses yet"}
