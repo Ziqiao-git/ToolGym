@@ -18,14 +18,16 @@ Usage:
 
     # Single query from JSON file by index
     python runtime/run_goaloriented_agent.py \
-        --seeds mcp_generate/requests/multitool_10_20.json \
+        --seeds mcp_generate/requests/multitool_50_100.json \
         --query-index 0 \
+        --model google/gemini-3-pro-preview \
+        --user-model google/gemini-3-pro-preview \
         --persona curious_researcher \
         --save-trajectory
 
     # Batch mode - parallel execution of multiple queries
     python runtime/run_goaloriented_agent.py \
-        --seeds mcp_generate/requests/multitool_10_20.json \
+        --seeds mcp_generate/requests/multitool_50_100.json \
         --persona curious_researcher \
         --model google/gemini-3-pro-preview \
         --user-model google/gemini-3-pro-preview \
@@ -308,7 +310,7 @@ class GoalTrajectory:
     goal_achieved: bool
 
     # Constraint tracking (NEW)
-    constraints: List[str]
+    constraints: List[Dict]  # Store full constraint objects with description and verification
     overall_constraint_satisfaction_rate: float
 
     turns: List[GoalTurn]
@@ -404,14 +406,26 @@ def _load_first_json_obj(text: str):
 class SubgoalTracker:
     """Tracks sub-goal completion throughout conversation. Decomposes query into subgoals."""
 
-    def __init__(self, llm, query: str, constraints: List[str] = None):
+    def __init__(self, llm, query: str, constraints: List[Dict] = None):
+        """
+        Args:
+            llm: Language model for evaluation
+            query: User query to decompose
+            constraints: List of constraint dicts with format:
+                {
+                    "type": str,
+                    "description": str,
+                    "implicit_phrasing": str,
+                    "verification": dict
+                }
+        """
         self.llm = llm
         self.query = query
-        self.constraints = constraints or []
+        self.constraints = constraints or []  # Now stores full constraint objects
         self.sub_goals: List[str] = []
         self.completed: List[str] = []
         self.remaining: List[str] = []
-        self.violated_constraints: List[str] = []  # Track cumulative violations
+        self.violated_constraints: List[str] = []  # Track cumulative violations (description text)
 
     async def decompose_query(self) -> List[str]:
         """Use LLM to break user query into 3-6 measurable sub-goals."""
@@ -478,30 +492,22 @@ Output format (strict JSON):
         agent_response: str,
         tool_calls: List[Dict]
     ) -> Dict:
-        """Evaluate which sub-goals were addressed and which constraints were violated in current turn."""
-        if not self.remaining and not self.constraints:
+        """Evaluate which sub-goals were addressed in current turn (constraint checking is separate)."""
+        if not self.remaining:
             return {
                 "completed_this_turn": [],
                 "remaining": [],
                 "progress": 1.0,
-                "constraints_violated": [],
-                "constraint_satisfaction_rate": 1.0
+                "reasoning": "All sub-goals completed"
             }
 
-        constraint_section = ""
-        if self.constraints:
-            constraint_section = f"""
-CONSTRAINTS TO CHECK (numbered list):
-{chr(10).join(f"{i+1}. {c}" for i, c in enumerate(self.constraints))}
-"""
-
-        prompt = f"""You are evaluating progress toward completing a user's query and checking for constraint violations.
+        prompt = f"""You are evaluating progress toward completing a user's query.
 
 ORIGINAL QUERY: {self.query}
 
 REMAINING SUB-GOALS:
 {chr(10).join(f"{i+1}. {sg}" for i, sg in enumerate(self.remaining)) if self.remaining else "(All sub-goals completed)"}
-{constraint_section}
+
 AGENT'S RESPONSE THIS TURN:
 {agent_response}
 
@@ -509,36 +515,17 @@ TOOLS USED:
 {chr(10).join(f"- {tc.get('server', 'unknown')}/{tc.get('tool', 'unknown')}" for tc in tool_calls) if tool_calls else "No tools used"}
 
 Your task:
-1. Determine which (if any) of the REMAINING sub-goals were COMPLETED by this agent response.
-2. Identify which constraints (if any) were VIOLATED by the agent's actions or response.
+Determine which (if any) of the REMAINING sub-goals were COMPLETED by this agent response.
 
 A sub-goal is COMPLETED if:
 - Agent provided specific, actionable information addressing it
 - Information came from tool usage (not agent's internal knowledge)
 - User could reasonably act on this information
 
-A constraint is VIOLATED if and ONLY if:
-- The agent's response or actions ACTIVELY break or contradict the constraint
-- The agent explicitly ignored a constraint that was relevant to this turn
-- The proposed solution explicitly cannot meet the constraint's requirements
-
-**IMPORTANT**: A constraint is NOT violated if:
-- The constraint is simply not applicable or relevant to this turn's content
-- The agent hasn't addressed the constraint yet (but hasn't violated it either)
-- The agent's response is neutral with respect to the constraint
-
-**Example**: If a constraint is "use Python 3.10+", it's only violated if the agent explicitly suggested Python 2.7 or an incompatible version. If the turn doesn't involve Python version discussion at all, it's NOT violated.
-
-**CRITICAL**: When returning constraint violations, you MUST use the CONSTRAINT NUMBER from the "CONSTRAINTS TO CHECK" list above.
-- Return constraint numbers as integers (e.g., 1, 2, 3)
-- Do NOT return the full constraint text (to avoid string matching issues)
-- Only return numbers for constraints that were ACTIVELY VIOLATED (not just "not yet addressed")
-
 Output format (strict JSON):
 {{
   "completed_this_turn": ["exact sub-goal text from REMAINING SUB-GOALS list", "..."],
-  "constraints_violated_indices": [1, 3, 5],  // Array of constraint numbers (1-indexed) that were violated, or empty array []
-  "reasoning": "Brief explanation of what was completed and which constraints (if any) were violated"
+  "reasoning": "Brief explanation of what was completed this turn"
 }}"""
 
         try:
@@ -553,36 +540,10 @@ Output format (strict JSON):
                     self.remaining.remove(sg)
                     self.completed.append(sg)
 
-            # Track constraint violations using indices (robust approach)
-            violated_indices = data.get("constraints_violated_indices", [])
-            violated_this_turn = []
-
-            for idx in violated_indices:
-                # Convert 1-indexed to 0-indexed
-                constraint_idx = idx - 1
-                if 0 <= constraint_idx < len(self.constraints):
-                    constraint_text = self.constraints[constraint_idx]
-                    violated_this_turn.append(constraint_text)
-                    # Track cumulative violations (avoid duplicates)
-                    if constraint_text not in self.violated_constraints:
-                        self.violated_constraints.append(constraint_text)
-
-            # Calculate constraint satisfaction rate
-            # Rate = 1 - (number of violated constraints / total constraints)
-            total_constraints = len(self.constraints)
-            if total_constraints > 0:
-                constraint_rate = 1.0 - (len(self.violated_constraints) / total_constraints)
-                # Ensure rate is between 0.0 and 1.0
-                constraint_rate = max(0.0, min(1.0, constraint_rate))
-            else:
-                constraint_rate = 1.0
-
             return {
                 "completed_this_turn": completed_this_turn,
                 "remaining": self.remaining.copy(),
                 "progress": self.progress_percentage,
-                "constraints_violated": violated_this_turn,
-                "constraint_satisfaction_rate": constraint_rate,
                 "reasoning": data.get("reasoning", "")
             }
 
@@ -592,9 +553,233 @@ Output format (strict JSON):
                 "completed_this_turn": [],
                 "remaining": self.remaining.copy(),
                 "progress": self.progress_percentage,
-                "constraints_violated": [],
-                "constraint_satisfaction_rate": 1.0,  # Default to fully satisfied on error
                 "reasoning": ""
+            }
+
+    async def evaluate_constraints(
+        self,
+        all_turns_data: List[Dict]
+    ) -> Dict:
+        """
+        Evaluate constraint violations based on ALL conversation turns so far (cumulative check).
+
+        Called after each turn to check constraints against the complete history up to current turn.
+
+        Args:
+            all_turns_data: List of dicts containing:
+                - turn_number: int
+                - query: str
+                - agent_response: str
+                - tool_calls: List[Dict] with server, tool, arguments
+
+        Returns:
+            Dict with:
+                - constraints_violated: List[str] (description texts)
+                - constraint_satisfaction_rate: float (0.0-1.0)
+                - reasoning: str
+        """
+        if not self.constraints:
+            return {
+                "constraints_violated": [],
+                "constraint_satisfaction_rate": 1.0,
+                "reasoning": "No constraints to check"
+            }
+
+        # Aggregate data from all turns
+        all_tool_calls = []
+        all_servers_used = set()
+        all_responses = []  # For DATA_COVERAGE constraint checking
+        final_response = ""
+
+        for turn in all_turns_data:
+            tool_calls = turn.get("tool_calls", [])
+            all_tool_calls.extend(tool_calls)
+            for tc in tool_calls:
+                server = tc.get("server", "")
+                if server:
+                    all_servers_used.add(server)
+
+            # Collect all agent responses for entity extraction (DATA_COVERAGE)
+            response = turn.get("agent_response", "")
+            if response:
+                all_responses.append({
+                    "turn": turn.get("turn_number", "?"),
+                    "response": response
+                })
+                final_response = response  # Keep track of the latest response
+
+        # Format constraints with description and verification criteria
+        constraint_lines = []
+        for i, c in enumerate(self.constraints):
+            desc = c.get("description", "")
+            ctype = c.get("type", "")
+            verification = c.get("verification", {})
+            verification_str = ", ".join(f"{k}={v}" for k, v in verification.items())
+            constraint_lines.append(f"{i+1}. Type: {ctype}\n   Description: {desc}\n   Verification: {verification_str}")
+
+        # Format tool call summary and classify tool types
+        tool_summary = []
+        server_tool_counts = {}
+        search_like_tools = []  # For TOOL_TYPE_PRIORITY
+        fetch_like_tools = []   # For TOOL_TYPE_PRIORITY
+
+        for tc in all_tool_calls:
+            server = tc.get("server", "unknown")
+            tool = tc.get("tool", "unknown")
+            key = f"{server}/{tool}"
+            server_tool_counts[key] = server_tool_counts.get(key, 0) + 1
+
+            # Classify tools by type (for TOOL_TYPE_PRIORITY constraint)
+            tool_lower = tool.lower()
+            if any(keyword in tool_lower for keyword in ["search", "list", "query", "find", "browse"]):
+                search_like_tools.append(key)
+            elif any(keyword in tool_lower for keyword in ["get", "fetch", "read", "retrieve", "detail"]):
+                fetch_like_tools.append(key)
+
+        for key, count in server_tool_counts.items():
+            tool_summary.append(f"- {key} (called {count} time{'s' if count > 1 else ''})")
+
+        # Format all responses summary (for DATA_COVERAGE)
+        responses_summary = ""
+        if all_responses:
+            responses_summary = "\n".join([
+                f"Turn {r['turn']}: {r['response'][:200]}{'...' if len(r['response']) > 200 else ''}"
+                for r in all_responses[:10]  # Show first 10 turns
+            ])
+            if len(all_responses) > 10:
+                responses_summary += f"\n... ({len(all_responses) - 10} more turns truncated)"
+
+        # Format tool type classification (for TOOL_TYPE_PRIORITY)
+        tool_type_info = f"""
+- Search-like tools used: {len(set(search_like_tools))} unique ({len(search_like_tools)} total calls)
+  Examples: {', '.join(list(set(search_like_tools))[:5]) if search_like_tools else 'none'}
+- Fetch-like tools used: {len(set(fetch_like_tools))} unique ({len(fetch_like_tools)} total calls)
+  Examples: {', '.join(list(set(fetch_like_tools))[:5]) if fetch_like_tools else 'none'}"""
+
+        prompt = f"""You are evaluating whether the agent violated any constraints based on the conversation SO FAR.
+
+ORIGINAL QUERY: {self.query}
+
+CONSTRAINTS TO CHECK (with verification criteria):
+{chr(10).join(constraint_lines)}
+
+CONVERSATION SUMMARY (up to current turn):
+- Total turns so far: {len(all_turns_data)}
+- Total tool calls so far: {len(all_tool_calls)}
+- Unique servers used so far: {len(all_servers_used)} ({', '.join(sorted(all_servers_used)) if all_servers_used else 'none'})
+
+TOOL USAGE ACROSS ALL TURNS SO FAR:
+{chr(10).join(tool_summary) if tool_summary else "No tools used"}
+
+TOOL TYPE CLASSIFICATION:
+{tool_type_info}
+
+LATEST AGENT RESPONSE:
+{final_response[:1000]}{'...' if len(final_response) > 1000 else ''}
+
+ALL AGENT RESPONSES (for entity/data coverage checks):
+{responses_summary if responses_summary else "No responses yet"}
+
+ALL TOOL CALLS (in chronological order):
+{chr(10).join(f"Turn {tc.get('turn', '?')}: {tc.get('server', 'unknown')}/{tc.get('tool', 'unknown')}" for tc in all_tool_calls[:50])}
+{'... (more tool calls truncated)' if len(all_tool_calls) > 50 else ''}
+
+Your task:
+Evaluate which constraints (if any) were VIOLATED by looking at ALL turns up to now (cumulative evaluation).
+
+Use the verification criteria to make objective judgments:
+
+1. **SERVER_DIVERSITY** (e.g., min_servers=5):
+   - Check if "Unique servers used so far" >= the min_servers value
+   - Count distinct server names from the conversation summary
+
+2. **NO_REDUNDANCY** (e.g., check_duplicate_calls=true):
+   - Look at "ALL TOOL CALLS (in chronological order)"
+   - Check if the same tool from the same server was called multiple times with identical arguments
+   - Identical (server/tool/args) combinations = violation
+
+3. **SEQUENCE_ORDER** (e.g., search_before_fetch=true):
+   - Check "ALL TOOL CALLS (in chronological order)" for temporal sequence
+   - Verify search/list operations happened BEFORE corresponding fetch/get operations
+   - Look at turn numbers to confirm order
+
+4. **DATA_COVERAGE** (e.g., min_entities=3):
+   - Read "ALL AGENT RESPONSES" to extract mentioned entities (companies, cities, products, etc.)
+   - Count DISTINCT entities across all responses
+   - Check if distinct count >= min_entities value
+
+5. **RESPONSE_CONTENT** (e.g., required_sections=["recommendations", "summary"]):
+   - Check "LATEST AGENT RESPONSE" for required elements
+   - Look for specific sections, tables, or content types mentioned in verification criteria
+
+6. **TOOL_COUNT** (e.g., max_calls=20):
+   - Check "Total tool calls so far" against max_calls limit
+   - Violation if total calls > max_calls
+
+7. **TOOL_TYPE_PRIORITY** (e.g., prefer_search_over_fetch=true):
+   - Use "TOOL TYPE CLASSIFICATION" data
+   - Check if search-like tools were used more or earlier than fetch-like tools
+   - Check chronological order in "ALL TOOL CALLS"
+
+A constraint is VIOLATED if:
+- The verification criteria are NOT met based on the conversation data
+- The agent's behavior explicitly contradicts the constraint description
+
+A constraint is NOT violated if:
+- The verification criteria ARE met
+- The constraint is not applicable to this conversation
+- There's insufficient information to verify
+
+**CRITICAL**: Return constraint numbers (1-indexed) for constraints that were VIOLATED.
+- Only return numbers for constraints with clear, objective violations
+- If verification criteria are met, do NOT return that constraint number
+
+Output format (strict JSON):
+{{
+  "constraints_violated_indices": [1, 3],  // Array of constraint numbers (1-indexed) that were violated, or empty array []
+  "reasoning": "For each violated constraint, explain WHY it was violated based on the verification criteria and conversation data"
+}}"""
+
+        try:
+            messages = [{"role": "user", "content": prompt}]
+            response = await self.llm.generate_async(messages)
+
+            data = _load_first_json_obj(response)
+            violated_indices = data.get("constraints_violated_indices", [])
+            violated_constraints = []
+
+            for idx in violated_indices:
+                # Convert 1-indexed to 0-indexed
+                constraint_idx = idx - 1
+                if 0 <= constraint_idx < len(self.constraints):
+                    constraint_obj = self.constraints[constraint_idx]
+                    constraint_text = constraint_obj.get("description", "")
+                    if constraint_text:
+                        violated_constraints.append(constraint_text)
+
+            # Update cumulative violations
+            self.violated_constraints = violated_constraints
+
+            # Calculate constraint satisfaction rate
+            total_constraints = len(self.constraints)
+            if total_constraints > 0:
+                constraint_rate = 1.0 - (len(self.violated_constraints) / total_constraints)
+                constraint_rate = max(0.0, min(1.0, constraint_rate))
+            else:
+                constraint_rate = 1.0
+
+            return {
+                "constraints_violated": violated_constraints,
+                "constraint_satisfaction_rate": constraint_rate,
+                "reasoning": data.get("reasoning", "")
+            }
+
+        except Exception as e:
+            print(f"⚠️  Error evaluating constraints: {e}")
+            return {
+                "constraints_violated": [],
+                "constraint_satisfaction_rate": 1.0,
+                "reasoning": f"Error during evaluation: {e}"
             }
 
     def mark_completed(self, sub_goal: str):
@@ -749,11 +934,11 @@ Generate the bonus question now."""
         completed_sub_goals: List[str],
         remaining_sub_goals: List[str],
         goal_progress: float,
-        constraints_violated: List[str],
-        constraint_satisfaction_rate: float,
+        constraints_violated: List[str],  # Cumulative violations up to this turn
+        constraint_satisfaction_rate: float,  # Cumulative satisfaction rate
         progress_reasoning: str = ""
     ) -> Dict:
-        """Evaluate response and decide next action with goal and constraint awareness."""
+        """Evaluate response and decide next action with goal awareness and cumulative constraint checking."""
 
         # Format conversation history
         history_text = "\n\n".join([
@@ -761,22 +946,21 @@ Generate the bonus question now."""
             for h in conversation_history[-3:]  # Last 3 turns
         ]) if conversation_history else "No previous turns"
 
-        # Format constraint information
+        # Format constraint violations
         constraint_info = ""
-        if self.subgoal_tracker.constraints:
+        if constraints_violated:
             constraint_info = f"""
+**CONSTRAINT VIOLATIONS (cumulative up to this turn):**
+❌ {len(constraints_violated)} constraint(s) violated so far:
+{chr(10).join(f"  {i+1}. {cv[:80]}{'...' if len(cv) > 80 else ''}" for i, cv in enumerate(constraints_violated))}
 
-**CONSTRAINT SATISFACTION:**
-Overall constraint satisfaction rate: {constraint_satisfaction_rate:.0%}
-
-Violated constraints this turn:
-{chr(10).join(f"  ❌ {c}" for c in constraints_violated) if constraints_violated else "  (none this turn)"}
-
-All cumulative violations so far:
-{chr(10).join(f"  ❌ {c}" for c in self.subgoal_tracker.violated_constraints) if self.subgoal_tracker.violated_constraints else "  (no violations so far)"}
-
-All constraints:
-{chr(10).join(f"  {i+1}. {c}" for i, c in enumerate(self.subgoal_tracker.constraints))}
+Constraint Satisfaction Rate: {constraint_satisfaction_rate:.0%}
+"""
+        else:
+            constraint_info = f"""
+**CONSTRAINT STATUS (cumulative up to this turn):**
+✅ No constraint violations so far
+Constraint Satisfaction Rate: {constraint_satisfaction_rate:.0%}
 """
 
         prompt = f"""You are a simulated user evaluating an AI agent's response and tracking progress on your query.
@@ -793,7 +977,9 @@ All constraints:
 {self._format_goal_progress(completed_sub_goals, remaining_sub_goals, goal_progress)}
 
 {f"Progress this turn: {progress_reasoning}" if progress_reasoning else ""}
+
 {constraint_info}
+
 **CONVERSATION SO FAR:**
 {history_text}
 
@@ -818,10 +1004,10 @@ Evaluate the agent's response and decide whether to CONTINUE or TERMINATE the co
    - Which sub-goals (if any) were addressed?
    - Are there blocking issues preventing progress?
 
-2. **Constraint Satisfaction** (Critical):
-   - Did the agent respect the constraints?
-   - Are any constraints violated?
-   - Constraint violations should SIGNIFICANTLY reduce satisfaction
+2. **Constraint Satisfaction** (Important):
+   - Are there any constraint violations so far?
+   - Is the constraint satisfaction rate acceptable (>= 0.7)?
+   - Are violations preventing me from achieving my goals?
 
 3. **Tool Usage**:
    - Did agent use external tools OR answer from internal knowledge?
@@ -839,30 +1025,54 @@ Evaluate the agent's response and decide whether to CONTINUE or TERMINATE the co
 - Subgoal progress bonus: Completed subgoals → +0.1 to +0.2
 - Subgoal progress penalty: No progress → -0.2 to -0.3
 - Query completion bonus: All sub-goals done → +0.2
-- Constraint violation penalty: Each violation → -0.2 to -0.4
-- Constraint satisfaction bonus: High satisfaction rate → +0.1 to +0.2
+- Constraint violation penalty: Each violation → -0.1 to -0.2
 
 **PENALTY RULES:**
 - No tools used → satisfaction ≤ 0.4 (frustrated)
 - No subgoal progress despite tools → satisfaction ≤ 0.5 (somewhat frustrated)
-- All subgoals achieved → satisfaction ≥ 0.8 (satisfied)
-- Major constraint violations → satisfaction ≤ 0.3 (very frustrated)
+- Constraint satisfaction < 0.7 → satisfaction ≤ 0.6 (concerned)
+- All subgoals achieved AND no major constraint violations → satisfaction ≥ 0.8 (satisfied)
 
 **TERMINATION DECISION:**
-- If all sub-goals completed (progress = 100%) AND constraint_satisfaction_rate >= 0.7 → TERMINATE with "subgoals_achieved"
+- If all sub-goals completed (progress = 100%) AND constraint_satisfaction >= 0.8 → TERMINATE with "goal_achieved"
 - If satisfaction >= {self.persona['satisfaction_threshold']} → TERMINATE with "satisfied"
 - If satisfaction <= {self.persona['frustration_threshold']} → TERMINATE with "frustrated"
 - If turn >= {self.persona['max_turns']} → TERMINATE with "max_turns"
 - Otherwise → CONTINUE with follow-up question
 
 **FOLLOW-UP QUESTION (if continuing):**
-Your follow-up should work toward completing ALL REMAINING sub-goals while respecting constraints.
-- Address ALL remaining sub-goals in your follow-up question (not just one)
-- Make it clear which sub-goals still need to be addressed
-- If constraints were violated, remind the agent about them
-- Ask a natural question that helps the agent work on all remaining sub-goals
-- Be conversational and build on what the agent has already provided
-- If there are multiple remaining sub-goals, you can ask the agent to address them all in one question
+Your follow-up should work toward completing ALL REMAINING sub-goals and getting a COMPLETE answer to the original query.
+
+CRITICAL RULES for follow-up questions:
+1. **Address ALL remaining sub-goals** - not just one or two
+2. **Be explicit about what's still needed** - reference the remaining sub-goals directly
+3. **Build on what's already been provided** - acknowledge completed parts
+4. **Guide toward completeness** - make it clear you want a comprehensive answer
+
+Examples of GOOD follow-up questions:
+
+Example 1 (Multiple remaining sub-goals):
+Remaining: ["Get event dates", "Identify venues", "Check ticket prices"]
+GOOD: "Thanks for finding the events! Now I need the complete details - what are the dates for each event, where are the venues, and what are the ticket prices?"
+BAD: "What are the dates?" (only addresses one sub-goal)
+
+Example 2 (Building on progress):
+Remaining: ["Verify academic credentials", "Analyze partner financials"]
+GOOD: "Great work on the Bitcoin verification! Now to complete my due diligence, I still need to verify the founders' academic credentials and analyze the partner companies' financials. Can you help with both?"
+BAD: "Can you check their credentials?" (vague, doesn't mention financials)
+
+Example 3 (Single remaining sub-goal):
+Remaining: ["Set up WhatsApp group"]
+GOOD: "Perfect! I have all the information I need. The last step is to set up the WhatsApp group for the trip team. Can you help me with that?"
+BAD: "What about WhatsApp?" (unclear what's needed)
+
+**Your follow-up should:**
+- Explicitly list what's still missing (reference specific sub-goals)
+- Ask for ALL remaining information in one question
+- Make it clear this is needed to fully answer the original query
+- Be natural and conversational, not robotic
+
+Note: Constraints are checked cumulatively after each turn based on ALL conversation history.
 
 **OUTPUT FORMAT (strict JSON):**
 {{
@@ -1076,8 +1286,8 @@ class GoalOrientedController:
                 entry for entry in self.agent.reasoning_trace
             ]
 
-            # 3c. Evaluate subgoal progress and constraint satisfaction
-            print("📊 Evaluating subgoal progress and constraints...")
+            # 3c. Evaluate subgoal progress
+            print("📊 Evaluating subgoal progress...")
             progress_info = await self.subgoal_tracker.evaluate_progress(
                 agent_response, turn_tool_calls
             )
@@ -1088,21 +1298,41 @@ class GoalOrientedController:
             else:
                 print("⏳ No sub-goals completed this turn")
             print(f"📈 Overall progress: {progress_info['progress']:.0%}")
-
-            # Print constraint info
-            constraints_violated = progress_info.get("constraints_violated", [])
-            constraint_rate = progress_info.get("constraint_satisfaction_rate", 1.0)
-
-            if self.subgoal_tracker.constraints:
-                print(f"🔒 Constraint satisfaction: {constraint_rate:.0%}")
-                if constraints_violated:
-                    print(f"  ❌ Violated this turn: {', '.join(constraints_violated[:2])}{'...' if len(constraints_violated) > 2 else ''}")
-                else:
-                    print(f"  ✅ No violations this turn")
-                print(f"  📊 Cumulative violations: {len(self.subgoal_tracker.violated_constraints)}/{len(self.subgoal_tracker.constraints)}")
             print()
 
-            # 3d. User evaluates and decides
+            # 3d. Evaluate constraints (cumulative - based on all turns so far)
+            print("🔒 Evaluating constraints (cumulative check)...")
+            # Prepare data for all turns including the current one
+            all_turns_data_so_far = []
+            for prev_turn in self.turns:
+                all_turns_data_so_far.append({
+                    "turn_number": prev_turn.turn_number,
+                    "query": prev_turn.query,
+                    "agent_response": prev_turn.agent_response,
+                    "tool_calls": prev_turn.tool_calls
+                })
+            # Add current turn data
+            all_turns_data_so_far.append({
+                "turn_number": turn_num,
+                "query": current_query,
+                "agent_response": agent_response,
+                "tool_calls": turn_tool_calls
+            })
+
+            constraint_info = await self.subgoal_tracker.evaluate_constraints(all_turns_data_so_far)
+            constraints_violated = constraint_info["constraints_violated"]
+            constraint_satisfaction_rate = constraint_info["constraint_satisfaction_rate"]
+
+            if constraints_violated:
+                print(f"❌ Constraints violated so far: {len(constraints_violated)}")
+                for i, c in enumerate(constraints_violated, 1):
+                    print(f"  {i}. {c[:80]}{'...' if len(c) > 80 else ''}")
+            else:
+                print("✅ No constraint violations so far")
+            print(f"📊 Constraint satisfaction rate: {constraint_satisfaction_rate:.0%}")
+            print()
+
+            # 3e. User evaluates and decides
             print("👤 User evaluating response...")
             decision = await self.user.evaluate_and_decide(
                 query=current_query,
@@ -1114,7 +1344,7 @@ class GoalOrientedController:
                 remaining_sub_goals=self.subgoal_tracker.remaining,
                 goal_progress=progress_info["progress"],
                 constraints_violated=constraints_violated,
-                constraint_satisfaction_rate=constraint_rate,
+                constraint_satisfaction_rate=constraint_satisfaction_rate,
                 progress_reasoning=progress_info.get("reasoning", "")
             )
 
@@ -1122,7 +1352,7 @@ class GoalOrientedController:
             print(f"👤 Decision: {decision['decision']}")
             print(f"👤 Reasoning: {decision['reasoning']}\n")
 
-            # 3e. Create GoalTurn record
+            # 3f. Create GoalTurn record with cumulative constraint results
             turn = GoalTurn(
                 turn_number=turn_num,
                 query=current_query,
@@ -1134,8 +1364,8 @@ class GoalOrientedController:
                 completed_sub_goals=completed_this_turn,
                 remaining_sub_goals=self.subgoal_tracker.remaining.copy(),
                 goal_progress=progress_info["progress"],
-                constraints_violated=constraints_violated,
-                constraint_satisfaction_rate=constraint_rate,
+                constraints_violated=constraints_violated,  # Cumulative violations up to this turn
+                constraint_satisfaction_rate=constraint_satisfaction_rate,  # Cumulative rate
                 user_decision=decision["decision"],
                 termination_reason=decision.get("termination_reason"),
                 satisfaction_level=decision["satisfaction_level"],
@@ -1144,7 +1374,7 @@ class GoalOrientedController:
             )
             self.turns.append(turn)
 
-            # 3f. Check if goals are achieved and generate bonus question
+            # 3g. Check if goals are achieved and generate bonus question
             if (progress_info["progress"] >= 1.0 and
                 not self.bonus_question_generated and
                 decision["decision"] == "TERMINATE"):
@@ -1164,10 +1394,21 @@ class GoalOrientedController:
                     self.bonus_question_generated = True
                     current_query = bonus_question
 
+                    # Convert bonus constraints (simple strings) to constraint objects
+                    # for consistency with main query format
+                    bonus_constraint_objs = []
+                    for c_text in bonus_constraints:
+                        bonus_constraint_objs.append({
+                            "type": "BONUS_CONSTRAINT",
+                            "description": c_text,
+                            "implicit_phrasing": c_text,
+                            "verification": {}
+                        })
+
                     # Reset subgoal tracker with new query and constraints
                     print("\n📋 Decomposing bonus question into sub-goals...")
                     self.subgoal_tracker.query = bonus_question
-                    self.subgoal_tracker.constraints = bonus_constraints
+                    self.subgoal_tracker.constraints = bonus_constraint_objs
                     self.subgoal_tracker.sub_goals = []
                     self.subgoal_tracker.completed = []
                     self.subgoal_tracker.remaining = []
@@ -1178,10 +1419,10 @@ class GoalOrientedController:
                     print(f"✓ Identified {len(self.subgoal_tracker.sub_goals)} sub-goals for bonus question:")
                     for i, sg in enumerate(self.subgoal_tracker.sub_goals, 1):
                         print(f"  {i}. {sg}")
-                    if bonus_constraints:
+                    if bonus_constraint_objs:
                         print(f"✓ Bonus question constraints:")
-                        for i, c in enumerate(bonus_constraints, 1):
-                            print(f"  {i}. {c}")
+                        for i, c in enumerate(bonus_constraint_objs, 1):
+                            print(f"  {i}. {c.get('description', '')}")
                     print()
 
                     # Update user's query to bonus question
@@ -1195,35 +1436,32 @@ class GoalOrientedController:
                     print(f"🛑 Conversation terminated: {reason}")
                     break
 
-            # 3g. Check termination
+            # 3h. Check termination
             if decision["decision"] == "TERMINATE":
                 reason = decision.get("termination_reason", "unknown")
                 print(f"🛑 Conversation terminated: {reason}")
                 break
 
-            # 3h. Update for next turn
+            # 3i. Update for next turn
             current_query = decision.get("follow_up_query", "")
             if not current_query:
                 print("⚠️  No follow-up query provided, terminating")
                 break
 
-        # Step 4: Build final trajectory
+        # Step 4: Build final trajectory (constraint checking already done per-turn)
         print("\n" + "="*70)
         print("📝 CONVERSATION SUMMARY")
         print("="*70)
         print(f"Total turns: {len(self.turns)}")
         print(f"Subgoal completion: {self.subgoal_tracker.progress_percentage:.0%}")
-        print(f"Final satisfaction: {self.turns[-1].satisfaction_level:.2f}")
+
+        # Get final constraint satisfaction rate from last turn
+        final_constraint_rate = self.turns[-1].constraint_satisfaction_rate if self.turns else 1.0
+
+        print(f"Final satisfaction: {self.turns[-1].satisfaction_level:.2f}" if self.turns else "Final satisfaction: 0.00")
+        print(f"Constraint satisfaction: {final_constraint_rate:.0%}")
 
         dynamically_loaded = list(getattr(self.agent, 'dynamically_loaded_servers', set()))
-
-        # Calculate overall constraint satisfaction
-        # Rate = 1 - (cumulative violations / total constraints)
-        total_constraints = len(self.subgoal_tracker.constraints)
-        if total_constraints > 0:
-            overall_constraint_rate = 1.0 - (len(self.subgoal_tracker.violated_constraints) / total_constraints)
-        else:
-            overall_constraint_rate = 1.0
 
         trajectory = GoalTrajectory(
             conversation_id=f"goal_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
@@ -1234,7 +1472,7 @@ class GoalOrientedController:
             goal_completion_rate=self.subgoal_tracker.progress_percentage,
             goal_achieved=self.subgoal_tracker.is_complete,
             constraints=self.subgoal_tracker.constraints,
-            overall_constraint_satisfaction_rate=overall_constraint_rate,
+            overall_constraint_satisfaction_rate=final_constraint_rate,
             turns=self.turns,
             total_turns=len(self.turns),
             final_decision=self.turns[-1].user_decision if self.turns else "NONE",
@@ -1453,14 +1691,20 @@ async def main():
         query_idx = 0
         item = items[0]
         seed_query = item["query"]
-        constraints = item.get("constraints", [])  # Extract constraints from query item
+
+        # Extract constraints from query item - keep as objects with description and verification
+        constraints = item.get("constraints", [])
 
         print(f"\n{'#'*70}")
         print(f"SINGLE CONVERSATION MODE")
         print(f"{'#'*70}\n")
 
         if constraints:
-            print(f"📋 Query has {len(constraints)} constraints")
+            print(f"📋 Query has {len(constraints)} constraints:")
+            for i, c in enumerate(constraints, 1):
+                desc = c.get("description", "")
+                ctype = c.get("type", "")
+                print(f"  {i}. [{ctype}] {desc[:80]}{'...' if len(desc) > 80 else ''}")
 
         try:
             # Create fresh components for this conversation

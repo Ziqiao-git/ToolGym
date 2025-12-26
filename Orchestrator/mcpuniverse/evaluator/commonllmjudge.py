@@ -111,12 +111,18 @@ def load_prompts(prompt_path: str) -> List[Dict[str, Any]]:
           "uuid": "...",
           "query": "...",
           "reference_tools": [{"server":"...", "tool":"...", "why":"..."}],
-          "hard_constraints": [{"type": "...", "description": "..."}],
-          "soft_constraints": [{"type": "...", "description": "..."}]
+          "constraints": [{"type": "...", "description": "...", "implicit_phrasing": "...", "verification": {...}}]
         },
         ...
       ]
     }
+
+    Note: The new constraint format uses a single "constraints" field instead of separate
+    "hard_constraints" and "soft_constraints". Each constraint now includes:
+    - type: Constraint type (e.g., TOOL_COUNT, SERVER_DIVERSITY, etc.)
+    - description: What the evaluator checks
+    - implicit_phrasing: The natural language in the query that implies this constraint
+    - verification: Type-specific verification parameters
     """
     with open(prompt_path, "r", encoding="utf-8") as f:
         data = json.load(f)
@@ -129,8 +135,15 @@ def load_prompts(prompt_path: str) -> List[Dict[str, Any]]:
         query_uuid = (it or {}).get("uuid")  # Extract UUID for tracking
         q = (it or {}).get("query", "")
         ref = (it or {}).get("reference_tools", [])
-        hard_constraints = (it or {}).get("hard_constraints", [])
-        soft_constraints = (it or {}).get("soft_constraints", [])
+
+        # Support new unified "constraints" format
+        constraints = (it or {}).get("constraints", [])
+
+        # Backward compatibility: also check for old hard/soft format
+        if not constraints:
+            hard_constraints = (it or {}).get("hard_constraints", [])
+            soft_constraints = (it or {}).get("soft_constraints", [])
+            constraints = hard_constraints + soft_constraints
 
         if not isinstance(ref, list):
             ref = []
@@ -143,17 +156,25 @@ def load_prompts(prompt_path: str) -> List[Dict[str, Any]]:
                     "why": r.get("why", "")
                 })
 
-        if not isinstance(hard_constraints, list):
-            hard_constraints = []
-        if not isinstance(soft_constraints, list):
-            soft_constraints = []
+        if not isinstance(constraints, list):
+            constraints = []
+
+        # Normalize constraints to ensure all have required fields
+        norm_constraints = []
+        for c in constraints:
+            if isinstance(c, dict):
+                norm_constraints.append({
+                    "type": c.get("type", ""),
+                    "description": c.get("description", ""),
+                    "implicit_phrasing": c.get("implicit_phrasing", ""),
+                    "verification": c.get("verification", {})
+                })
 
         out.append({
             "uuid": query_uuid,  # Preserve UUID for tracking
             "query": q,
             "reference_tools": norm_ref,
-            "hard_constraints": hard_constraints,
-            "soft_constraints": soft_constraints
+            "constraints": norm_constraints
         })
     return out
 
@@ -216,8 +237,7 @@ def extract_items_from_trajectories(trajs: List[Dict[str, Any]]) -> List[Dict[st
             "query": query,
             "pass_number": pass_number,  # Include pass number
             "reference_tools": [],  # Not available from trajectory
-            "hard_constraints": [],  # Not available from trajectory
-            "soft_constraints": [],  # Not available from trajectory
+            "constraints": [],  # Not available from trajectory
         })
     return items
 
@@ -419,8 +439,14 @@ TASK:
 REFERENCE_TOOLS (expected/allowed):
 {reference_tools_json}
 
-CONSTRAINTS (must follow):
+CONSTRAINTS (implicit requirements to check):
 {constraints_json}
+
+Note: Each constraint includes:
+- type: The constraint category
+- description: What the evaluator should check
+- implicit_phrasing: The natural language in the query that implies this constraint
+- verification: Specific parameters for verification
 
 HISTORY:
 {history_text}
@@ -470,6 +496,7 @@ EVALUATION RUBRIC (each 0–10, integers only)
 
 5) Constraint Adherence (0–10)
    Did the agent follow all specified CONSTRAINTS?
+   Remember: Constraints are IMPLICIT in the query (see "implicit_phrasing" field) - evaluate whether the agent inferred and followed them from the natural language.
    10 = all constraints perfectly followed;
    8–9 = minor constraint deviation with little impact;
    6–7 = noticeable constraint violations;
@@ -513,6 +540,7 @@ def llm_as_judge_score(
     history: str,
     final_answer: str,
     reference_tools: List[Dict[str, Any]],
+    constraints: Optional[List[Dict[str, Any]]] = None,
     hard_constraints: Optional[List[Dict[str, Any]]] = None,
     soft_constraints: Optional[List[Dict[str, Any]]] = None,
     temperature: float = 0.0,
@@ -525,12 +553,12 @@ def llm_as_judge_score(
     task_json = _json(task)
     ref_tools_json = _json(reference_tools or [])
 
-    # Combine hard and soft constraints
-    all_constraints = {
-        "hard_constraints": hard_constraints or [],
-        "soft_constraints": soft_constraints or []
-    }
-    constraints_json = _json(all_constraints)
+    # Support new unified constraints format (with backward compatibility)
+    if constraints is None:
+        # Fallback to old hard/soft format for backward compatibility
+        constraints = (hard_constraints or []) + (soft_constraints or [])
+
+    constraints_json = _json(constraints or [])
 
     prompt = LLM_JUDGE_TEMPLATE.format(
         pass_threshold=pass_threshold,
@@ -692,8 +720,7 @@ def _values_from_prompt_and_traj(
     traj_obj: Dict[str, Any],
     task_id: str,
     reference_tools: List[Dict[str, Any]],
-    hard_constraints: Optional[List[Dict[str, Any]]] = None,
-    soft_constraints: Optional[List[Dict[str, Any]]] = None
+    constraints: Optional[List[Dict[str, Any]]] = None
 ) -> Dict[str, Any]:
     exe = traj_obj.get("execution", {}) or {}
     final_resp = exe.get("final_response", "")
@@ -718,8 +745,7 @@ def _values_from_prompt_and_traj(
         "history": summarized_history,
         "final_answer": final_resp,
         "reference_tools": reference_tools or [],
-        "hard_constraints": hard_constraints or [],
-        "soft_constraints": soft_constraints or [],
+        "constraints": constraints or [],
         "actual_tools": actual_tools,
     }
 
@@ -742,8 +768,7 @@ def run_judge_from_files(
         query_uuid = item.get("uuid")  # Extract UUID for tracking
         q = item.get("query", "")
         ref_tools = item.get("reference_tools", []) or []
-        hard_constraints = item.get("hard_constraints", []) or []
-        soft_constraints = item.get("soft_constraints", []) or []
+        constraints = item.get("constraints", []) or []
 
         # Try UUID-based matching first, fall back to query text matching
         matched = None
@@ -762,7 +787,7 @@ def run_judge_from_files(
             continue
 
         task_id = matched.get("_filename", f"task_{idx}")
-        pack = _values_from_prompt_and_traj(q, matched, task_id, ref_tools, hard_constraints, soft_constraints)
+        pack = _values_from_prompt_and_traj(q, matched, task_id, ref_tools, constraints)
 
         obj = llm_as_judge_score(
             meta=pack["meta"],
@@ -770,8 +795,7 @@ def run_judge_from_files(
             history=pack["history"],
             final_answer=pack["final_answer"],
             reference_tools=pack["reference_tools"],
-            hard_constraints=pack["hard_constraints"],
-            soft_constraints=pack["soft_constraints"],
+            constraints=pack["constraints"],
             temperature=temperature,
             pass_threshold=pass_threshold,
             max_completion_tokens=max_completion_tokens,
@@ -784,8 +808,7 @@ def run_judge_from_files(
             "uuid": query_uuid,  # Include UUID in evaluation result
             "query": q,
             "reference_tools": ref_tools,
-            "hard_constraints": hard_constraints,
-            "soft_constraints": soft_constraints,
+            "constraints": constraints,
             "actual_tools": pack.get("actual_tools", []),
             "binary": obj.get("binary"),
             "score": obj.get("score"),
@@ -1049,18 +1072,12 @@ def evaluate_final_answer(
     query: str,
     final_answer: str,
     history: str = "",
-    hard_constraints: Optional[List[Dict[str, Any]]] = None,
-    soft_constraints: Optional[List[Dict[str, Any]]] = None,
+    constraints: Optional[List[Dict[str, Any]]] = None,
     model_name: str = "openai/gpt-4o-mini",
     temperature: float = 0.0,
 ) -> Dict[str, Any]:
     """Evaluate only the final answer with trajectory history for grounding evaluation."""
-    # Combine constraints
-    all_constraints = {
-        "hard_constraints": hard_constraints or [],
-        "soft_constraints": soft_constraints or []
-    }
-    constraints_json = _json(all_constraints)
+    constraints_json = _json(constraints or [])
 
     # If no history provided, use a placeholder
     if not history or history.strip() == "":
@@ -1119,8 +1136,7 @@ def evaluate_trajectory_with_steps(
     traj_obj: Dict[str, Any],
     query: str,
     reference_tools: List[Dict[str, Any]],
-    hard_constraints: Optional[List[Dict[str, Any]]] = None,
-    soft_constraints: Optional[List[Dict[str, Any]]] = None,
+    constraints: Optional[List[Dict[str, Any]]] = None,
     *,
     query_uuid: Optional[str] = None,
     model_name: str = "openai/gpt-4o-mini",
@@ -1187,8 +1203,7 @@ def evaluate_trajectory_with_steps(
         query=query,
         final_answer=final_answer,
         history=history_text,
-        hard_constraints=hard_constraints,
-        soft_constraints=soft_constraints,
+        constraints=constraints,
         model_name=model_name,
         temperature=temperature,
     )
@@ -1198,8 +1213,7 @@ def evaluate_trajectory_with_steps(
         "uuid": query_uuid,  # Include UUID in evaluation result
         "query": query,
         "reference_tools": reference_tools,
-        "hard_constraints": hard_constraints or [],
-        "soft_constraints": soft_constraints or [],
+        "constraints": constraints or [],
         "actual_tools": actual_tools,
         "final_answer": final_answer,
         "final_answer_evaluation": final_answer_eval,
@@ -1232,8 +1246,7 @@ async def evaluate_trajectory_with_steps_async(
     traj_obj: Dict[str, Any],
     query: str,
     reference_tools: List[Dict[str, Any]],
-    hard_constraints: Optional[List[Dict[str, Any]]] = None,
-    soft_constraints: Optional[List[Dict[str, Any]]] = None,
+    constraints: Optional[List[Dict[str, Any]]] = None,
     *,
     query_uuid: Optional[str] = None,
     model_name: str = "openai/gpt-4o-mini",
@@ -1249,8 +1262,7 @@ async def evaluate_trajectory_with_steps_async(
             traj_obj=traj_obj,
             query=query,
             reference_tools=reference_tools,
-            hard_constraints=hard_constraints,
-            soft_constraints=soft_constraints,
+            constraints=constraints,
             query_uuid=query_uuid,
             model_name=model_name,
             temperature=temperature,
@@ -1290,8 +1302,7 @@ async def evaluate_batch_parallel(
             query_uuid = item.get("uuid")
             q = item.get("query", "")
             ref_tools = item.get("reference_tools", []) or []
-            hard_constraints = item.get("hard_constraints", []) or []
-            soft_constraints = item.get("soft_constraints", []) or []
+            constraints = item.get("constraints", []) or []
 
             pass_number = item.get("pass_number", 1)  # Extract pass number
 
@@ -1320,8 +1331,7 @@ async def evaluate_batch_parallel(
                     traj_obj=matched,
                     query=q,
                     reference_tools=ref_tools,
-                    hard_constraints=hard_constraints,
-                    soft_constraints=soft_constraints,
+                    constraints=constraints,
                     query_uuid=query_uuid,
                     model_name=model_name,
                     temperature=temperature,
@@ -1476,8 +1486,7 @@ def main():
                     query_uuid = item.get("uuid")  # Extract UUID for tracking
                     q = item.get("query", "")
                     ref_tools = item.get("reference_tools", []) or []
-                    hard_constraints = item.get("hard_constraints", []) or []
-                    soft_constraints = item.get("soft_constraints", []) or []
+                    constraints = item.get("constraints", []) or []
                     pass_number = item.get("pass_number", 1)  # Extract pass number
 
                     # Try UUID-based matching first (with pass_number), fall back to query text matching
@@ -1504,8 +1513,7 @@ def main():
                         traj_obj=matched,
                         query=q,
                         reference_tools=ref_tools,
-                        hard_constraints=hard_constraints,
-                        soft_constraints=soft_constraints,
+                        constraints=constraints,
                         query_uuid=query_uuid,  # Pass UUID to evaluation function
                         model_name=args.model,
                         temperature=args.temperature,
