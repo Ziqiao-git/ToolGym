@@ -38,7 +38,6 @@ import sys
 import json
 import asyncio
 import argparse
-import re
 
 from pathlib import Path
 from typing import Dict, List, Optional
@@ -63,6 +62,15 @@ from dotenv import load_dotenv
 # ============================================================================
 
 AGENT_INSTRUCTION = """You are an intelligent agent that can discover and use MCP tools dynamically.
+
+════════════════════════════════════════════════════════════════════════
+🔍 IMPORTANT: LOADED TOOLS vs DISCOVERABLE TOOLS
+════════════════════════════════════════════════════════════════════════
+
+The tools shown below are just the CURRENTLY LOADED tools - a small subset.
+There are THOUSANDS more tools available through search_tools (meta-mcp).
+ALWAYS use search_tools to find the right tools for the user's query.
+Do NOT assume the loaded tools are all you have access to!
 
 ════════════════════════════════════════════════════════════════════════
 🚨 CRITICAL: YOU MUST FOLLOW THIS COMPLETE WORKFLOW 🚨
@@ -141,6 +149,12 @@ Step 5: ANSWER the user's question
    - Call search_tools multiple times with different focused queries
    - Each search_tools call should focus on ONE capability
    - Execute the tools you discover from each search
+
+5. NEVER claim you cannot do something without searching first
+   - Before saying "I don't have access to X" or "I cannot do Y", call search_tools
+   - New tools can always be discovered - the tool ecosystem is dynamic
+   - If your first search doesn't find relevant tools, try different search terms
+   - Only after exhausting search options should you explain limitations
 
 ════════════════════════════════════════════════════════════════════════
 COMPLETE EXAMPLE WORKFLOW:
@@ -695,31 +709,72 @@ Your follow-up should work toward completing REMAINING sub-goals.
 
 Evaluate the agent's response now."""
 
-        try:
-            messages = [{"role": "user", "content": prompt}]
-            response = await self.llm.generate_async(messages)
+        # Retry logic for API failures / empty responses / JSON parse errors
+        max_retries = 3
+        retry_delay = 2.0  # seconds
+        last_response = None
+        last_error = None
 
-            # Parse JSON
-            decision = _load_first_json_obj(response)
+        for attempt in range(max_retries):
+            try:
+                messages = [{"role": "user", "content": prompt}]
+                response = await self.llm.generate_async(messages)
+                last_response = response
 
-            # Validate required fields
-            if "decision" not in decision:
-                decision["decision"] = "TERMINATE"
-                decision["termination_reason"] = "error"
+                # Check for empty response
+                if not response or not response.strip():
+                    last_error = "Empty response from user model"
+                    if attempt < max_retries - 1:
+                        print(f"⚠️  {last_error} (attempt {attempt + 1}/{max_retries}), retrying...")
+                        await asyncio.sleep(retry_delay * (attempt + 1))
+                        continue
+                    else:
+                        break
 
-            return decision
+                # Parse JSON
+                decision = _load_first_json_obj(response)
 
-        except Exception as e:
-            print(f"⚠️  Error in user evaluation: {e}")
-            # Default to terminate on error
-            return {
-                "decision": "TERMINATE",
-                "termination_reason": "error",
-                "follow_up_query": None,
-                "intent": None,
-                "satisfaction_level": 0.5,
-                "reasoning": f"Error during evaluation: {str(e)}"
-            }
+                # Validate required fields
+                if "decision" not in decision:
+                    decision["decision"] = "TERMINATE"
+                    decision["termination_reason"] = "error"
+
+                return decision
+
+            except json.JSONDecodeError as e:
+                last_error = f"JSON parse error: {e}"
+                # Log the actual response for debugging
+                response_preview = (last_response[:200] + "...") if last_response and len(last_response) > 200 else last_response
+                print(f"⚠️  {last_error} (attempt {attempt + 1}/{max_retries})")
+                print(f"    Response preview: {repr(response_preview)}")
+
+                if attempt < max_retries - 1:
+                    await asyncio.sleep(retry_delay * (attempt + 1))
+                    continue
+                else:
+                    break
+
+            except Exception as e:
+                last_error = str(e)
+                if attempt < max_retries - 1:
+                    print(f"⚠️  Error in user evaluation (attempt {attempt + 1}/{max_retries}): {e}, retrying...")
+                    await asyncio.sleep(retry_delay * (attempt + 1))
+                    continue
+                else:
+                    print(f"⚠️  Error in user evaluation after {max_retries} retries: {e}")
+                    break
+
+        # After all retries failed, continue conversation instead of terminating
+        # This gives the agent another chance rather than ending prematurely
+        print(f"⚠️  User evaluation failed after {max_retries} retries, defaulting to CONTINUE")
+        return {
+            "decision": "CONTINUE",
+            "termination_reason": None,
+            "follow_up_query": f"Can you provide more details about {self.subgoal_tracker.remaining[0] if self.subgoal_tracker.remaining else 'my query'}?",
+            "intent": "clarification",
+            "satisfaction_level": 0.6,
+            "reasoning": f"Evaluation failed ({last_error}), continuing to give agent another chance"
+        }
 
 
 # ============================================================================
@@ -777,6 +832,7 @@ class GoalOrientedController:
 
         # Step 2: Initialize conversation
         current_query = seed_query
+        consecutive_no_tool_turns = 0  # Track consecutive turns without tool usage
 
         # Step 3: Multi-turn loop
         for turn_num in range(1, self.max_turns + 1):
@@ -817,6 +873,36 @@ class GoalOrientedController:
                 for entry in self.agent.trajectory
                 if entry.get("type") == "tool_call"
             ]
+
+            # Early stop: track consecutive turns without tool usage
+            if not turn_tool_calls:
+                consecutive_no_tool_turns += 1
+                print(f"⚠️  No tools used this turn ({consecutive_no_tool_turns}/3 consecutive)")
+                if consecutive_no_tool_turns >= 3:
+                    print("🛑 EARLY STOP: Agent refused to use tools for 3 consecutive turns")
+                    # Create a final turn record before breaking
+                    turn = GoalTurn(
+                        turn_number=turn_num,
+                        query=current_query,
+                        agent_response=agent_response,
+                        tool_calls=[],
+                        reasoning_trace=[],
+                        tool_results=[],
+                        available_servers=available_servers,
+                        available_tool_count=available_tool_count,
+                        completed_sub_goals=[],
+                        remaining_sub_goals=self.subgoal_tracker.remaining.copy(),
+                        goal_progress=self.subgoal_tracker.progress_percentage,
+                        user_decision="TERMINATE",
+                        termination_reason="early_stop_no_tools",
+                        satisfaction_level=0.0,
+                        user_reasoning="Agent refused to use tools for 3 consecutive turns",
+                        follow_up_intent=None
+                    )
+                    self.turns.append(turn)
+                    break
+            else:
+                consecutive_no_tool_turns = 0  # Reset counter when tools are used
 
             turn_reasoning = [
                 entry for entry in self.agent.reasoning_trace

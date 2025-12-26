@@ -21,6 +21,7 @@ import json
 import argparse
 import os
 import asyncio
+import sys
 from typing import List, Dict, Any, Optional
 from tqdm import tqdm
 from pathlib import Path
@@ -29,9 +30,17 @@ import random
 from openai import AsyncOpenAI
 from dotenv import load_dotenv
 
-# Load environment variables
+# Add project root to path for imports
 SCRIPT_DIR = Path(__file__).resolve().parent
+PROJECT_ROOT = SCRIPT_DIR.parent
+sys.path.insert(0, str(PROJECT_ROOT))
+
+# Load environment variables
 load_dotenv(str(SCRIPT_DIR / ".env"))
+
+# Semantic search components (lazy loaded)
+_embedder = None
+_faiss_index = None
 
 CLIENT = AsyncOpenAI(
     base_url="https://openrouter.ai/api/v1",
@@ -200,6 +209,159 @@ def sample_diverse_tools(
     return selected
 
 
+def load_semantic_search(index_dir: Path = None) -> tuple:
+    """
+    Load semantic search components (lazy loading).
+
+    Returns:
+        Tuple of (embedder, faiss_index)
+    """
+    global _embedder, _faiss_index
+
+    if _embedder is None:
+        from MCP_INFO_MGR.semantic_search.embeddings import BGEEmbedder
+        from MCP_INFO_MGR.semantic_search.faiss_backend import FAISSIndex
+
+        print("Loading semantic search components...")
+        _embedder = BGEEmbedder()
+
+        if index_dir is None:
+            index_dir = PROJECT_ROOT / "MCP_INFO_MGR" / "semantic_search"
+
+        _faiss_index = FAISSIndex.load(index_dir)
+        print(f"✓ Semantic search ready with {_faiss_index.index.ntotal} tools indexed")
+
+    return _embedder, _faiss_index
+
+
+def sample_semantic_tools(
+    all_tools: List[Dict],
+    min_tools: int,
+    max_tools: int,
+    min_servers: int = 3,
+    index_dir: Path = None,
+) -> List[Dict]:
+    """
+    Sample tools using semantic similarity to ensure coherence.
+
+    Strategy:
+    1. Randomly sample 1-3 "seed" tools to define a domain
+    2. Use semantic search to find the most related tools
+    3. Ensure server diversity among results
+
+    Returns list of {"server": str, "tool": str, "description": str}
+    """
+    # Flatten all tools with server info
+    flat_tools = []
+    tool_lookup = {}  # (server, tool) -> tool_dict
+
+    for server_desc in all_tools:
+        server_name = server_desc.get("qualifiedName", server_desc.get("name", "unknown"))
+        for tool in server_desc.get("tools", []):
+            tool_dict = {
+                "server": server_name,
+                "tool": tool.get("name", ""),
+                "description": tool.get("description", "No description")
+            }
+            flat_tools.append(tool_dict)
+            tool_lookup[(server_name, tool.get("name", ""))] = tool_dict
+
+    if len(flat_tools) == 0:
+        return []
+
+    # Load semantic search
+    embedder, faiss_index = load_semantic_search(index_dir)
+
+    # Target number of tools
+    target_tools = random.randint(min_tools, max_tools)
+    target_tools = min(target_tools, len(flat_tools))
+
+    # Sample 1-3 seed tools randomly
+    num_seeds = min(random.randint(1, 3), len(flat_tools))
+    seed_tools = random.sample(flat_tools, num_seeds)
+
+    # Build a query from seed tools' descriptions
+    seed_descriptions = [f"{t['tool']}: {t['description']}" for t in seed_tools]
+    combined_query = " | ".join(seed_descriptions)
+
+    # Search for semantically similar tools
+    query_embedding = embedder.encode_query(combined_query)
+
+    # Search for more results than needed to allow for filtering
+    search_results = faiss_index.search(query_embedding, top_k=target_tools * 3)
+
+    # Collect results, ensuring diversity
+    selected = []
+    selected_keys = set()
+    selected_servers = set()
+
+    # First, add seed tools
+    for t in seed_tools:
+        key = (t["server"], t["tool"])
+        if key not in selected_keys:
+            selected.append(t)
+            selected_keys.add(key)
+            selected_servers.add(t["server"])
+
+    # Group remaining results by server for diversity
+    by_server = {}
+    for result in search_results:
+        key = (result["server"], result["tool"])
+        if key in selected_keys:
+            continue
+        server = result["server"]
+        if server not in by_server:
+            by_server[server] = []
+        by_server[server].append({
+            "server": server,
+            "tool": result["tool"],
+            "description": result.get("description", "No description"),
+            "score": result["similarity_score"]
+        })
+
+    # Round-robin selection to ensure server diversity
+    servers = list(by_server.keys())
+    random.shuffle(servers)
+
+    # Prioritize servers we haven't used yet
+    servers.sort(key=lambda s: s in selected_servers)
+
+    while len(selected) < target_tools and any(by_server.values()):
+        for server in servers:
+            if len(selected) >= target_tools:
+                break
+            if by_server.get(server):
+                tool = by_server[server].pop(0)
+                key = (tool["server"], tool["tool"])
+                if key not in selected_keys:
+                    selected.append({
+                        "server": tool["server"],
+                        "tool": tool["tool"],
+                        "description": tool["description"]
+                    })
+                    selected_keys.add(key)
+                    selected_servers.add(tool["server"])
+
+        # Remove empty servers
+        servers = [s for s in servers if by_server.get(s)]
+
+    # Check if we have minimum server diversity
+    if len(selected_servers) < min_servers and len(set(t["server"] for t in flat_tools)) >= min_servers:
+        # Need more diversity - add from underrepresented servers
+        missing_servers = set(t["server"] for t in flat_tools) - selected_servers
+        for server in list(missing_servers)[:min_servers - len(selected_servers)]:
+            server_tools = [t for t in flat_tools if t["server"] == server]
+            if server_tools and len(selected) < target_tools:
+                tool = random.choice(server_tools)
+                key = (tool["server"], tool["tool"])
+                if key not in selected_keys:
+                    selected.append(tool)
+                    selected_keys.add(key)
+                    selected_servers.add(server)
+
+    return selected
+
+
 async def generate_multitool_query(
     sampled_tools: List[Dict],
     query_idx: int,
@@ -256,14 +418,29 @@ async def generate_multitool_query(
                 # Get tool_reasons from LLM response (or empty dict)
                 tool_reasons = data.get("tool_reasons", {})
 
+                # Debug: show what keys LLM returned for tool_reasons
+                if tool_reasons:
+                    print(f"  ✓ LLM returned {len(tool_reasons)} tool_reasons")
+                    # Show first few keys as sample
+                    sample_keys = list(tool_reasons.keys())[:3]
+                    print(f"    Sample keys: {sample_keys}")
+                else:
+                    print(f"  ⚠️ LLM did not return tool_reasons (or returned empty)")
+
                 # Build reference_tools from sampled_tools (guarantees all tools are included)
                 reference_tools = []
                 for t in sampled_tools:
                     tool_name = t["tool"]
-                    # Try to find reason from LLM, fallback to default
-                    why = tool_reasons.get(tool_name, "Required for completing the task")
+                    server_name = t["server"]
+                    # Try multiple key formats that LLM might use
+                    why = (
+                        tool_reasons.get(tool_name) or  # Just tool name
+                        tool_reasons.get(f"{server_name}/{tool_name}") or  # server/tool
+                        tool_reasons.get(f"{server_name}_{tool_name}") or  # server_tool
+                        "Required for completing the task"  # Fallback
+                    )
                     reference_tools.append({
-                        "server": t["server"],
+                        "server": server_name,
                         "tool": tool_name,
                         "why": why
                     })
@@ -327,7 +504,9 @@ async def generate_all_queries(
     min_tools: int,
     max_tools: int,
     min_servers: int,
-    seed: Optional[int] = None
+    seed: Optional[int] = None,
+    use_semantic: bool = False,
+    index_dir: Path = None,
 ) -> List[Dict]:
     """Generate multiple multi-tool queries."""
 
@@ -338,7 +517,11 @@ async def generate_all_queries(
 
     async def worker(idx: int) -> Dict:
         # Sample tools for this query
-        sampled = sample_diverse_tools(all_tools, min_tools, max_tools, min_servers)
+        if use_semantic:
+            sampled = sample_semantic_tools(all_tools, min_tools, max_tools, min_servers, index_dir)
+        else:
+            sampled = sample_diverse_tools(all_tools, min_tools, max_tools, min_servers)
+
         if not sampled:
             return _make_error_result([], "No tools available")
 
@@ -404,6 +587,17 @@ async def main_async():
         default="openai/gpt-4o-mini",
         help="LLM model to use (default: openai/gpt-4o-mini)"
     )
+    parser.add_argument(
+        "--semantic",
+        action="store_true",
+        help="Use semantic search to select related tools (instead of random sampling)"
+    )
+    parser.add_argument(
+        "--index-dir",
+        type=Path,
+        default=None,
+        help="Directory containing FAISS index (default: MCP_INFO_MGR/semantic_search/)"
+    )
 
     args = parser.parse_args()
 
@@ -437,6 +631,7 @@ async def main_async():
     print(f"  Tools per query: {args.min_tools} - {args.max_tools}")
     print(f"  Min servers per query: {args.min_servers}")
     print(f"  Model: {MODEL_NAME}")
+    print(f"  Tool selection: {'semantic (coherent)' if args.semantic else 'random (diverse)'}")
     print()
 
     items = await generate_all_queries(
@@ -445,7 +640,9 @@ async def main_async():
         min_tools=args.min_tools,
         max_tools=args.max_tools,
         min_servers=args.min_servers,
-        seed=args.seed
+        seed=args.seed,
+        use_semantic=args.semantic,
+        index_dir=args.index_dir,
     )
 
     # Calculate stats
@@ -458,6 +655,7 @@ async def main_async():
         "metadata": {
             "total_items": len(items),
             "generation_method": "multitool_single_turn",
+            "tool_selection": "semantic" if args.semantic else "random",
             "min_tools": args.min_tools,
             "max_tools": args.max_tools,
             "min_servers": args.min_servers,

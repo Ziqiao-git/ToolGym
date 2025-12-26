@@ -81,18 +81,32 @@ class DynamicReActAgent(ReAct):
 
     def _build_prompt(self, question: str):
         """
-        Override to apply Layer 2 compression to history before building prompt.
+        Override to:
+        1. Apply Layer 2 compression to history before building prompt
+        2. Only show meta-mcp + dynamically discovered tools (hide pre-loaded servers)
 
-        This ensures that when context_manager compresses the trajectory,
-        those compressions are reflected in the prompt sent to the LLM.
+        This encourages the agent to use search_tools for new capabilities while
+        remembering tools it has already discovered and used.
         """
         # If Layer 2 compression has been applied, rebuild history from compressed trajectory
         if self.enable_compression and self.context_manager and self.context_manager.trajectory:
             # Sync parent's _history with compressed trajectory
             self._sync_history_from_trajectory()
 
-        # Call parent to build prompt with potentially compressed history
-        return super()._build_prompt(question)
+        # Filter tools to show: meta-mcp + dynamically loaded servers
+        # This hides pre-loaded servers but keeps tools the agent discovered
+        original_tools = self._tools
+        self._tools = {
+            server: tools for server, tools in original_tools.items()
+            if server == "meta-mcp" or server in self.dynamically_loaded_servers
+        }
+
+        try:
+            # Call parent to build prompt with filtered tools
+            return super()._build_prompt(question)
+        finally:
+            # Restore original tools (needed for actual tool execution)
+            self._tools = original_tools
 
     def _sync_history_from_trajectory(self):
         """
