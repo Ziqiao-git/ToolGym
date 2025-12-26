@@ -8,8 +8,7 @@ Generate single-turn queries that require MULTIPLE different tools from MULTIPLE
 This creates complex, realistic tasks that span across different tool domains.
 
 Usage:
-  python query_generate_multitool.py \
-    --config runtime/working_server_configs.json \
+  python mcp_generate/query_generate_multitool.py \
     --out mcp_generate/requests/multitool_10_20.json \
     --num-queries 20 \
     --min-tools 10 \
@@ -395,7 +394,7 @@ async def generate_multitool_query(
                         {"role": "user", "content": user_prompt},
                     ],
                     temperature=0.8,
-                    max_tokens=8000,  # Larger for more tools
+                    max_tokens=20000,  # Larger for more tools
                     response_format={"type": "json_object"},
                 )
 

@@ -252,7 +252,6 @@ class GoalTurn:
     agent_response: str
     tool_calls: List[Dict]
     reasoning_trace: List[Dict]
-    tool_results: List[Dict]
     available_servers: List[str]
     available_tool_count: int
 
@@ -260,6 +259,11 @@ class GoalTurn:
     completed_sub_goals: List[str]  # Sub-goals completed in this turn
     remaining_sub_goals: List[str]  # Sub-goals still pending
     goal_progress: float  # 0.0-1.0 overall progress
+
+    # Constraint tracking (NEW)
+    constraints_satisfied: List[str]  # Constraints satisfied in this turn
+    constraints_violated: List[str]  # Constraints violated in this turn
+    constraint_satisfaction_rate: float  # 0.0-1.0 constraint satisfaction rate
 
     # User simulation outputs
     user_decision: str
@@ -276,12 +280,14 @@ class GoalTurn:
             "agent_response": self.agent_response,
             "tool_calls": self.tool_calls,
             "reasoning_trace": self.reasoning_trace,
-            "tool_results": self.tool_results,
             "available_servers": self.available_servers,
             "available_tool_count": self.available_tool_count,
             "completed_sub_goals": self.completed_sub_goals,
             "remaining_sub_goals": self.remaining_sub_goals,
             "goal_progress": self.goal_progress,
+            "constraints_satisfied": self.constraints_satisfied,
+            "constraints_violated": self.constraints_violated,
+            "constraint_satisfaction_rate": self.constraint_satisfaction_rate,
             "user_decision": self.user_decision,
             "termination_reason": self.termination_reason,
             "satisfaction_level": self.satisfaction_level,
@@ -302,6 +308,10 @@ class GoalTrajectory:
     sub_goals: List[str]
     goal_completion_rate: float
     goal_achieved: bool
+
+    # Constraint tracking (NEW)
+    constraints: List[str]
+    overall_constraint_satisfaction_rate: float
 
     turns: List[GoalTurn]
 
@@ -327,6 +337,8 @@ class GoalTrajectory:
                 "sub_goals": self.sub_goals,
                 "goal_completion_rate": self.goal_completion_rate,
                 "goal_achieved": self.goal_achieved,
+                "constraints": self.constraints,
+                "overall_constraint_satisfaction_rate": self.overall_constraint_satisfaction_rate,
                 "timestamp": self.timestamp,
                 "agent_model": self.agent_model,
                 "user_model": self.user_model,
@@ -394,12 +406,15 @@ def _load_first_json_obj(text: str):
 class SubgoalTracker:
     """Tracks sub-goal completion throughout conversation. Decomposes query into subgoals."""
 
-    def __init__(self, llm, query: str):
+    def __init__(self, llm, query: str, constraints: List[str] = None):
         self.llm = llm
         self.query = query
+        self.constraints = constraints or []
         self.sub_goals: List[str] = []
         self.completed: List[str] = []
         self.remaining: List[str] = []
+        self.satisfied_constraints: List[str] = []
+        self.violated_constraints: List[str] = []
 
     async def decompose_query(self) -> List[str]:
         """Use LLM to break user query into 3-6 measurable sub-goals."""
@@ -466,21 +481,31 @@ Output format (strict JSON):
         agent_response: str,
         tool_calls: List[Dict]
     ) -> Dict:
-        """Evaluate which sub-goals were addressed in current turn."""
-        if not self.remaining:
+        """Evaluate which sub-goals were addressed and constraints satisfied in current turn."""
+        if not self.remaining and not self.constraints:
             return {
                 "completed_this_turn": [],
                 "remaining": [],
-                "progress": 1.0
+                "progress": 1.0,
+                "constraints_satisfied": [],
+                "constraints_violated": [],
+                "constraint_satisfaction_rate": 1.0
             }
 
-        prompt = f"""You are evaluating progress toward completing a user's query.
+        constraint_section = ""
+        if self.constraints:
+            constraint_section = f"""
+CONSTRAINTS TO CHECK:
+{chr(10).join(f"{i+1}. {c}" for i, c in enumerate(self.constraints))}
+"""
+
+        prompt = f"""You are evaluating progress toward completing a user's query and checking constraint satisfaction.
 
 ORIGINAL QUERY: {self.query}
 
 REMAINING SUB-GOALS:
-{chr(10).join(f"{i+1}. {sg}" for i, sg in enumerate(self.remaining))}
-
+{chr(10).join(f"{i+1}. {sg}" for i, sg in enumerate(self.remaining)) if self.remaining else "(All sub-goals completed)"}
+{constraint_section}
 AGENT'S RESPONSE THIS TURN:
 {agent_response}
 
@@ -488,22 +513,34 @@ TOOLS USED:
 {chr(10).join(f"- {tc.get('server', 'unknown')}/{tc.get('tool', 'unknown')}" for tc in tool_calls) if tool_calls else "No tools used"}
 
 Your task:
-Determine which (if any) of the REMAINING sub-goals were COMPLETED by this agent response.
+1. Determine which (if any) of the REMAINING sub-goals were COMPLETED by this agent response.
+2. Evaluate which constraints were SATISFIED or VIOLATED based on the agent's actions and response.
 
 A sub-goal is COMPLETED if:
 - Agent provided specific, actionable information addressing it
 - Information came from tool usage (not agent's internal knowledge)
 - User could reasonably act on this information
 
-A sub-goal is NOT completed if:
-- Agent only partially addressed it
-- No tools were used (answer from internal knowledge)
-- Information is too vague to be actionable
+A constraint is SATISFIED if:
+- The agent's response and actions respect the constraint
+- The constraint's requirements are met or will be met by the proposed solution
+
+A constraint is VIOLATED if:
+- The agent's response or actions clearly break the constraint
+- The proposed solution cannot meet the constraint's requirements
+
+**CRITICAL**: When returning constraint texts, you MUST copy the EXACT text from the "CONSTRAINTS TO CHECK" list above.
+- Do NOT add prefixes like "major constraint:" or "important:"
+- Do NOT paraphrase or summarize
+- Do NOT abbreviate
+- Copy and paste the complete constraint text character-for-character
 
 Output format (strict JSON):
 {{
-  "completed_this_turn": ["exact sub-goal text", "..."],
-  "reasoning": "Brief explanation of what was completed and why"
+  "completed_this_turn": ["exact sub-goal text from REMAINING SUB-GOALS list", "..."],
+  "constraints_satisfied": ["exact constraint text from CONSTRAINTS TO CHECK list", "..."],
+  "constraints_violated": ["exact constraint text from CONSTRAINTS TO CHECK list", "..."],
+  "reasoning": "Brief explanation of what was completed and constraint evaluation"
 }}"""
 
         try:
@@ -518,10 +555,35 @@ Output format (strict JSON):
                     self.remaining.remove(sg)
                     self.completed.append(sg)
 
+            # Track constraints (only count constraints that are in the original list)
+            satisfied_this_turn = data.get("constraints_satisfied", [])
+            violated_this_turn = data.get("constraints_violated", [])
+
+            for c in satisfied_this_turn:
+                # Only track if it's in the original constraints list
+                if c in self.constraints and c not in self.satisfied_constraints:
+                    self.satisfied_constraints.append(c)
+
+            for c in violated_this_turn:
+                # Only track if it's in the original constraints list
+                if c in self.constraints and c not in self.violated_constraints:
+                    self.violated_constraints.append(c)
+
+            # Calculate constraint satisfaction rate
+            total_constraints = len(self.constraints)
+            if total_constraints > 0:
+                # Ensure rate never exceeds 1.0
+                constraint_rate = min(1.0, len(self.satisfied_constraints) / total_constraints)
+            else:
+                constraint_rate = 1.0
+
             return {
                 "completed_this_turn": completed_this_turn,
                 "remaining": self.remaining.copy(),
                 "progress": self.progress_percentage,
+                "constraints_satisfied": satisfied_this_turn,
+                "constraints_violated": violated_this_turn,
+                "constraint_satisfaction_rate": constraint_rate,
                 "reasoning": data.get("reasoning", "")
             }
 
@@ -531,6 +593,9 @@ Output format (strict JSON):
                 "completed_this_turn": [],
                 "remaining": self.remaining.copy(),
                 "progress": self.progress_percentage,
+                "constraints_satisfied": [],
+                "constraints_violated": [],
+                "constraint_satisfaction_rate": 0.0,
                 "reasoning": ""
             }
 
@@ -603,6 +668,79 @@ class GoalOrientedUser:
 
         return "\n".join(lines)
 
+    async def generate_bonus_question(self, conversation_history: List[Dict]) -> Dict:
+        """Generate a bonus question after all goals are achieved.
+
+        Returns:
+            Dict with keys: bonus_question (str), constraints (List[str])
+        """
+        history_text = "\n\n".join([
+            f"Turn {h['turn']}: {h['query']}\nAgent: {h['response'][:200]}..."
+            for h in conversation_history[-3:]
+        ]) if conversation_history else "No previous turns"
+
+        prompt = f"""You are a simulated user who just had all their goals completed by an AI agent.
+
+**YOUR ORIGINAL QUERY:**
+{self.query}
+
+**CONVERSATION HISTORY:**
+{history_text}
+
+**SITUATION:**
+All your original goals have been achieved! The agent has successfully completed everything you asked for.
+
+**YOUR TASK:**
+Generate ONE bonus question to explore a related aspect that wasn't covered in your original query. This should be:
+- Naturally related to the original query
+- Something that builds on the information already gathered
+- Interesting and worth exploring
+- Not redundant with what's already been answered
+
+Also identify any constraints that should apply to this bonus question (e.g., budget limits, time constraints, quality requirements, etc.).
+
+**EXAMPLES:**
+
+Original query: "What events are in Bodrum?"
+Bonus question: "What's the weather forecast for Bodrum during these events?"
+Constraints: []
+
+Original query: "Find machine learning repositories on GitHub"
+Bonus question: "Which of these repositories have the most active development recently?"
+Constraints: ["Focus on repositories with at least 1000 stars"]
+
+**OUTPUT FORMAT (strict JSON):**
+{{
+  "bonus_question": "Your bonus question here",
+  "constraints": ["constraint 1", "constraint 2", ...],
+  "reasoning": "Brief explanation of why this is an interesting follow-up"
+}}
+
+Generate the bonus question now."""
+
+        try:
+            messages = [{"role": "user", "content": prompt}]
+            response = await self.llm.generate_async(messages)
+
+            data = _load_first_json_obj(response)
+            bonus_question = data.get("bonus_question", "")
+            constraints = data.get("constraints", [])
+            print(f"🎁 Generated bonus question: {bonus_question}")
+            if constraints:
+                print(f"🔒 Bonus question constraints: {', '.join(constraints)}")
+            print(f"💭 Reasoning: {data.get('reasoning', '')}")
+            return {
+                "bonus_question": bonus_question,
+                "constraints": constraints
+            }
+
+        except Exception as e:
+            print(f"⚠️  Error generating bonus question: {e}")
+            return {
+                "bonus_question": "",
+                "constraints": []
+            }
+
     async def evaluate_and_decide(
         self,
         query: str,
@@ -613,15 +751,36 @@ class GoalOrientedUser:
         completed_sub_goals: List[str],
         remaining_sub_goals: List[str],
         goal_progress: float,
+        constraints_satisfied: List[str],
+        constraints_violated: List[str],
+        constraint_satisfaction_rate: float,
         progress_reasoning: str = ""
     ) -> Dict:
-        """Evaluate response and decide next action with goal awareness."""
+        """Evaluate response and decide next action with goal and constraint awareness."""
 
         # Format conversation history
         history_text = "\n\n".join([
             f"Turn {h['turn']}: {h['query']}\nAgent: {h['response'][:200]}..."
             for h in conversation_history[-3:]  # Last 3 turns
         ]) if conversation_history else "No previous turns"
+
+        # Format constraint information
+        constraint_info = ""
+        if self.subgoal_tracker.constraints:
+            constraint_info = f"""
+
+**CONSTRAINT SATISFACTION:**
+Overall constraint satisfaction rate: {constraint_satisfaction_rate:.0%}
+
+Satisfied constraints this turn:
+{chr(10).join(f"  ✅ {c}" for c in constraints_satisfied) if constraints_satisfied else "  (none this turn)"}
+
+Violated constraints this turn:
+{chr(10).join(f"  ❌ {c}" for c in constraints_violated) if constraints_violated else "  (none this turn)"}
+
+All constraints:
+{chr(10).join(f"  • {c}" for c in self.subgoal_tracker.constraints)}
+"""
 
         prompt = f"""You are a simulated user evaluating an AI agent's response and tracking progress on your query.
 
@@ -637,7 +796,7 @@ class GoalOrientedUser:
 {self._format_goal_progress(completed_sub_goals, remaining_sub_goals, goal_progress)}
 
 {f"Progress this turn: {progress_reasoning}" if progress_reasoning else ""}
-
+{constraint_info}
 **CONVERSATION SO FAR:**
 {history_text}
 
@@ -662,12 +821,17 @@ Evaluate the agent's response and decide whether to CONTINUE or TERMINATE the co
    - Which sub-goals (if any) were addressed?
    - Are there blocking issues preventing progress?
 
-2. **Tool Usage**:
+2. **Constraint Satisfaction** (Critical):
+   - Did the agent respect the constraints?
+   - Are any constraints violated?
+   - Constraint violations should SIGNIFICANTLY reduce satisfaction
+
+3. **Tool Usage**:
    - Did agent use external tools OR answer from internal knowledge?
    - If no tools used → VERY SUSPICIOUS (subtract 0.3-0.5 from satisfaction)
    - If tools used → Good!
 
-3. **Response Quality**:
+4. **Response Quality**:
    - Is information specific and actionable?
    - Can I use this to make progress on my query?
    - Is it grounded in tool results?
@@ -678,24 +842,30 @@ Evaluate the agent's response and decide whether to CONTINUE or TERMINATE the co
 - Subgoal progress bonus: Completed subgoals → +0.1 to +0.2
 - Subgoal progress penalty: No progress → -0.2 to -0.3
 - Query completion bonus: All sub-goals done → +0.2
+- Constraint violation penalty: Each violation → -0.2 to -0.4
+- Constraint satisfaction bonus: High satisfaction rate → +0.1 to +0.2
 
 **PENALTY RULES:**
 - No tools used → satisfaction ≤ 0.4 (frustrated)
 - No subgoal progress despite tools → satisfaction ≤ 0.5 (somewhat frustrated)
 - All subgoals achieved → satisfaction ≥ 0.8 (satisfied)
+- Major constraint violations → satisfaction ≤ 0.3 (very frustrated)
 
 **TERMINATION DECISION:**
-- If all sub-goals completed (progress = 100%) → TERMINATE with "subgoals_achieved"
+- If all sub-goals completed (progress = 100%) AND constraint_satisfaction_rate >= 0.7 → TERMINATE with "subgoals_achieved"
 - If satisfaction >= {self.persona['satisfaction_threshold']} → TERMINATE with "satisfied"
 - If satisfaction <= {self.persona['frustration_threshold']} → TERMINATE with "frustrated"
 - If turn >= {self.persona['max_turns']} → TERMINATE with "max_turns"
 - Otherwise → CONTINUE with follow-up question
 
 **FOLLOW-UP QUESTION (if continuing):**
-Your follow-up should work toward completing REMAINING sub-goals.
-- Pick a remaining sub-goal that hasn't been addressed yet
-- Ask a natural question that helps the agent work on that sub-goal
+Your follow-up should work toward completing ALL REMAINING sub-goals while respecting constraints.
+- Address ALL remaining sub-goals in your follow-up question (not just one)
+- Make it clear which sub-goals still need to be addressed
+- If constraints were violated, remind the agent about them
+- Ask a natural question that helps the agent work on all remaining sub-goals
 - Be conversational and build on what the agent has already provided
+- If there are multiple remaining sub-goals, you can ask the agent to address them all in one question
 
 **OUTPUT FORMAT (strict JSON):**
 {{
@@ -796,6 +966,7 @@ class GoalOrientedController:
         self.subgoal_tracker = subgoal_tracker
         self.max_turns = max_turns
         self.turns: List[GoalTurn] = []
+        self.bonus_question_generated = False  # Track if bonus question has been asked
 
     def _format_history(self) -> List[Dict]:
         """Format conversation history for user evaluation."""
@@ -908,14 +1079,8 @@ class GoalOrientedController:
                 entry for entry in self.agent.reasoning_trace
             ]
 
-            turn_tool_results = [
-                {"step": entry.get("type", ""), "result": entry.get("content", "")}
-                for entry in turn_reasoning
-                if entry.get("type") == "result"
-            ]
-
-            # 3c. Evaluate subgoal progress
-            print("📊 Evaluating subgoal progress...")
+            # 3c. Evaluate subgoal progress and constraint satisfaction
+            print("📊 Evaluating subgoal progress and constraints...")
             progress_info = await self.subgoal_tracker.evaluate_progress(
                 agent_response, turn_tool_calls
             )
@@ -925,7 +1090,20 @@ class GoalOrientedController:
                 print(f"✅ Completed sub-goals: {', '.join(completed_this_turn)}")
             else:
                 print("⏳ No sub-goals completed this turn")
-            print(f"📈 Overall progress: {progress_info['progress']:.0%}\n")
+            print(f"📈 Overall progress: {progress_info['progress']:.0%}")
+
+            # Print constraint info
+            constraints_satisfied = progress_info.get("constraints_satisfied", [])
+            constraints_violated = progress_info.get("constraints_violated", [])
+            constraint_rate = progress_info.get("constraint_satisfaction_rate", 1.0)
+
+            if self.subgoal_tracker.constraints:
+                print(f"🔒 Constraint satisfaction: {constraint_rate:.0%}")
+                if constraints_satisfied:
+                    print(f"  ✅ Satisfied: {', '.join(constraints_satisfied[:2])}{'...' if len(constraints_satisfied) > 2 else ''}")
+                if constraints_violated:
+                    print(f"  ❌ Violated: {', '.join(constraints_violated[:2])}{'...' if len(constraints_violated) > 2 else ''}")
+            print()
 
             # 3d. User evaluates and decides
             print("👤 User evaluating response...")
@@ -938,6 +1116,9 @@ class GoalOrientedController:
                 completed_sub_goals=self.subgoal_tracker.completed,
                 remaining_sub_goals=self.subgoal_tracker.remaining,
                 goal_progress=progress_info["progress"],
+                constraints_satisfied=constraints_satisfied,
+                constraints_violated=constraints_violated,
+                constraint_satisfaction_rate=constraint_rate,
                 progress_reasoning=progress_info.get("reasoning", "")
             )
 
@@ -952,12 +1133,14 @@ class GoalOrientedController:
                 agent_response=agent_response,
                 tool_calls=turn_tool_calls,
                 reasoning_trace=turn_reasoning,
-                tool_results=turn_tool_results,
                 available_servers=available_servers,
                 available_tool_count=available_tool_count,
                 completed_sub_goals=completed_this_turn,
                 remaining_sub_goals=self.subgoal_tracker.remaining.copy(),
                 goal_progress=progress_info["progress"],
+                constraints_satisfied=constraints_satisfied,
+                constraints_violated=constraints_violated,
+                constraint_satisfaction_rate=constraint_rate,
                 user_decision=decision["decision"],
                 termination_reason=decision.get("termination_reason"),
                 satisfaction_level=decision["satisfaction_level"],
@@ -966,13 +1149,65 @@ class GoalOrientedController:
             )
             self.turns.append(turn)
 
-            # 3f. Check termination
+            # 3f. Check if goals are achieved and generate bonus question
+            if (progress_info["progress"] >= 1.0 and
+                not self.bonus_question_generated and
+                decision["decision"] == "TERMINATE"):
+
+                print("\n" + "="*70)
+                print("🎁 ALL GOALS ACHIEVED! Generating bonus question...")
+                print("="*70 + "\n")
+
+                bonus_data = await self.user.generate_bonus_question(
+                    self._format_history()
+                )
+
+                bonus_question = bonus_data.get("bonus_question", "")
+                bonus_constraints = bonus_data.get("constraints", [])
+
+                if bonus_question:
+                    self.bonus_question_generated = True
+                    current_query = bonus_question
+
+                    # Reset subgoal tracker with new query and constraints
+                    print("\n📋 Decomposing bonus question into sub-goals...")
+                    self.subgoal_tracker.query = bonus_question
+                    self.subgoal_tracker.constraints = bonus_constraints
+                    self.subgoal_tracker.sub_goals = []
+                    self.subgoal_tracker.completed = []
+                    self.subgoal_tracker.remaining = []
+                    self.subgoal_tracker.satisfied_constraints = []
+                    self.subgoal_tracker.violated_constraints = []
+
+                    # Decompose bonus question into subgoals
+                    await self.subgoal_tracker.decompose_query()
+                    print(f"✓ Identified {len(self.subgoal_tracker.sub_goals)} sub-goals for bonus question:")
+                    for i, sg in enumerate(self.subgoal_tracker.sub_goals, 1):
+                        print(f"  {i}. {sg}")
+                    if bonus_constraints:
+                        print(f"✓ Bonus question constraints:")
+                        for i, c in enumerate(bonus_constraints, 1):
+                            print(f"  {i}. {c}")
+                    print()
+
+                    # Update user's query to bonus question
+                    self.user.query = bonus_question
+
+                    print(f"\n👤 Bonus Query: {current_query}\n")
+                    continue  # Continue to next turn with bonus question
+                else:
+                    print("⚠️  Failed to generate bonus question, terminating")
+                    reason = decision.get("termination_reason", "unknown")
+                    print(f"🛑 Conversation terminated: {reason}")
+                    break
+
+            # 3g. Check termination
             if decision["decision"] == "TERMINATE":
                 reason = decision.get("termination_reason", "unknown")
                 print(f"🛑 Conversation terminated: {reason}")
                 break
 
-            # 3g. Update for next turn
+            # 3h. Update for next turn
             current_query = decision.get("follow_up_query", "")
             if not current_query:
                 print("⚠️  No follow-up query provided, terminating")
@@ -988,6 +1223,13 @@ class GoalOrientedController:
 
         dynamically_loaded = list(getattr(self.agent, 'dynamically_loaded_servers', set()))
 
+        # Calculate overall constraint satisfaction
+        total_constraints = len(self.subgoal_tracker.constraints)
+        if total_constraints > 0:
+            overall_constraint_rate = len(self.subgoal_tracker.satisfied_constraints) / total_constraints
+        else:
+            overall_constraint_rate = 1.0
+
         trajectory = GoalTrajectory(
             conversation_id=f"goal_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
             seed_query=seed_query,
@@ -996,6 +1238,8 @@ class GoalOrientedController:
             sub_goals=self.subgoal_tracker.sub_goals,
             goal_completion_rate=self.subgoal_tracker.progress_percentage,
             goal_achieved=self.subgoal_tracker.is_complete,
+            constraints=self.subgoal_tracker.constraints,
+            overall_constraint_satisfaction_rate=overall_constraint_rate,
             turns=self.turns,
             total_turns=len(self.turns),
             final_decision=self.turns[-1].user_decision if self.turns else "NONE",
@@ -1143,7 +1387,7 @@ async def main():
     parser.add_argument(
         "--max-iterations",
         type=int,
-        default=20,
+        default=60,
         help="Max agent reasoning iterations per turn"
     )
     parser.add_argument(
@@ -1214,10 +1458,14 @@ async def main():
         query_idx = 0
         item = items[0]
         seed_query = item["query"]
+        constraints = item.get("constraints", [])  # Extract constraints from query item
 
         print(f"\n{'#'*70}")
         print(f"SINGLE CONVERSATION MODE")
         print(f"{'#'*70}\n")
+
+        if constraints:
+            print(f"📋 Query has {len(constraints)} constraints")
 
         try:
             # Create fresh components for this conversation
@@ -1254,8 +1502,8 @@ async def main():
             )
             await fresh_agent.initialize(mcp_servers=[{"name": "meta-mcp"}])
 
-            # Create subgoal tracker (will decompose query into subgoals)
-            subgoal_tracker = SubgoalTracker(llm=user_llm, query=seed_query)
+            # Create subgoal tracker with constraints (will decompose query into subgoals)
+            subgoal_tracker = SubgoalTracker(llm=user_llm, query=seed_query, constraints=constraints)
 
             # Create goal-oriented user
             max_turns = args.max_turns or USER_PERSONAS[args.persona]["max_turns"]
