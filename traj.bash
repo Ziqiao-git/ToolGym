@@ -1,15 +1,24 @@
-# cd /Users/xiziqiao/Documents/MCP-Research/MCP-R && for pass in 1; do
-#   python runtime/batch_generate_trajectories.py \
-#     --query-file /Users/xiziqiao/Documents/MCP-Research/MCP-R/mcp_generate/requests/multitool_50_60.json \
-#     --model openai/chatgpt-4o-latest \
-#     --pass-number $pass \
-#     --max-iterations 50 \
-#     --max-concurrent 5
-# done
+#!/bin/bash
+# Goal-Oriented Agent - Pass@3 Runner
 
-python runtime/run_goaloriented_agent.py \
-  --seeds mcp_generate/requests/multitool_test.json \
-  --model deepseek/deepseek-v3.2 \
-  --user-model deepseek/deepseek-v3.2 \
-  --max-turns 100 \
-  --save-trajectory
+for pass in 1 2 3; do
+  echo "======================================"
+  echo "Running Pass @${pass}"
+  echo "======================================"
+
+  python runtime/run_goaloriented_agent.py \
+    --seeds mcp_generate/requests/multitool_50_100.json \
+    --model google/gemini-3-pro-preview \
+    --user-model google/gemini-3-pro-preview \
+    --persona curious_researcher \
+    --max-turns 60 \
+    --max-concurrent 5 \
+    --pass-number $pass \
+    --save-trajectory
+
+  echo "Pass @${pass} completed!"
+  echo ""
+done
+
+echo "All 3 passes completed!"
+echo "Results: trajectories/goaloriented/deepseek-v3.2/pass@{1,2,3}/"

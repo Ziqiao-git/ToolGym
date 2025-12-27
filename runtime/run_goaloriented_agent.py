@@ -32,7 +32,13 @@ Usage:
         --model google/gemini-3-pro-preview \
         --user-model google/gemini-3-pro-preview \
         --max-concurrent 5 \
+        --pass-number 3 \
         --save-trajectory
+
+Output structure:
+    trajectories/goaloriented/{model-name}/pass@{N}/
+    - trajectory_{uuid}_{timestamp}.json
+    - batch_summary_{timestamp}.json
 """
 from __future__ import annotations
 
@@ -1548,6 +1554,9 @@ async def run_single_conversation(
             if args.enable_bonus_questions:
                 cmd.append("--enable-bonus-questions")
 
+            if args.pass_number:
+                cmd.extend(["--pass-number", str(args.pass_number)])
+
             query_uuid = query_item.get("uuid", f"query_{query_index}")
             print(f"[{query_index + 1}] Starting conversation for query {query_uuid}...")
 
@@ -1657,6 +1666,12 @@ async def main():
         "--enable-bonus-questions",
         action="store_true",
         help="Enable bonus questions after goals are achieved (default: disabled)"
+    )
+    parser.add_argument(
+        "--pass-number",
+        type=int,
+        default=1,
+        help="Pass number for organizing trajectory output (default: 1)"
     )
 
     args = parser.parse_args()
@@ -1817,11 +1832,19 @@ async def main():
 
             # Save trajectory
             if args.save_trajectory:
-                output_dir = PROJECT_ROOT / "trajectories/goaloriented"
+                # Sanitize model name for folder (replace / with -)
+                # Extract just the model name (e.g., "claude-3.5-sonnet" from "anthropic/claude-3.5-sonnet")
+                model_name = args.model.split("/")[-1] if "/" in args.model else args.model
+                model_safe = model_name.replace(":", "-")
+
+                # Create hierarchical directory: trajectories/goaloriented/{model}/pass@{N}/
+                pass_folder = f"pass@{args.pass_number}"
+                output_dir = PROJECT_ROOT / "trajectories" / "goaloriented" / model_safe / pass_folder
                 output_dir.mkdir(parents=True, exist_ok=True)
 
                 # Use UUID in filename for easier tracking
-                output_file = output_dir / f"{query_uuid}.json"
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                output_file = output_dir / f"trajectory_{query_uuid}_{timestamp}.json"
                 with open(output_file, "w") as f:
                     json.dump(trajectory.to_dict(), f, indent=2, ensure_ascii=False)
 
@@ -1909,10 +1932,21 @@ async def main():
 
         # Save batch summary
         if args.save_trajectory:
-            summary_file = PROJECT_ROOT / "trajectories" / "goaloriented" / f"batch_summary_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+            # Sanitize model name for folder (replace / with -)
+            model_name = args.model.split("/")[-1] if "/" in args.model else args.model
+            model_safe = model_name.replace(":", "-")
+
+            # Create hierarchical directory: trajectories/goaloriented/{model}/pass@{N}/
+            pass_folder = f"pass@{args.pass_number}"
+            summary_dir = PROJECT_ROOT / "trajectories" / "goaloriented" / model_safe / pass_folder
+            summary_dir.mkdir(parents=True, exist_ok=True)
+
+            summary_file = summary_dir / f"batch_summary_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
             with open(summary_file, 'w', encoding='utf-8') as f:
                 json.dump({
                     "persona": args.persona,
+                    "model": args.model,
+                    "pass_number": args.pass_number,
                     "total_queries": len(items),
                     "results": results_summary,
                 }, f, indent=2, ensure_ascii=False)
