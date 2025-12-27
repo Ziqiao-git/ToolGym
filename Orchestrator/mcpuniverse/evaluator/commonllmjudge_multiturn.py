@@ -1,7 +1,140 @@
-# commonllmjudge.py
-# Judge that reads prompt.json (NEW format only) + trajectories/trajectory_*.json
-# HISTORY is built ONLY from reasoning_trace (Thought-aware).
-# No fallback to execution.tool_calls. No LLM summarization step.
+#!/usr/bin/env python3
+"""
+Multi-Turn Trajectory Evaluator with LLM-as-Judge
+
+Evaluates agent trajectories using LLM-based scoring. Supports both single-turn
+and goal-oriented multi-turn trajectories with constraint satisfaction analysis.
+
+Features:
+- Multi-turn history building (combines reasoning traces from all turns)
+- Constraint satisfaction quantification and comparison
+- Step-by-step evaluation across turns
+- Automatic constraint extraction from trajectory metadata
+- Parallel evaluation support
+
+Usage:
+    # 1. EVALUATE SINGLE-TURN TRAJECTORIES (original format)
+    # -------------------------------------------------------
+    # With prompt file:
+    python Orchestrator/mcpuniverse/evaluator/commonllmjudge_multiturn.py \
+        --prompt prompt.json \
+        --traj_dir trajectories \
+        --model openai/gpt-4o-mini
+
+    # Step-by-step evaluation:
+    python Orchestrator/mcpuniverse/evaluator/commonllmjudge_multiturn.py \
+        --prompt prompt.json \
+        --traj_dir trajectories \
+        --step-by-step \
+        --model openai/gpt-4o-mini
+
+    # 2. EVALUATE GOAL-ORIENTED MULTI-TURN TRAJECTORIES (NEW)
+    # ---------------------------------------------------------
+    # Without prompt file (extracts from trajectory metadata):
+    python Orchestrator/mcpuniverse/evaluator/commonllmjudge_multiturn.py \
+        --traj_dir trajectories/goaloriented \
+        --step-by-step \
+        --model openai/gpt-4o-mini \
+        --output-dir evaluation/results
+
+    # With parallel evaluation (4 workers):
+    python Orchestrator/mcpuniverse/evaluator/commonllmjudge_multiturn.py \
+        --traj_dir trajectories/goaloriented \
+        --step-by-step \
+        --recursive \
+        --parallel 4 \
+        --model openai/gpt-4o-mini \
+        --output-dir evaluation/results
+
+    # Recursive search in subdirectories:
+    python Orchestrator/mcpuniverse/evaluator/commonllmjudge_multiturn.py \
+        --traj_dir trajectories \
+        --step-by-step \
+        --recursive \
+        --output-dir evaluation/results
+
+    # 3. EVALUATE SINGLE TRAJECTORY
+    # ------------------------------
+    python Orchestrator/mcpuniverse/evaluator/commonllmjudge_multiturn.py \
+        --trajectory trajectories/goaloriented/goal_20251226_130529.json \
+        --step-by-step \
+        --model openai/gpt-4o-mini
+
+Goal-Oriented Trajectory Support:
+    This evaluator supports goal-oriented multi-turn trajectories generated
+    by run_goaloriented_agent.py. Key features:
+
+    1. MULTI-TURN HISTORY BUILDING
+       - Automatically detects multi-turn trajectories (with "turns" field)
+       - Combines reasoning traces from all turns
+       - Adds turn separators for clarity
+
+    2. CONSTRAINT SATISFACTION QUANTIFICATION
+       - Counts satisfied vs. violated constraints
+       - Calculates satisfaction rate (satisfied_count / total_constraints)
+       - Converts to 0-10 score
+       - COMPARES with trajectory's "overall_constraint_satisfaction_rate"
+       - Explains discrepancies if rates differ by >0.2
+
+    3. STEP-BY-STEP EVALUATION ACROSS TURNS
+       - Extracts steps from all turns
+       - Tags each step with turn_number
+       - Evaluates tool correctness and relevance per step
+
+    4. AUTOMATIC CONSTRAINT EXTRACTION
+       - Extracts constraints from trajectory metadata
+       - No need for separate prompt.json file
+       - Supports constraint types: SERVER_DIVERSITY, NO_REDUNDANCY,
+         SEQUENCE_ORDER, DATA_COVERAGE, RESPONSE_CONTENT, etc.
+
+    5. OUTPUT FORMAT
+       Evaluation results include:
+       - Per-step evaluations (with turn_number)
+       - Final answer evaluation
+       - Constraint analysis:
+         * total_constraints
+         * satisfied_count
+         * violated_count
+         * calculated_satisfaction_rate (from judge)
+         * trajectory_reported_rate (from trajectory metadata)
+         * rate_comparison (consistency check)
+       - trajectory_constraint_satisfaction_rate (from metadata)
+       - goal_completion_rate (from metadata)
+
+Trajectory File Formats:
+    SINGLE-TURN FORMAT:
+    {
+      "metadata": {"query": "...", "query_uuid": "..."},
+      "reasoning_trace": [...],
+      "execution": {"final_response": "..."}
+    }
+
+    GOAL-ORIENTED MULTI-TURN FORMAT:
+    {
+      "metadata": {
+        "uuid": "...",
+        "seed_query": "...",
+        "user_goal": "...",
+        "constraints": [...],
+        "overall_constraint_satisfaction_rate": 0.75,
+        "goal_completion_rate": 0.85
+      },
+      "turns": [
+        {
+          "turn_number": 1,
+          "query": "...",
+          "agent_response": "...",
+          "reasoning_trace": [...],
+          "tool_calls": [...],
+          "completed_sub_goals": [...],
+          "remaining_sub_goals": [...],
+          "constraints_violated": [...],
+          "constraint_satisfaction_rate": 0.8
+        },
+        ...
+      ]
+    }
+"""
 
 from __future__ import annotations
 import os, json, glob, argparse, sys, asyncio
@@ -183,6 +316,10 @@ def load_all_trajectories(dirpath: str, recursive: bool = False) -> List[Dict[st
     """
     Load all trajectory files from a directory.
 
+    Supports both:
+    - Single-turn trajectories: trajectory_*.json
+    - Goal-oriented multi-turn trajectories: goal_*.json or *.json (with "turns" field)
+
     Args:
         dirpath: Directory path to search
         recursive: If True, search recursively in subdirectories
@@ -193,18 +330,39 @@ def load_all_trajectories(dirpath: str, recursive: bool = False) -> List[Dict[st
     trajs: List[Dict[str, Any]] = []
 
     if recursive:
-        # Recursive search: find all trajectory_*.json in subdirectories
-        pattern = os.path.join(dirpath, "**", "trajectory_*.json")
-        paths = glob.glob(pattern, recursive=True)
+        # Recursive search: find all trajectory_*.json, goal_*.json, and *.json in subdirectories
+        patterns = [
+            os.path.join(dirpath, "**", "trajectory_*.json"),
+            os.path.join(dirpath, "**", "goal_*.json"),
+            os.path.join(dirpath, "**", "*.json"),  # Also check for any .json files
+        ]
+        paths = []
+        for pattern in patterns:
+            paths.extend(glob.glob(pattern, recursive=True))
     else:
         # Non-recursive: only direct children
-        pattern = os.path.join(dirpath, "trajectory_*.json")
-        paths = glob.glob(pattern)
+        patterns = [
+            os.path.join(dirpath, "trajectory_*.json"),
+            os.path.join(dirpath, "goal_*.json"),
+            os.path.join(dirpath, "*.json"),  # Also check for any .json files
+        ]
+        paths = []
+        for pattern in patterns:
+            paths.extend(glob.glob(pattern))
+
+    # Deduplicate paths
+    paths = list(set(paths))
 
     for p in paths:
         try:
             with open(p, "r", encoding="utf-8") as f:
                 obj = json.load(f)
+
+            # Skip files that don't look like trajectories
+            # Valid trajectories should have either "reasoning_trace" or "turns"
+            if "reasoning_trace" not in obj and "turns" not in obj:
+                continue
+
             obj["_filename"] = os.path.basename(p)
             obj["_filepath"] = p  # Full path for reference
             trajs.append(obj)
@@ -218,26 +376,37 @@ def extract_items_from_trajectories(trajs: List[Dict[str, Any]]) -> List[Dict[st
     Extract evaluation items directly from trajectory metadata.
     This allows evaluation without a separate prompt.json file.
 
-    Each trajectory must have metadata.query and metadata.query_uuid.
+    Supports both:
+    - Single-turn trajectories: metadata.query and metadata.query_uuid
+    - Goal-oriented trajectories: metadata.seed_query/user_goal and metadata.uuid, plus constraints
+
     Returns items in the same format as load_prompts().
     """
     items: List[Dict[str, Any]] = []
     for t in trajs:
         meta = t.get("metadata") or {}
-        query = meta.get("query", "")
-        query_uuid = meta.get("query_uuid", "")
+
+        # Extract query (try multiple fields for different trajectory types)
+        query = meta.get("query") or meta.get("seed_query") or meta.get("user_goal", "")
+
+        # Extract UUID (try multiple fields)
+        query_uuid = meta.get("query_uuid") or meta.get("uuid", "")
+
         pass_number = meta.get("pass_number", 1)  # Extract pass number for organizing output
 
         if not query:
             print(f"[WARN] Trajectory {t.get('_filename')} has no query in metadata, skipping", file=sys.stderr)
             continue
 
+        # For goal-oriented trajectories, extract constraints from metadata
+        constraints = meta.get("constraints", [])
+
         items.append({
             "uuid": query_uuid,
             "query": query,
             "pass_number": pass_number,  # Include pass number
             "reference_tools": [],  # Not available from trajectory
-            "constraints": [],  # Not available from trajectory
+            "constraints": constraints,  # Include constraints for goal-oriented trajectories
         })
     return items
 
@@ -256,13 +425,18 @@ def match_traj_by_uuid(trajs: List[Dict[str, Any]], query_uuid: str, pass_number
     Match trajectory by UUID from metadata.
     If pass_number is specified, also match by pass_number.
     Returns the first trajectory with matching query_uuid (and pass_number if specified).
+
+    Supports both:
+    - Single-turn trajectories: metadata.query_uuid
+    - Goal-oriented trajectories: metadata.uuid
     """
     if not query_uuid:
         return None
 
     for t in trajs:
         meta = t.get("metadata") or {}
-        traj_uuid = meta.get("query_uuid")
+        # Try both query_uuid and uuid fields
+        traj_uuid = meta.get("query_uuid") or meta.get("uuid")
         if traj_uuid and traj_uuid == query_uuid:
             # If pass_number is specified, also check it matches
             if pass_number is not None:
@@ -277,13 +451,135 @@ def match_traj_by_uuid(trajs: List[Dict[str, Any]], query_uuid: str, pass_number
 # HISTORY construction (reasoning_trace only)
 # =========================
 
+def build_multiturn_history(turns: List[Dict[str, Any]]) -> str:
+    """
+    Build combined history from multiple turns in a goal-oriented trajectory.
+
+    Args:
+        turns: List of turn objects, each containing reasoning_trace
+
+    Returns:
+        Formatted history string combining all turns
+    """
+    all_lines = []
+
+    for turn_idx, turn in enumerate(turns, 1):
+        # Add turn separator
+        all_lines.append(f"\n{'='*70}")
+        all_lines.append(f"TURN {turn_idx}")
+        all_lines.append(f"Query: {turn.get('query', '(no query)')}")
+        all_lines.append(f"{'='*70}\n")
+
+        # Get reasoning trace for this turn
+        rt = turn.get("reasoning_trace") or []
+
+        if not rt:
+            all_lines.append("(No reasoning trace recorded for this turn)")
+            continue
+
+        # Build steps from reasoning trace (reuse existing logic)
+        def _new_step(idx: int) -> Dict[str, Any]:
+            return {"step": idx, "thought": None, "action": None, "action_input": None, "tool_result": None}
+
+        def _is_placeholder_thought(t: Optional[str]) -> bool:
+            if not t: return True
+            return str(t).strip() == "(not recorded in trajectory file)"
+
+        def _jsonish_parse(s: Any) -> Any:
+            if isinstance(s, (dict, list)):
+                return s
+            if isinstance(s, str):
+                txt = s.strip()
+                try:
+                    return json.loads(txt)
+                except Exception:
+                    pass
+                try:
+                    import ast as _ast
+                    v = _ast.literal_eval(txt)
+                    return v
+                except Exception:
+                    return s
+            return s
+
+        steps: List[Dict[str, Any]] = []
+        current: Optional[Dict[str, Any]] = None
+        idx = 0
+
+        for item in rt:
+            ttype = (item.get("type") or "").strip()
+            content = (item.get("content") or "")
+
+            if ttype.lower() == "error":
+                continue
+
+            if ttype.lower().startswith("step"):
+                if current:
+                    steps.append(current)
+                idx += 1
+                current = _new_step(idx)
+                continue
+
+            if current is None:
+                idx += 1
+                current = _new_step(idx)
+
+            low = ttype.lower()
+            if low == "thought":
+                current["thought"] = content
+            elif low == "action":
+                current["action"] = content or current.get("action")
+            elif low in ("action input", "action_input"):
+                current["action_input"] = _jsonish_parse(content)
+            elif low in ("result", "tool result", "tool_result"):
+                current["tool_result"] = _jsonish_parse(content)
+            elif low in ("answer",):
+                pass
+
+        if current:
+            steps.append(current)
+
+        # Format steps for this turn
+        for i, s in enumerate(steps, 1):
+            if not s.get("thought"):
+                s["thought"] = "(not recorded in trajectory file)"
+
+            all_lines.append(f"Step {i}:")
+            all_lines.append(f"Thought: {s.get('thought')}")
+            all_lines.append(f"Action: {s.get('action') or '(none)'}")
+
+            ai = s.get("action_input")
+            ai_str = json.dumps(ai, ensure_ascii=False) if isinstance(ai, (dict, list)) else (str(ai) if ai is not None else "{}")
+            all_lines.append("Action Input: " + ai_str)
+
+            tr = s.get("tool_result")
+            tr_str = json.dumps(tr, ensure_ascii=False) if isinstance(tr, (dict, list)) else (str(tr) if tr is not None else "(none)")
+            all_lines.append("Tool Result: " + tr_str)
+            all_lines.append("")  # Empty line between steps
+
+    return "\n".join(all_lines).strip()
+
+
 def build_history_from_reasoning_trace(traj_obj: Dict[str, Any]) -> str:
     """
-    Only trajectory['reasoning_trace'] to build HISTORY (keep Thought).
-    Ignore execution.tool_calls (no fallback, no completion).
+    Build HISTORY from trajectory file, supporting both single-turn and multi-turn formats.
+
+    For multi-turn goal-oriented trajectories:
+    - Combines reasoning traces from all turns
+    - Adds turn separators for clarity
+
+    For single-turn trajectories:
+    - Uses trajectory['reasoning_trace'] directly
     """
     import ast
 
+    # Check if this is a goal-oriented multi-turn trajectory
+    turns = traj_obj.get("turns")
+    if turns and isinstance(turns, list):
+        # Multi-turn goal-oriented trajectory
+        return build_multiturn_history(turns)
+
+    # Single-turn trajectory (original behavior)
     rt = (traj_obj.get("reasoning_trace") or [])
     if not rt:
         return "\n".join([
@@ -448,6 +744,13 @@ Note: Each constraint includes:
 - implicit_phrasing: The natural language in the query that implies this constraint
 - verification: Specific parameters for verification
 
+TRAJECTORY METADATA (if available):
+{trajectory_metadata_json}
+
+Note: For goal-oriented multi-turn trajectories, this includes:
+- overall_constraint_satisfaction_rate: The satisfaction rate computed during trajectory generation
+- Compare your evaluation with this reported rate
+
 HISTORY:
 {history_text}
 
@@ -497,10 +800,24 @@ EVALUATION RUBRIC (each 0–10, integers only)
 5) Constraint Adherence (0–10)
    Did the agent follow all specified CONSTRAINTS?
    Remember: Constraints are IMPLICIT in the query (see "implicit_phrasing" field) - evaluate whether the agent inferred and followed them from the natural language.
-   10 = all constraints perfectly followed;
-   8–9 = minor constraint deviation with little impact;
-   6–7 = noticeable constraint violations;
-   ≤5 = major constraint violations or completely ignored constraints.
+
+   IMPORTANT: For goal-oriented multi-turn trajectories, the trajectory metadata includes:
+   - "constraints": List of constraint objects with type, description, and verification parameters
+   - "overall_constraint_satisfaction_rate": Float (0.0-1.0) computed during trajectory generation
+
+   Your scoring should:
+   1. Count how many constraints were satisfied vs. violated based on the HISTORY
+   2. Calculate satisfaction rate = (satisfied_count / total_constraints)
+   3. Convert to 0-10 score: score = satisfaction_rate * 10
+   4. Compare your calculated rate with the trajectory's "overall_constraint_satisfaction_rate" if available
+   5. If rates differ significantly (>0.2), explain the discrepancy in your reasoning
+
+   Scoring guide:
+   10 = all constraints perfectly followed (100% satisfaction);
+   8–9 = 80-90% constraints followed, minor deviations;
+   6–7 = 60-70% constraints followed, noticeable violations;
+   4-5 = 40-50% constraints followed, major violations;
+   ≤3 = <40% constraints followed or mostly ignored;
    N/A if no constraints provided (use 10 as default).
 
 ------------------------------------------------------------
@@ -522,12 +839,20 @@ Return STRICT JSON ONLY:
   "constraint_adherence": <int 0-10>,
   "overall_score": <float 0-1>,
   "binary": "success" or "failure",
+  "constraint_analysis": {{
+    "total_constraints": <int>,
+    "satisfied_count": <int>,
+    "violated_count": <int>,
+    "calculated_satisfaction_rate": <float 0-1>,
+    "trajectory_reported_rate": <float 0-1 or null>,
+    "rate_comparison": "<explanation if rates differ by >0.2, otherwise 'consistent'>"
+  }},
   "reasons": {{
     "answer_reasonableness": "<1-3 concise sentences>",
     "tool_correctness": "<1-3 concise sentences>",
     "tool_relevance": "<1-3 concise sentences>",
     "grounding": "<1-3 concise sentences>",
-    "constraint_adherence": "<1-3 concise sentences>"
+    "constraint_adherence": "<1-3 concise sentences explaining which constraints were satisfied/violated>"
   }}
 }}
 """
@@ -543,6 +868,7 @@ def llm_as_judge_score(
     constraints: Optional[List[Dict[str, Any]]] = None,
     hard_constraints: Optional[List[Dict[str, Any]]] = None,
     soft_constraints: Optional[List[Dict[str, Any]]] = None,
+    trajectory_metadata: Optional[Dict[str, Any]] = None,
     temperature: float = 0.0,
     pass_threshold: float = 0.85,
     max_completion_tokens: int = 8000,
@@ -560,12 +886,22 @@ def llm_as_judge_score(
 
     constraints_json = _json(constraints or [])
 
+    # Extract relevant trajectory metadata for constraint comparison
+    traj_meta_for_prompt = {}
+    if trajectory_metadata:
+        if "overall_constraint_satisfaction_rate" in trajectory_metadata:
+            traj_meta_for_prompt["overall_constraint_satisfaction_rate"] = trajectory_metadata["overall_constraint_satisfaction_rate"]
+        if "goal_completion_rate" in trajectory_metadata:
+            traj_meta_for_prompt["goal_completion_rate"] = trajectory_metadata["goal_completion_rate"]
+    trajectory_metadata_json = _json(traj_meta_for_prompt)
+
     prompt = LLM_JUDGE_TEMPLATE.format(
         pass_threshold=pass_threshold,
         meta_json=meta_json,
         task_json=task_json,
         reference_tools_json=ref_tools_json,
         constraints_json=constraints_json,
+        trajectory_metadata_json=trajectory_metadata_json,
         history_text=history,
         final_answer_text=final_answer,
     )
@@ -595,6 +931,7 @@ def llm_as_judge_score(
             "score": 0.0,
             "binary": "failure",
             "reasons": {},
+            "constraint_analysis": {},
             "explanation": "Judge model did not return valid JSON.",
             "answer_reasonableness": None,
             "tool_correctness": None,
@@ -647,6 +984,11 @@ def llm_as_judge_score(
     if not isinstance(reasons, dict):
         reasons = {}
 
+    # Extract constraint analysis
+    constraint_analysis = parsed.get("constraint_analysis", {})
+    if not isinstance(constraint_analysis, dict):
+        constraint_analysis = {}
+
     # Keep 'explanation' for backward compatibility with any callers
     explanation = ""
     # Optionally synthesize a short explanation from reasons if needed
@@ -662,6 +1004,7 @@ def llm_as_judge_score(
         "score": overall,
         "binary": binary,
         "reasons": reasons,
+        "constraint_analysis": constraint_analysis,
         "explanation": explanation,
         "answer_reasonableness": subs["answer_reasonableness"],
         "tool_correctness": subs["tool_correctness"],
@@ -722,8 +1065,23 @@ def _values_from_prompt_and_traj(
     reference_tools: List[Dict[str, Any]],
     constraints: Optional[List[Dict[str, Any]]] = None
 ) -> Dict[str, Any]:
-    exe = traj_obj.get("execution", {}) or {}
-    final_resp = exe.get("final_response", "")
+    # Check if this is a goal-oriented multi-turn trajectory
+    turns = traj_obj.get("turns")
+    trajectory_metadata = traj_obj.get("metadata", {})
+
+    if turns and isinstance(turns, list):
+        # Goal-oriented multi-turn trajectory
+        # Get final answer from the last turn
+        last_turn = turns[-1] if turns else {}
+        final_resp = last_turn.get("agent_response", "")
+
+        # Use constraints from metadata if not provided
+        if not constraints and trajectory_metadata:
+            constraints = trajectory_metadata.get("constraints", [])
+    else:
+        # Single-turn trajectory (original behavior)
+        exe = traj_obj.get("execution", {}) or {}
+        final_resp = exe.get("final_response", "")
 
     history_text = build_history_from_reasoning_trace(traj_obj)
     cleaned_history = _clean_history_before_summary(history_text)
@@ -734,7 +1092,7 @@ def _values_from_prompt_and_traj(
 
     meta = {
         "task_id": task_id,
-        "category": (traj_obj.get("metadata") or {}).get("model", "unknown_model"),
+        "category": trajectory_metadata.get("model", "unknown_model") if trajectory_metadata else "unknown_model",
         "correct_answer": "",
     }
     task = {"question": query, "output_format": {}}
@@ -747,6 +1105,7 @@ def _values_from_prompt_and_traj(
         "reference_tools": reference_tools or [],
         "constraints": constraints or [],
         "actual_tools": actual_tools,
+        "trajectory_metadata": trajectory_metadata,  # Pass full metadata for constraint comparison
     }
 
 
@@ -796,6 +1155,7 @@ def run_judge_from_files(
             final_answer=pack["final_answer"],
             reference_tools=pack["reference_tools"],
             constraints=pack["constraints"],
+            trajectory_metadata=pack.get("trajectory_metadata"),
             temperature=temperature,
             pass_threshold=pass_threshold,
             max_completion_tokens=max_completion_tokens,
@@ -817,6 +1177,7 @@ def run_judge_from_files(
             "tool_relevance": obj.get("tool_relevance"),
             "grounding": obj.get("grounding"),
             "constraint_adherence": obj.get("constraint_adherence"),
+            "constraint_analysis": obj.get("constraint_analysis", {}),
             "reasons": obj.get("reasons", {}),
             "explanation": obj.get("explanation"),
         })
@@ -946,20 +1307,32 @@ binary = "success" if final_answer_score >= 0.7, else "failure"
 """
 
 
-def extract_steps_from_reasoning_trace(rt: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """Extract individual steps from reasoning_trace."""
+def extract_steps_from_reasoning_trace(rt: List[Dict[str, Any]], turn_number: Optional[int] = None) -> List[Dict[str, Any]]:
+    """
+    Extract individual steps from reasoning_trace.
+
+    Args:
+        rt: Reasoning trace list
+        turn_number: Optional turn number to tag steps with (for multi-turn trajectories)
+
+    Returns:
+        List of step dictionaries
+    """
     steps: List[Dict[str, Any]] = []
     current: Optional[Dict[str, Any]] = None
     step_num = 0
 
     def _new_step(idx: int) -> Dict[str, Any]:
-        return {
+        step_dict = {
             "step_num": idx,
             "thought": None,
             "action": None,
             "action_input": None,
             "tool_result": None
         }
+        if turn_number is not None:
+            step_dict["turn_number"] = turn_number
+        return step_dict
 
     for item in rt:
         ttype = (item.get("type") or "").strip().lower()
@@ -1002,6 +1375,26 @@ def extract_steps_from_reasoning_trace(rt: List[Dict[str, Any]]) -> List[Dict[st
         steps.append(current)
 
     return steps
+
+
+def extract_all_steps_from_multiturn(turns: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """
+    Extract all steps from all turns in a multi-turn trajectory.
+
+    Args:
+        turns: List of turn objects from goal-oriented trajectory
+
+    Returns:
+        Flat list of all steps across all turns, with turn_number tagged
+    """
+    all_steps = []
+
+    for turn_idx, turn in enumerate(turns, 1):
+        rt = turn.get("reasoning_trace") or []
+        turn_steps = extract_steps_from_reasoning_trace(rt, turn_number=turn_idx)
+        all_steps.extend(turn_steps)
+
+    return all_steps
 
 
 def evaluate_single_step(
@@ -1146,15 +1539,31 @@ def evaluate_trajectory_with_steps(
     """
     Evaluate trajectory with step-by-step evaluation and final answer evaluation.
 
+    Supports both single-turn and multi-turn goal-oriented trajectories.
+
     NO holistic trajectory evaluation - only:
     1. Step-by-step: evaluate each step individually
     2. Final answer: evaluate only the final answer quality
 
     Returns combined result with both evaluations.
     """
-    # Extract steps from reasoning trace
-    rt = traj_obj.get("reasoning_trace", [])
-    steps = extract_steps_from_reasoning_trace(rt)
+    # Check if this is a goal-oriented multi-turn trajectory
+    turns = traj_obj.get("turns")
+    trajectory_metadata = traj_obj.get("metadata", {})
+
+    if turns and isinstance(turns, list):
+        # Multi-turn trajectory: extract steps from all turns
+        steps = extract_all_steps_from_multiturn(turns)
+        # Use constraints from metadata if not provided
+        if not constraints and trajectory_metadata:
+            constraints = trajectory_metadata.get("constraints", [])
+        # Use original query from metadata
+        if not query and trajectory_metadata:
+            query = trajectory_metadata.get("seed_query") or trajectory_metadata.get("user_goal", "")
+    else:
+        # Single-turn trajectory
+        rt = traj_obj.get("reasoning_trace", [])
+        steps = extract_steps_from_reasoning_trace(rt)
 
     if not steps:
         print("[WARNING] No steps found in reasoning trace for step-by-step evaluation", file=sys.stderr)
@@ -1176,21 +1585,32 @@ def evaluate_trajectory_with_steps(
             action_input = step.get("action_input")
             tool_result = step.get("tool_result")
 
-            step_evaluations.append({
+            step_eval = {
                 "step_num": step["step_num"],
                 "thought": step.get("thought"),
                 "action": step.get("action"),
                 "action_input": action_input,
                 "tool_result": str(tool_result)[:2000] if tool_result else None,  # Truncate for output file
                 "evaluation": eval_result,
-            })
+            }
+            # Add turn number if present (for multi-turn trajectories)
+            if "turn_number" in step:
+                step_eval["turn_number"] = step["turn_number"]
+            step_evaluations.append(step_eval)
 
         avg_step_score = sum(e["evaluation"].get("step_score", 0) for e in step_evaluations) / len(step_evaluations)
 
     # Get final answer from trajectory
     task_id = traj_obj.get("_filename", "unknown")
-    exe = traj_obj.get("execution", {}) or {}
-    final_answer = exe.get("final_response", "")
+
+    if turns and isinstance(turns, list):
+        # Multi-turn: get final answer from last turn
+        last_turn = turns[-1] if turns else {}
+        final_answer = last_turn.get("agent_response", "")
+    else:
+        # Single-turn
+        exe = traj_obj.get("execution", {}) or {}
+        final_answer = exe.get("final_response", "")
 
     # Build history for grounding evaluation
     history_text = build_history_from_reasoning_trace(traj_obj)
@@ -1208,8 +1628,8 @@ def evaluate_trajectory_with_steps(
         temperature=temperature,
     )
 
-    # Combine results
-    return {
+    # Build result with trajectory metadata for constraint comparison
+    result = {
         "uuid": query_uuid,  # Include UUID in evaluation result
         "query": query,
         "reference_tools": reference_tools,
@@ -1224,6 +1644,13 @@ def evaluate_trajectory_with_steps(
         },
         "task_id": task_id,
     }
+
+    # Add constraint comparison for goal-oriented trajectories
+    if trajectory_metadata and "overall_constraint_satisfaction_rate" in trajectory_metadata:
+        result["trajectory_constraint_satisfaction_rate"] = trajectory_metadata["overall_constraint_satisfaction_rate"]
+        result["goal_completion_rate"] = trajectory_metadata.get("goal_completion_rate", 0.0)
+
+    return result
 
 
 # =========================
