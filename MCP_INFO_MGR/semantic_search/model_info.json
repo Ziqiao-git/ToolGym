@@ -4,7 +4,7 @@
   "max_seq_length": 8192,
   "device": "mps:0",
   "query_instruction": "Represent this sentence for searching relevant passages: ",
-  "build_date": "2025-11-27T00:12:38.090673",
-  "total_tools": 2158,
+  "build_date": "2025-12-27T18:04:47.332580",
+  "total_tools": 2745,
   "input_file": "MCP_INFO_MGR/mcp_data/working/tool_descriptions.ndjson"
 }

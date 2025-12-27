@@ -1,5 +1,5 @@
 """
-Fetch tool descriptions for new servers.
+Fetch tool descriptions for new servers using Smithery OAuth.
 
 Usage:
     python MCP_INFO_MGR/mcp_data/fetch_new_tools.py          # Fetch all servers
@@ -10,19 +10,16 @@ and fetches tool descriptions for each server via Smithery OAuth.
 
 With --retry flag, it will read the output file and retry only servers that failed.
 
-Requirements:
-    * `SMITHERY_API_KEY` exported in your environment.
+On first run, a browser will open for Smithery OAuth authentication.
+Tokens are cached under ~/.mcp/smithery_tokens/.
 """
 from __future__ import annotations
 
 import asyncio
 import json
-import os
 import sys
 from pathlib import Path
 from datetime import datetime
-from typing import Optional
-from urllib.parse import urlparse, parse_qsl, urlencode, urlunparse
 import argparse
 
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -34,27 +31,17 @@ for path in (ORCHESTRATOR_DIR, PROJECT_ROOT):
     if str(path) not in sys.path:
         sys.path.insert(0, str(path))
 
-from dotenv import load_dotenv
-from mcpuniverse.mcp.manager import MCPManager
-
-
-def add_api_key_to_url(url: str, api_key: str) -> str:
-    """Add API key to URL query parameters."""
-    parsed = urlparse(url)
-    query = dict(parse_qsl(parsed.query, keep_blank_values=True))
-    query['api_key'] = api_key
-    new_query = urlencode(query, doseq=True)
-    return urlunparse(parsed._replace(query=new_query))
+from mcp import ClientSession
+from mcp.client.streamable_http import streamablehttp_client
+from mcpuniverse.mcp.oauth import create_smithery_auth
 
 
 async def fetch_tools_for_server(
-    manager: MCPManager,
     qualified_name: str,
     url: str,
-    api_key: str,
-    timeout: int = 15,
+    timeout: int = 30,
 ) -> dict:
-    """Fetch tool descriptions for a single server."""
+    """Fetch tool descriptions using OAuth authentication."""
     result = {
         "qualifiedName": qualified_name,
         "url": url,
@@ -64,48 +51,33 @@ async def fetch_tools_for_server(
         "error": None,
     }
 
-    client = None
     try:
-        # Build server config for this URL
-        auth_url = add_api_key_to_url(url, api_key)
+        print(f"Fetching tools for {qualified_name} (OAuth)...", flush=True)
 
-        server_config = {
-            "streamable_http": {
-                "url": auth_url,
-                "headers": {}
-            }
-        }
-
-        # Add server config if not already present
-        if qualified_name not in manager.list_server_names():
-            manager.add_server_config(qualified_name, server_config)
-
-        # Build client and fetch tools with timeout
-        print(f"Fetching tools for {qualified_name}...", flush=True)
-
-        # Wrap in timeout to avoid hanging connections
-        client = await asyncio.wait_for(
-            manager.build_client(qualified_name, transport="streamable_http", timeout=timeout),
-            timeout=timeout + 5
+        auth_provider, callback_handler = create_smithery_auth(
+            server_url=url,
+            client_name="MCP Tool Fetcher",
         )
 
-        # Fetch tools with timeout
-        tools = await asyncio.wait_for(
-            client.list_tools(),
-            timeout=timeout
-        )
+        async with callback_handler:
+            async with streamablehttp_client(url=url, auth=auth_provider) as (read, write, _):
+                async with ClientSession(read, write) as session:
+                    await asyncio.wait_for(session.initialize(), timeout=timeout)
 
-        result["status"] = "ok"
-        result["toolCount"] = len(tools)
-        result["tools"] = [
-            {
-                "name": tool.name,
-                "description": tool.description if hasattr(tool, "description") else None,
-                "inputSchema": tool.inputSchema if hasattr(tool, "inputSchema") else None,
-            }
-            for tool in tools
-        ]
-        print(f"  ✓ {qualified_name}: {len(tools)} tools", flush=True)
+                    tools_result = await asyncio.wait_for(session.list_tools(), timeout=timeout)
+                    tools = tools_result.tools
+
+                    result["status"] = "ok"
+                    result["toolCount"] = len(tools)
+                    result["tools"] = [
+                        {
+                            "name": tool.name,
+                            "description": tool.description if hasattr(tool, "description") else None,
+                            "inputSchema": tool.inputSchema if hasattr(tool, "inputSchema") else None,
+                        }
+                        for tool in tools
+                    ]
+                    print(f"  ✓ {qualified_name}: {len(tools)} tools", flush=True)
 
     except asyncio.TimeoutError:
         result["status"] = "timeout"
@@ -119,16 +91,6 @@ async def fetch_tools_for_server(
         result["status"] = "error"
         result["error"] = str(exc)
         print(f"  ✗ {qualified_name}: {exc}", flush=True)
-    finally:
-        # Clean up client in the same task context
-        if client is not None:
-            try:
-                await asyncio.wait_for(client.cleanup(), timeout=5)
-            except asyncio.TimeoutError:
-                print(f"  ⚠ {qualified_name}: cleanup timed out", flush=True)
-            except Exception as cleanup_exc:
-                # Suppress cleanup errors - they're often caused by already-closed connections
-                print(f"  ⚠ {qualified_name}: cleanup error (suppressed): {cleanup_exc}", flush=True)
 
     return result
 
@@ -161,9 +123,9 @@ def load_servers_from_ndjson(filepath: Path) -> list[dict]:
 async def main():
     """Main entry point."""
     # Parse command line arguments
-    parser = argparse.ArgumentParser(description="Fetch tool descriptions for MCP servers")
+    parser = argparse.ArgumentParser(description="Fetch tool descriptions for MCP servers via OAuth")
     parser.add_argument("--retry", action="store_true", help="Retry only failed servers from previous run")
-    parser.add_argument("--timeout", type=int, default=15, help="Timeout in seconds (default: 15, retry: 30)")
+    parser.add_argument("--timeout", type=int, default=30, help="Timeout in seconds (default: 30)")
     args = parser.parse_args()
 
     script_dir = Path(__file__).parent
@@ -172,14 +134,7 @@ async def main():
     input_file = script_dir / "working" / "new_remote_servers.json"
     output_file = script_dir / "working" / "new_tool_descriptions.ndjson"
 
-    # Load environment variables
-    load_dotenv(str(ORCHESTRATOR_DIR / ".env"))
-
-    # Check for API key
-    api_key = os.getenv("SMITHERY_API_KEY")
-    if not api_key:
-        print("Error: SMITHERY_API_KEY not found in environment", file=sys.stderr)
-        return 1
+    print("Using Smithery OAuth authentication")
 
     # Retry mode: load failed servers from output file
     if args.retry:
@@ -234,9 +189,6 @@ async def main():
 
         previous_results_map = None
 
-    # Initialize MCP manager
-    manager = MCPManager()
-
     # Process servers and write results incrementally
     print(f"\nFetching tool descriptions...")
     print(f"Output will be written to {output_file}")
@@ -258,8 +210,8 @@ async def main():
                 print(f"  ⚠ {qualified_name}: no URL found, skipping")
                 continue
 
-            # Fetch tools with custom timeout
-            result = await fetch_tools_for_server(manager, qualified_name, url, api_key, timeout=args.timeout)
+            # Fetch tools with OAuth
+            result = await fetch_tools_for_server(qualified_name, url, timeout=args.timeout)
             retry_results.append(result)
 
             if result["status"] == "ok":
@@ -295,8 +247,8 @@ async def main():
                     print(f"  ⚠ {qualified_name}: no URL found, skipping")
                     continue
 
-                # Fetch tools with custom timeout
-                result = await fetch_tools_for_server(manager, qualified_name, url, api_key, timeout=args.timeout)
+                # Fetch tools with OAuth
+                result = await fetch_tools_for_server(qualified_name, url, timeout=args.timeout)
 
                 # Write result immediately
                 out_f.write(json.dumps(result) + "\n")
