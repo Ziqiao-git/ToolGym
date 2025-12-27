@@ -443,7 +443,7 @@ USER QUERY:
 {self.query}
 
 Your task:
-Break this query into 3-6 clear, measurable sub-goals that represent what information or tasks the user needs.
+Break this query into clear, measurable sub-goals that represent what information or tasks the user needs.
 
 Each sub-goal should:
 - Be specific and measurable (clear when completed)
@@ -474,7 +474,8 @@ Output format (strict JSON):
   "sub_goals": [
     "Sub-goal 1",
     "Sub-goal 2",
-    "Sub-goal 3"
+    "Sub-goal 3",
+    ...
   ]
 }}"""
 
@@ -1278,12 +1279,13 @@ class GoalOrientedController:
                         agent_response=agent_response,
                         tool_calls=[],
                         reasoning_trace=[],
-                        tool_results=[],
                         available_servers=available_servers,
                         available_tool_count=available_tool_count,
                         completed_sub_goals=[],
                         remaining_sub_goals=self.subgoal_tracker.remaining.copy(),
                         goal_progress=self.subgoal_tracker.progress_percentage,
+                        constraints_violated=[],
+                        constraint_satisfaction_rate=1.0,
                         user_decision="TERMINATE",
                         termination_reason="early_stop_no_tools",
                         satisfaction_level=0.0,

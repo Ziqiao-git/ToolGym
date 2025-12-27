@@ -1,278 +1,374 @@
 #!/usr/bin/env python3
 """
-Tool Call Statistics Analysis
+Multiturn Trajectory Analysis for Goal-Oriented Tasks
 
-This script analyzes tool call success rates from trajectory files, categorizing
-errors by source (model vs server) and providing detailed breakdowns.
+This script analyzes multiturn trajectory files from the goaloriented directory,
+providing detailed statistics on turns, server usage, tool calls, and constraint completion.
 
 Usage:
-    # Basic usage - show all tool call statistics
+    # Basic usage - analyze all trajectories in goaloriented directory
     python analyze_scripts/analyze_tool_stats.py
 
     # Filter by model
-    python analyze_scripts/analyze_tool_stats.py --model gemini-2.5pro
+    python analyze_scripts/analyze_tool_stats.py --model gemini-3-pro-preview
 
     # Use custom trajectories directory
-    python analyze_scripts/analyze_tool_stats.py --traj-dir /path/to/trajectories
+    python analyze_scripts/analyze_tool_stats.py --traj-dir /path/to/trajectories/goaloriented
 
 Data Source:
-    - Reads from trajectories/*.json files
-    - Each trajectory contains tool_calls with status and result
+    - Reads from trajectories/goaloriented/**/*.json files
+    - Each trajectory contains multiple turns with tool_calls
 
 Output:
-    - Overall success rates
-    - Success rates by model (ranking)
-    - Success rates by server (which MCP servers are most reliable)
-    - Tools with most failures
-    - Dynamic loading statistics
-    - Call duration statistics
-    - Error analysis (MODEL_ERROR vs SERVER_ERROR breakdown)
+    - Number of turns per trajectory
+    - Number of servers used (total and unique)
+    - Number of tools called (with duplicates and deduplicated)
+    - Constraint completion status (from final turn)
+    - Tool call success rates
 
-Error Categories:
-    - MODEL_ERROR: The LLM called the tool incorrectly
-        - missing_required_field, wrong_type, invalid_schema, etc.
-    - SERVER_ERROR: The MCP server itself has issues
-        - rate_limit, quota_exceeded, null_reference, etc.
-    - UNKNOWN: Cannot determine the cause
-
-Methodology:
-    1. Load all trajectory files and extract tool_calls
-    2. For each tool call, check if status != "success" or result contains "isError=True"
-    3. Classify errors using regex patterns on error messages
-    4. Aggregate statistics by model, server, and tool
+Multiturn Structure:
+    - Each trajectory has multiple turns
+    - Each turn has tool_calls with server/tool/status
+    - Constraints are evaluated at the end (final turn metadata)
 """
 from __future__ import annotations
 
 import sys
 import argparse
+import json
 import statistics
 from pathlib import Path
 from collections import defaultdict
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Tuple
 
-# Import shared data loading functions
-from data_loaders import (
-    TRAJECTORIES_DIR,
-    load_trajectory_data,
-)
+# Default trajectories directory
+DEFAULT_TRAJECTORIES_DIR = Path(__file__).parent.parent / "trajectories" / "goaloriented"
 
 
-def print_tool_call_stats(tool_calls: List[Dict[str, Any]], model_filter: str = None):
+def load_multiturn_trajectories(traj_dir: Path, model_filter: str = None) -> List[Dict[str, Any]]:
     """
-    Print comprehensive tool call success rate statistics.
+    Load all multiturn trajectory files from the goaloriented directory.
 
-    Includes:
-    - Overall success rate
-    - By model breakdown with ranking
-    - By server breakdown
-    - Tools with most failures
-    - Dynamic loading stats
-    - Call duration analysis
-    - Error categorization (MODEL_ERROR vs SERVER_ERROR)
+    Args:
+        traj_dir: Path to trajectories/goaloriented directory
+        model_filter: Optional model name filter (case-insensitive)
+
+    Returns:
+        List of trajectory dictionaries
     """
-    if not tool_calls:
-        print("No tool call data found in trajectories.")
-        return
+    trajectories = []
+
+    if not traj_dir.exists():
+        print(f"Warning: Directory does not exist: {traj_dir}")
+        return trajectories
+
+    # Find all JSON files recursively
+    for json_file in traj_dir.rglob("*.json"):
+        try:
+            with open(json_file, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+
+            # Apply model filter if specified
+            if model_filter:
+                agent_model = data.get("metadata", {}).get("agent_model", "")
+                if model_filter.lower() not in agent_model.lower():
+                    continue
+
+            trajectories.append(data)
+        except Exception as e:
+            print(f"Warning: Failed to load {json_file}: {e}")
+
+    return trajectories
+
+
+def check_result_has_error(result_content: Any) -> bool:
+    """
+    Check if a result content indicates an error.
+
+    Args:
+        result_content: The content from reasoning_trace result
+
+    Returns:
+        True if the result indicates an error, False otherwise
+    """
+    if result_content is None:
+        return False
+
+    content_str = str(result_content).lower()
+
+    # Error indicators
+    error_patterns = [
+        'error executing tool',
+        'error occurred during executing tool',
+        'failed to',
+        'request failed',
+        'status code 4',  # 400, 401, 402, 403, 404, 429, etc.
+        'status code 5',  # 500, 502, 503, etc.
+        'timed out',
+        'timeout',
+        'could not be loaded',
+        'validation error',
+        'unauthorized',
+        'forbidden',
+        '"error"',
+        '"status":403',
+        '"status":429',
+        '"status":500',
+    ]
+
+    return any(pattern in content_str for pattern in error_patterns)
+
+
+def analyze_trajectory_stats(trajectories: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """
+    Analyze multiturn trajectory statistics.
+
+    Returns:
+        Dictionary containing various statistics
+    """
+    stats = {
+        "total_trajectories": len(trajectories),
+        "turn_counts": [],
+        "server_usage": defaultdict(int),  # server -> count
+        "unique_servers_per_traj": [],
+        "tool_calls_total": [],
+        "tool_calls_unique": [],
+        "tool_success_rate": [],
+        "constraint_satisfaction": [],
+        "tools_by_server": defaultdict(set),  # server -> set of tools
+        "tool_call_details": [],  # All tool calls for detailed analysis
+    }
+
+    for traj in trajectories:
+        turns = traj.get("turns", [])
+        num_turns = len(turns)
+        stats["turn_counts"].append(num_turns)
+
+        # Track servers and tools across all turns
+        servers_in_traj = set()
+        tools_in_traj = []
+        tools_unique_in_traj = set()
+        successful_calls = 0
+        total_calls = 0
+
+        for turn in turns:
+            tool_calls = turn.get("tool_calls", [])
+            reasoning_trace = turn.get("reasoning_trace", [])
+
+            # Extract results from reasoning_trace for error checking
+            results = [t.get("content") for t in reasoning_trace if t.get("type") == "result"]
+
+            for idx, call in enumerate(tool_calls):
+                server = call.get("server", "unknown")
+                tool = call.get("tool", "unknown")
+                status = call.get("status", "unknown")
+
+                # Track servers
+                servers_in_traj.add(server)
+                stats["server_usage"][server] += 1
+
+                # Track tools
+                tool_full_name = f"{server}::{tool}"
+                tools_in_traj.append(tool_full_name)
+                tools_unique_in_traj.add(tool_full_name)
+                stats["tools_by_server"][server].add(tool)
+
+                # Check if the result indicates an error
+                # Note: results may not align 1-1 with tool_calls, so we check all results
+                has_error = False
+                if idx < len(results):
+                    has_error = check_result_has_error(results[idx])
+
+                is_success = status == "success" and not has_error
+
+                # Track success
+                total_calls += 1
+                if is_success:
+                    successful_calls += 1
+
+                # Store for detailed analysis
+                stats["tool_call_details"].append({
+                    "server": server,
+                    "tool": tool,
+                    "status": status,
+                    "has_error": has_error,
+                    "is_success": is_success
+                })
+
+        stats["unique_servers_per_traj"].append(len(servers_in_traj))
+        stats["tool_calls_total"].append(len(tools_in_traj))
+        stats["tool_calls_unique"].append(len(tools_unique_in_traj))
+
+        if total_calls > 0:
+            stats["tool_success_rate"].append(successful_calls / total_calls)
+
+        # Get constraint satisfaction from final turn or metadata
+        metadata = traj.get("metadata", {})
+        constraint_rate = metadata.get("overall_constraint_satisfaction_rate")
+        if constraint_rate is not None:
+            stats["constraint_satisfaction"].append(constraint_rate)
+        else:
+            # Try to get from final turn
+            if turns:
+                final_turn = turns[-1]
+                constraint_rate = final_turn.get("constraint_satisfaction_rate")
+                if constraint_rate is not None:
+                    stats["constraint_satisfaction"].append(constraint_rate)
+
+    return stats
+
+
+def print_multiturn_analysis(stats: Dict[str, Any]):
+    """Print comprehensive analysis of multiturn trajectories."""
 
     print("\n" + "=" * 80)
-    print("TOOL CALL SUCCESS RATES")
+    print("MULTITURN TRAJECTORY ANALYSIS")
     print("=" * 80)
 
-    # Overall stats
-    total = len(tool_calls)
-    successful = sum(1 for tc in tool_calls if not tc["is_error"])
-    success_rate = successful / total * 100 if total > 0 else 0
+    print(f"\nTotal Trajectories Analyzed: {stats['total_trajectories']}")
 
-    print(f"\nOverall: {successful}/{total} successful ({success_rate:.1f}%)")
+    if stats['total_trajectories'] == 0:
+        print("\nNo trajectories found!")
+        return
 
-    # By model
-    print("\n--- By Model ---")
-    by_model = defaultdict(lambda: {"total": 0, "success": 0})
-    for tc in tool_calls:
-        by_model[tc["model"]]["total"] += 1
-        if not tc["is_error"]:
-            by_model[tc["model"]]["success"] += 1
+    # Turn statistics
+    print("\n" + "-" * 80)
+    print("TURN STATISTICS")
+    print("-" * 80)
+    turn_counts = stats['turn_counts']
+    if turn_counts:
+        print(f"Average turns per trajectory: {statistics.mean(turn_counts):.2f}")
+        print(f"Median turns: {statistics.median(turn_counts):.1f}")
+        print(f"Min turns: {min(turn_counts)}")
+        print(f"Max turns: {max(turn_counts)}")
+        print(f"Total turns across all trajectories: {sum(turn_counts)}")
 
-    # Sort by success rate descending
-    model_stats = []
-    for model, stats in by_model.items():
-        rate = stats["success"] / stats["total"] * 100 if stats["total"] > 0 else 0
-        model_stats.append((model, stats["total"], stats["success"], rate))
-    model_stats.sort(key=lambda x: x[3], reverse=True)
+    # Server usage statistics
+    print("\n" + "-" * 80)
+    print("SERVER USAGE STATISTICS")
+    print("-" * 80)
 
-    print(f"{'Model':<25} {'Success':<12} {'Total':<8} {'Rate':<8}")
-    print("-" * 55)
-    for model, total, success, rate in model_stats:
-        print(f"{model:<25} {success:<12} {total:<8} {rate:.1f}%")
+    unique_servers = stats['unique_servers_per_traj']
+    if unique_servers:
+        print(f"Average unique servers per trajectory: {statistics.mean(unique_servers):.2f}")
+        print(f"Median unique servers: {statistics.median(unique_servers):.1f}")
+        print(f"Min servers: {min(unique_servers)}")
+        print(f"Max servers: {max(unique_servers)}")
 
-    # By server
-    print("\n--- By Server ---")
-    by_server = defaultdict(lambda: {"total": 0, "success": 0, "tools": set()})
-    for tc in tool_calls:
-        by_server[tc["server"]]["total"] += 1
-        by_server[tc["server"]]["tools"].add(tc["tool"])
-        if not tc["is_error"]:
-            by_server[tc["server"]]["success"] += 1
+    print(f"\nTotal unique servers used: {len(stats['server_usage'])}")
+    print("\nTop 10 Most Used Servers:")
+    sorted_servers = sorted(stats['server_usage'].items(), key=lambda x: x[1], reverse=True)
+    print(f"{'Server':<50} {'Tool Calls':<12} {'Unique Tools'}")
+    print("-" * 80)
+    for server, count in sorted_servers[:10]:
+        server_display = server[:48] if len(server) > 48 else server
+        num_tools = len(stats['tools_by_server'][server])
+        print(f"{server_display:<50} {count:<12} {num_tools}")
 
-    server_stats = []
-    for server, stats in by_server.items():
-        rate = stats["success"] / stats["total"] * 100 if stats["total"] > 0 else 0
-        server_stats.append((server, stats["total"], stats["success"], rate, len(stats["tools"])))
-    server_stats.sort(key=lambda x: x[1], reverse=True)  # Sort by total calls
+    # Tool call statistics
+    print("\n" + "-" * 80)
+    print("TOOL CALL STATISTICS")
+    print("-" * 80)
 
-    print(f"{'Server':<40} {'Success':<10} {'Total':<8} {'Rate':<8} {'Tools'}")
-    print("-" * 75)
-    for server, total, success, rate, num_tools in server_stats[:20]:  # Top 20
-        server_display = server[:38] if len(server) > 38 else server
-        print(f"{server_display:<40} {success:<10} {total:<8} {rate:.1f}%    {num_tools}")
+    total_calls = stats['tool_calls_total']
+    unique_calls = stats['tool_calls_unique']
 
-    if len(server_stats) > 20:
-        print(f"... and {len(server_stats) - 20} more servers")
+    if total_calls:
+        print(f"Average total tool calls per trajectory: {statistics.mean(total_calls):.2f}")
+        print(f"Average unique tool calls per trajectory: {statistics.mean(unique_calls):.2f}")
+        print(f"Total tool calls (with duplicates): {sum(total_calls)}")
+        print(f"Average duplication rate: {(sum(total_calls) - sum(unique_calls)) / sum(total_calls) * 100:.1f}%")
 
-    # By tool (top failures)
-    print("\n--- Tools with Most Failures ---")
-    by_tool = defaultdict(lambda: {"total": 0, "failures": 0, "server": ""})
-    for tc in tool_calls:
-        key = f"{tc['server']}::{tc['tool']}"
-        by_tool[key]["total"] += 1
-        by_tool[key]["server"] = tc["server"]
-        by_tool[key]["tool"] = tc["tool"]
-        if tc["is_error"]:
-            by_tool[key]["failures"] += 1
+    # Tool success rate
+    print("\n" + "-" * 80)
+    print("TOOL CALL SUCCESS RATE")
+    print("-" * 80)
 
-    # Sort by number of failures
-    tool_failures = []
-    for key, stats in by_tool.items():
-        if stats["failures"] > 0:
-            rate = (stats["total"] - stats["failures"]) / stats["total"] * 100
-            tool_failures.append((stats["server"], stats["tool"], stats["failures"], stats["total"], rate))
-    tool_failures.sort(key=lambda x: x[2], reverse=True)
+    all_calls = stats['tool_call_details']
+    if all_calls:
+        total = len(all_calls)
+        successful = sum(1 for call in all_calls if call['is_success'])
+        failed = total - successful
 
-    if tool_failures:
-        print(f"{'Server':<30} {'Tool':<25} {'Fails':<8} {'Total':<8} {'Success%'}")
-        print("-" * 80)
-        for server, tool, failures, total, rate in tool_failures[:15]:
-            server_display = server[:28] if len(server) > 28 else server
-            tool_display = tool[:23] if len(tool) > 23 else tool
-            print(f"{server_display:<30} {tool_display:<25} {failures:<8} {total:<8} {rate:.1f}%")
+        print(f"Total tool calls: {total}")
+        print(f"Successful calls: {successful}")
+        print(f"Failed calls: {failed}")
+        print(f"Overall success rate: {successful / total * 100:.2f}%")
+
+        # Breakdown of failures
+        if failed > 0:
+            status_success_but_error = sum(1 for call in all_calls
+                                          if call['status'] == 'success' and call['has_error'])
+            status_not_success = sum(1 for call in all_calls
+                                    if call['status'] != 'success')
+
+            print(f"\nFailure breakdown:")
+            print(f"  - Status='success' but result has error: {status_success_but_error}")
+            print(f"  - Status != 'success': {status_not_success}")
+
+        # Success rate by server
+        print("\nSuccess Rate by Server:")
+        server_stats = defaultdict(lambda: {'total': 0, 'success': 0, 'failed': 0})
+        for call in all_calls:
+            server_stats[call['server']]['total'] += 1
+            if call['is_success']:
+                server_stats[call['server']]['success'] += 1
+            else:
+                server_stats[call['server']]['failed'] += 1
+
+        server_success_rates = []
+        for server, stats_dict in server_stats.items():
+            rate = stats_dict['success'] / stats_dict['total'] * 100
+            server_success_rates.append((server, stats_dict['success'],
+                                        stats_dict['failed'], stats_dict['total'], rate))
+
+        server_success_rates.sort(key=lambda x: x[3], reverse=True)  # Sort by total calls
+
+        print(f"{'Server':<50} {'Success':<10} {'Failed':<8} {'Total':<8} {'Rate'}")
+        print("-" * 85)
+        for server, success, failed, total, rate in server_success_rates[:15]:
+            server_display = server[:48] if len(server) > 48 else server
+            print(f"{server_display:<50} {success:<10} {failed:<8} {total:<8} {rate:.1f}%")
+
+    # Constraint satisfaction
+    print("\n" + "-" * 80)
+    print("CONSTRAINT SATISFACTION (from final turn)")
+    print("-" * 80)
+
+    constraint_rates = stats['constraint_satisfaction']
+    if constraint_rates:
+        print(f"Trajectories with constraint data: {len(constraint_rates)}")
+        print(f"Average constraint satisfaction rate: {statistics.mean(constraint_rates) * 100:.1f}%")
+        print(f"Median constraint satisfaction rate: {statistics.median(constraint_rates) * 100:.1f}%")
+        print(f"Min satisfaction rate: {min(constraint_rates) * 100:.1f}%")
+        print(f"Max satisfaction rate: {max(constraint_rates) * 100:.1f}%")
+
+        # Distribution
+        perfect = sum(1 for r in constraint_rates if r >= 1.0)
+        high = sum(1 for r in constraint_rates if 0.8 <= r < 1.0)
+        medium = sum(1 for r in constraint_rates if 0.5 <= r < 0.8)
+        low = sum(1 for r in constraint_rates if r < 0.5)
+
+        print(f"\nConstraint Satisfaction Distribution:")
+        print(f"  Perfect (100%):     {perfect:3d} ({perfect/len(constraint_rates)*100:.1f}%)")
+        print(f"  High (80-99%):      {high:3d} ({high/len(constraint_rates)*100:.1f}%)")
+        print(f"  Medium (50-79%):    {medium:3d} ({medium/len(constraint_rates)*100:.1f}%)")
+        print(f"  Low (<50%):         {low:3d} ({low/len(constraint_rates)*100:.1f}%)")
     else:
-        print("No tool failures found!")
+        print("No constraint satisfaction data available")
 
-    # Dynamic loading stats
-    print("\n--- Dynamic Loading ---")
-    total_calls = len(tool_calls)
-    dynamic_loaded = sum(1 for tc in tool_calls if tc["dynamically_loaded"])
-    static_loaded = total_calls - dynamic_loaded
-    print(f"Statically loaded (meta-mcp): {static_loaded} ({static_loaded/total_calls*100:.1f}%)")
-    print(f"Dynamically loaded:           {dynamic_loaded} ({dynamic_loaded/total_calls*100:.1f}%)")
-
-    # Average duration
-    print("\n--- Call Durations ---")
-    durations = [tc["duration_seconds"] for tc in tool_calls if tc["duration_seconds"] > 0]
-    if durations:
-        print(f"Average duration: {statistics.mean(durations):.2f}s")
-        print(f"Median duration:  {statistics.median(durations):.2f}s")
-        print(f"Max duration:     {max(durations):.2f}s")
-
-    # Error categorization
-    print_error_analysis(tool_calls)
-
-
-def print_error_analysis(tool_calls: List[Dict[str, Any]]):
-    """
-    Print detailed error analysis categorizing errors by source.
-
-    This helps distinguish between:
-    - Model errors (LLM called the tool incorrectly)
-    - Server errors (MCP server issues like rate limits, bugs)
-    """
     print("\n" + "=" * 80)
-    print("ERROR ANALYSIS (Model vs Server Issues)")
-    print("=" * 80)
-
-    errors = [tc for tc in tool_calls if tc["is_error"]]
-    if not errors:
-        print("\nNo errors found!")
-        print("=" * 80)
-        return
-
-    total_errors = len(errors)
-    model_errors = [e for e in errors if e["error_category"] == "MODEL_ERROR"]
-    server_errors = [e for e in errors if e["error_category"] == "SERVER_ERROR"]
-    unknown_errors = [e for e in errors if e["error_category"] == "UNKNOWN"]
-
-    print(f"\nTotal Errors: {total_errors}")
-    print(f"  MODEL_ERROR  (LLM called incorrectly): {len(model_errors):4d} ({len(model_errors)/total_errors*100:.1f}%)")
-    print(f"  SERVER_ERROR (Server/API issues):      {len(server_errors):4d} ({len(server_errors)/total_errors*100:.1f}%)")
-    print(f"  UNKNOWN      (Cannot determine):       {len(unknown_errors):4d} ({len(unknown_errors)/total_errors*100:.1f}%)")
-
-    # Breakdown by subcategory
-    print("\n--- Error Subcategories ---")
-    by_subcategory = defaultdict(int)
-    for e in errors:
-        key = f"{e['error_category']}/{e['error_subcategory']}"
-        by_subcategory[key] += 1
-
-    sorted_subcats = sorted(by_subcategory.items(), key=lambda x: x[1], reverse=True)
-    print(f"{'Category/Subcategory':<45} {'Count':<8} {'%':<8}")
-    print("-" * 65)
-    for subcat, count in sorted_subcats:
-        print(f"{subcat:<45} {count:<8} {count/total_errors*100:.1f}%")
-
-    # Model errors by model (which model makes most mistakes)
-    print("\n--- Model Error Rate by LLM ---")
-    print("(How often each model calls tools incorrectly)")
-    by_model_errors = defaultdict(lambda: {"total_calls": 0, "model_errors": 0})
-    for tc in tool_calls:
-        by_model_errors[tc["model"]]["total_calls"] += 1
-        if tc["error_category"] == "MODEL_ERROR":
-            by_model_errors[tc["model"]]["model_errors"] += 1
-
-    model_error_rates = []
-    for model, stats in by_model_errors.items():
-        rate = stats["model_errors"] / stats["total_calls"] * 100 if stats["total_calls"] > 0 else 0
-        model_error_rates.append((model, stats["model_errors"], stats["total_calls"], rate))
-    model_error_rates.sort(key=lambda x: x[3])  # Sort by rate ascending (best first)
-
-    print(f"{'Model':<25} {'Model Errors':<15} {'Total Calls':<12} {'Error Rate'}")
-    print("-" * 65)
-    for model, model_errs, total, rate in model_error_rates:
-        print(f"{model:<25} {model_errs:<15} {total:<12} {rate:.2f}%")
-
-    # Server errors by server (which servers are most unreliable)
-    print("\n--- Server Error Rate by MCP Server ---")
-    print("(How often each server has issues - NOT the model's fault)")
-    by_server_errors = defaultdict(lambda: {"total_calls": 0, "server_errors": 0})
-    for tc in tool_calls:
-        by_server_errors[tc["server"]]["total_calls"] += 1
-        if tc["error_category"] == "SERVER_ERROR":
-            by_server_errors[tc["server"]]["server_errors"] += 1
-
-    server_error_rates = []
-    for server, stats in by_server_errors.items():
-        if stats["server_errors"] > 0:  # Only show servers with errors
-            rate = stats["server_errors"] / stats["total_calls"] * 100
-            server_error_rates.append((server, stats["server_errors"], stats["total_calls"], rate))
-    server_error_rates.sort(key=lambda x: x[1], reverse=True)  # Sort by count
-
-    print(f"{'Server':<40} {'Errors':<10} {'Total':<8} {'Rate'}")
-    print("-" * 70)
-    for server, errs, total, rate in server_error_rates[:15]:
-        server_display = server[:38] if len(server) > 38 else server
-        print(f"{server_display:<40} {errs:<10} {total:<8} {rate:.1f}%")
-
-    print("=" * 80)
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Analyze tool call success rates from trajectory files"
+        description="Analyze multiturn trajectory files from goaloriented directory"
     )
     parser.add_argument(
         "--traj-dir",
         type=Path,
-        default=TRAJECTORIES_DIR,
-        help=f"Trajectories directory (default: {TRAJECTORIES_DIR})",
+        default=DEFAULT_TRAJECTORIES_DIR,
+        help=f"Trajectories directory (default: {DEFAULT_TRAJECTORIES_DIR})",
     )
     parser.add_argument(
         "--model",
@@ -286,13 +382,18 @@ def main():
         return 1
 
     print(f"Loading trajectory data from: {args.traj_dir}")
-    tool_calls, trajectories = load_trajectory_data(args.traj_dir, args.model)
-    print(f"Found {len(tool_calls)} tool calls in {len(trajectories)} trajectories")
+    trajectories = load_multiturn_trajectories(args.traj_dir, args.model)
+    print(f"Found {len(trajectories)} trajectories")
 
     if args.model:
         print(f"Filtered to model: {args.model}")
 
-    print_tool_call_stats(tool_calls, args.model)
+    if not trajectories:
+        print("\nNo trajectories found matching criteria!")
+        return 1
+
+    stats = analyze_trajectory_stats(trajectories)
+    print_multiturn_analysis(stats)
 
     return 0
 
