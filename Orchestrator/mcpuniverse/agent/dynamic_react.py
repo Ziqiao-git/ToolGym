@@ -16,7 +16,6 @@ from mcpuniverse.mcp.manager import MCPManager
 from mcpuniverse.llm.base import BaseLLM
 from mcpuniverse.tracer import Tracer
 from mcpuniverse.callbacks.base import BaseCallback
-from mcpuniverse.agent.context_manager import ContextManager
 
 
 class DynamicReActAgent(ReAct):
@@ -55,17 +54,9 @@ class DynamicReActAgent(ReAct):
         self.trajectory = []  # Store tool call trajectory (for backward compatibility)
         self.reasoning_trace = []  # Store complete reasoning trace (thoughts + actions + observations)
 
-        # Initialize context manager for compression
+        # Keep these for backward compatibility but not used
         self.enable_compression = enable_compression
-        if enable_compression:
-            self.context_manager = ContextManager(
-                llm=llm,
-                model_context_limit=model_context_limit,
-            )
-            self._logger.info("✓ Context compression enabled (two-layer strategy)")
-        else:
-            self.context_manager = None
-            self._logger.info("Context compression disabled")
+        self.context_manager = None
 
     def _add_history(self, history_type: str, message: str):
         """
@@ -82,18 +73,11 @@ class DynamicReActAgent(ReAct):
 
     def _build_prompt(self, question: str):
         """
-        Override to:
-        1. Apply Layer 2 compression to history before building prompt
-        2. Only show meta-mcp + specifically discovered tools (not all tools from servers)
+        Override to only show meta-mcp + specifically discovered tools (not all tools from servers).
 
-        This encourages the agent to use search_tools for new capabilities while
-        remembering only the specific tools it has discovered and used.
+        This prevents context overflow from servers with many tools (e.g., GitHub has 823 tools)
+        and encourages the agent to use search_tools for new capabilities.
         """
-        # If Layer 2 compression has been applied, rebuild history from compressed trajectory
-        if self.enable_compression and self.context_manager and self.context_manager.trajectory:
-            # Sync parent's _history with compressed trajectory
-            self._sync_history_from_trajectory()
-
         # Filter tools to show: meta-mcp + ONLY the specific discovered tools
         # This prevents context overflow from servers with many tools (e.g., GitHub has 823 tools)
         original_tools = self._tools
@@ -119,37 +103,6 @@ class DynamicReActAgent(ReAct):
         finally:
             # Restore original tools (needed for actual tool execution)
             self._tools = original_tools
-
-    def _sync_history_from_trajectory(self):
-        """
-        Synchronize parent's _history with compressed trajectory from context_manager.
-
-        This is called before building prompts to ensure Layer 2 compressions
-        are reflected in the history sent to the LLM.
-        """
-        if not self.context_manager or not self.context_manager.trajectory:
-            return
-
-        # Rebuild _history from compressed trajectory
-        # Clear all "result" entries and rebuild from trajectory
-        new_history = []
-        result_index = 0
-
-        for item in self._history:
-            # Keep non-result items as-is
-            if not item.startswith("Result:"):
-                new_history.append(item)
-            else:
-                # Replace with compressed result from trajectory
-                if result_index < len(self.context_manager.trajectory):
-                    compressed_result = self.context_manager.trajectory[result_index]["result"]
-                    new_history.append(f"Result: {compressed_result}")
-                    result_index += 1
-                else:
-                    # Fallback: keep original if trajectory is shorter
-                    new_history.append(item)
-
-        self._history = new_history
 
     async def initialize(self, mcp_servers: List[Dict[str, str]] = None):
         """
@@ -486,54 +439,24 @@ class DynamicReActAgent(ReAct):
         # Process result and log to trajectory
         end_time = time.time()
         if tool_call:
-            # ✨ LAYER 1: Compress single tool result if needed
             # Extract actual text content from CallToolResult
             result_str = result.content[0].text if (result and result.content) else None
             original_result_str = result_str  # Save original for logging
 
-            if self.enable_compression and result_str and self.context_manager:
-                try:
-                    self._logger.info(f"🔍 Checking if tool result needs compression ({len(result_str)} chars)...")
-                    compressed_str = await self.context_manager.process_tool_result(
-                        tool_name=tool_call.get("tool", "unknown"),
-                        tool_args=tool_call.get("arguments", {}),
-                        result=result_str,
-                    )
-
-                    # ✨ CRITICAL: Replace result object content with compressed version
-                    # This ensures parent class uses compressed result in history
-                    if compressed_str != result_str and result:
-                        from mcp.types import CallToolResult, TextContent
-                        result = CallToolResult(
-                            content=[TextContent(type="text", text=compressed_str)]
-                        )
-                        result_str = compressed_str  # Update for trajectory
-                        self._logger.info(
-                            f"✂️  Layer 1 Compression: "
-                            f"{len(original_result_str)} → {len(compressed_str)} chars "
-                            f"({len(compressed_str)/len(original_result_str)*100:.1f}%)"
-                        )
-
-                except Exception as e:
-                    self._logger.error(f"❌ Failed to compress tool result: {e}")
-                    # Keep original result on error
-            elif not self.enable_compression and result_str and len(result_str) > 50000:
-                # When compression is disabled but result is too large, truncate with warning
+            # Simple truncation for large results (max 30000 chars to stay well under context limit)
+            MAX_RESULT_LENGTH = 30000
+            if result_str and len(result_str) > MAX_RESULT_LENGTH:
                 from mcp.types import CallToolResult, TextContent
                 truncated_str = (
-                    f"⚠️ Tool result is too long ({len(result_str)} characters, exceeds 50000 limit).\n"
-                    f"Compression is disabled. Showing first 1000 characters only.\n\n"
-                    f"--- Result Preview (first 1000 chars) ---\n"
-                    f"{result_str[:1000]}\n"
-                    f"--- Truncated ({len(result_str) - 1000} characters omitted) ---"
+                    f"{result_str[:MAX_RESULT_LENGTH]}\n\n"
+                    f"--- [Truncated: showing {MAX_RESULT_LENGTH} of {len(result_str)} chars] ---"
                 )
                 result = CallToolResult(
                     content=[TextContent(type="text", text=truncated_str)]
                 )
                 result_str = truncated_str
                 self._logger.warning(
-                    f"⚠️  Tool result truncated: {len(original_result_str)} → {len(truncated_str)} chars "
-                    f"(compression disabled, result too large)"
+                    f"✂️ Tool result truncated: {len(original_result_str)} → {len(truncated_str)} chars"
                 )
 
             # Build trajectory entry
@@ -564,21 +487,6 @@ class DynamicReActAgent(ReAct):
 
             # Add to local trajectory (for backward compatibility)
             self.trajectory.append(trajectory_entry)
-
-            # ✨ LAYER 2: Add to context manager and trigger global compression if needed
-            if self.enable_compression and self.context_manager:
-                try:
-                    await self.context_manager.add_turn(
-                        thought=trajectory_entry["thought"],
-                        action={
-                            "server": trajectory_entry["server"],
-                            "tool": trajectory_entry["tool"],
-                            "arguments": trajectory_entry["arguments"],
-                        },
-                        result=result_str or "",
-                    )
-                except Exception as e:
-                    self._logger.error(f"Failed to add turn to context manager: {e}")
 
         return result
 
