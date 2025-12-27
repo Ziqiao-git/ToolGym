@@ -51,6 +51,7 @@ class DynamicReActAgent(ReAct):
         self.server_configs = server_configs
         self.loaded_servers = set()  # Tracks ALL loaded servers
         self.dynamically_loaded_servers = set()  # Tracks ONLY dynamically loaded servers
+        self.discovered_tools = {}  # Maps server -> set of tool names actually discovered/used
         self.trajectory = []  # Store tool call trajectory (for backward compatibility)
         self.reasoning_trace = []  # Store complete reasoning trace (thoughts + actions + observations)
 
@@ -83,23 +84,34 @@ class DynamicReActAgent(ReAct):
         """
         Override to:
         1. Apply Layer 2 compression to history before building prompt
-        2. Only show meta-mcp + dynamically discovered tools (hide pre-loaded servers)
+        2. Only show meta-mcp + specifically discovered tools (not all tools from servers)
 
         This encourages the agent to use search_tools for new capabilities while
-        remembering tools it has already discovered and used.
+        remembering only the specific tools it has discovered and used.
         """
         # If Layer 2 compression has been applied, rebuild history from compressed trajectory
         if self.enable_compression and self.context_manager and self.context_manager.trajectory:
             # Sync parent's _history with compressed trajectory
             self._sync_history_from_trajectory()
 
-        # Filter tools to show: meta-mcp + dynamically loaded servers
-        # This hides pre-loaded servers but keeps tools the agent discovered
+        # Filter tools to show: meta-mcp + ONLY the specific discovered tools
+        # This prevents context overflow from servers with many tools (e.g., GitHub has 823 tools)
         original_tools = self._tools
-        self._tools = {
-            server: tools for server, tools in original_tools.items()
-            if server == "meta-mcp" or server in self.dynamically_loaded_servers
-        }
+        filtered_tools = {}
+
+        for server, tools in original_tools.items():
+            if server == "meta-mcp":
+                # Always include all meta-mcp tools
+                filtered_tools[server] = tools
+            elif server in self.discovered_tools:
+                # Only include the specific tools that were discovered/used from this server
+                discovered_tool_names = self.discovered_tools[server]
+                filtered_tools[server] = [
+                    tool for tool in tools
+                    if tool.name in discovered_tool_names
+                ]
+
+        self._tools = filtered_tools
 
         try:
             # Call parent to build prompt with filtered tools
@@ -407,6 +419,14 @@ class DynamicReActAgent(ReAct):
             # Check if we need to load the server
             if "server" in tool_call:
                 server_name = tool_call["server"]
+                tool_name = tool_call.get("tool")
+
+                # Track this tool as discovered (for prompt filtering)
+                if server_name and tool_name and server_name != "meta-mcp":
+                    if server_name not in self.discovered_tools:
+                        self.discovered_tools[server_name] = set()
+                    self.discovered_tools[server_name].add(tool_name)
+                    self._logger.debug(f"📝 Tracked discovered tool: {server_name}/{tool_name}")
 
                 # Try to load server if not already loaded
                 if server_name not in self.loaded_servers:
