@@ -197,6 +197,11 @@ class DynamicReActAgent(ReAct):
                 self._logger.info(f"🔐 Smithery server detected, using OAuth authentication...")
                 # Use OAuth for Smithery servers
                 from mcpuniverse.mcp.oauth import create_smithery_auth
+                import warnings
+
+                # Suppress anyio cancel scope warnings that occur during cleanup
+                # These are expected when OAuth servers fail to connect
+                warnings.filterwarnings('ignore', message='.*cancel scope.*', category=RuntimeWarning)
 
                 # Remove any API key from URL
                 base_url = server_url.split("?")[0]
@@ -211,9 +216,54 @@ class DynamicReActAgent(ReAct):
             # Build client - use the callback_handler in a context manager
             # This ensures proper cleanup even if errors occur
             if callback_handler:
-                # Use async with to properly manage the OAuth callback handler lifecycle
-                # This prevents "exit cancel scope in different task" errors
-                try:
+                # Install a custom exception handler to suppress background task errors
+                # This is necessary because anyio TaskGroup cleanup can raise RuntimeError
+                # in background tasks that can't be caught with try-except
+                loop = asyncio.get_event_loop()
+                original_exception_handler = loop.get_exception_handler()
+
+                def suppress_cancel_scope_errors(loop, context):
+                    """Suppress 'cancel scope in different task' errors during server loading."""
+                    exception = context.get('exception')
+
+                    # Helper function to check if exception is cancel scope error
+                    def is_cancel_scope_error(exc):
+                        if exc is None:
+                            return False
+                        return isinstance(exc, RuntimeError) and 'cancel scope' in str(exc).lower()
+
+                    # Check for RuntimeError directly
+                    if is_cancel_scope_error(exception):
+                        self._logger.debug(f"Suppressed background task RuntimeError: {exception}")
+                        return
+
+                    # Check for ExceptionGroup/BaseExceptionGroup containing RuntimeError
+                    # This handles both Python 3.11+ ExceptionGroup and anyio's BaseExceptionGroup
+                    if hasattr(exception, 'exceptions'):
+                        # Recursively check all sub-exceptions
+                        def has_cancel_scope_error(exc):
+                            if is_cancel_scope_error(exc):
+                                return True
+                            if hasattr(exc, 'exceptions'):
+                                return any(has_cancel_scope_error(sub) for sub in exc.exceptions)
+                            return False
+
+                        if has_cancel_scope_error(exception):
+                            self._logger.debug(f"Suppressed ExceptionGroup with cancel scope error")
+                            return
+
+                    # For other exceptions, use original handler or default
+                    if original_exception_handler:
+                        original_exception_handler(loop, context)
+                    else:
+                        loop.default_exception_handler(context)
+
+                loop.set_exception_handler(suppress_cancel_scope_errors)
+
+                # CRITICAL: Run server loading in a shielded task to isolate cancel scopes
+                # This prevents anyio cancel scopes from polluting the event loop
+                async def _load_oauth_server():
+                    """Inner function to load server - runs in isolated context."""
                     async with callback_handler:
                         client = await self._mcp_manager.build_client(
                             server_name,
@@ -229,12 +279,50 @@ class DynamicReActAgent(ReAct):
                         self.loaded_servers.add(server_name)
                         self.dynamically_loaded_servers.add(server_name)
                         self._logger.info(f"✅ Loaded {len(tools)} tools from {server_name}")
-
                         return (True, "")
-                except Exception as e:
-                    # The async with will handle cleanup automatically
-                    self._logger.warning(f"Error during OAuth server loading: {e}")
-                    raise  # Re-raise to be caught by outer exception handler
+
+                # Use asyncio.shield to protect against cancel scope pollution
+                try:
+                    result = await asyncio.shield(_load_oauth_server())
+                    return result
+                except (asyncio.CancelledError, GeneratorExit) as e:
+                    # CRITICAL: Catch CancelledError and GeneratorExit here
+                    # These occur when MCP SDK's async generators are cancelled during cleanup
+                    self._logger.warning(f"⚠ OAuth server loading cancelled for {server_name}: {type(e).__name__}")
+                    return (False, f"oauth_cancelled: {type(e).__name__} during OAuth flow")
+                except RuntimeError as e:
+                    # Catch anyio cancel scope errors that occur during MCP SDK cleanup
+                    # These happen when the streamable_http_client's anyio TaskGroup tries to exit
+                    if "cancel scope" in str(e).lower():
+                        self._logger.warning(f"⚠ OAuth server {server_name} encountered cancel scope error (likely due to HTTP error during connection)")
+                        return (False, f"cancel_scope_error: {str(e)[:150]}")
+                    else:
+                        # Other RuntimeErrors should still be raised
+                        raise
+                except BaseException as e:
+                    # Catch ALL exceptions including system exceptions during cleanup
+                    # This is necessary because anyio TaskGroup errors can escape normal exception handling
+                    self._logger.warning(f"⚠ OAuth server loading failed for {server_name}: {type(e).__name__} - {str(e)[:200]}")
+                    # Don't re-raise - convert to error tuple
+                    return (False, f"{type(e).__name__}: {str(e)[:150]}")
+                finally:
+                    # CRITICAL: Wait for any pending background tasks to complete FIRST
+                    # This ensures that any RuntimeError from anyio cleanup is caught
+                    # by our custom exception handler (still active at this point)
+                    await asyncio.sleep(0.1)  # Give background tasks time to finish
+
+                    # Also explicitly wait for any pending tasks
+                    pending = [task for task in asyncio.all_tasks(loop)
+                              if not task.done() and task != asyncio.current_task()]
+                    if pending:
+                        self._logger.debug(f"Waiting for {len(pending)} pending background tasks...")
+                        try:
+                            await asyncio.wait(pending, timeout=0.5)
+                        except Exception as e:
+                            self._logger.debug(f"Error waiting for background tasks: {e}")
+
+                    # NOW restore original exception handler (after all tasks are done)
+                    loop.set_exception_handler(original_exception_handler)
             else:
                 # No OAuth - simpler path
                 client = await self._mcp_manager.build_client(
@@ -259,6 +347,15 @@ class DynamicReActAgent(ReAct):
             # This prevents the cancellation from propagating and crashing the agent
             self._logger.warning(f"⚠ Server loading cancelled for {server_name} (non-critical)")
             return (False, f"task_cancelled: {str(e)[:100] if str(e) else 'asyncio task was cancelled during server loading'}")
+        except RuntimeError as e:
+            # Catch anyio cancel scope errors at outer level too
+            if "cancel scope" in str(e).lower():
+                self._logger.warning(f"⚠ Server {server_name} loading failed due to cancel scope error")
+                return (False, f"cancel_scope_error: {str(e)[:150]}")
+            else:
+                # Other RuntimeErrors - treat as generic errors
+                self._logger.warning(f"⚠ RuntimeError loading server {server_name}: {str(e)[:200]}")
+                return (False, f"runtime_error: {str(e)[:150]}")
         except Exception as e:
             error_msg = str(e)
             error_type = type(e).__name__

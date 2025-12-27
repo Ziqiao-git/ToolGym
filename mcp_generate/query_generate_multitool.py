@@ -26,6 +26,7 @@ from typing import List, Dict, Any, Optional
 from tqdm import tqdm
 from pathlib import Path
 import random
+import uuid
 
 from openai import AsyncOpenAI
 from dotenv import load_dotenv
@@ -727,6 +728,9 @@ async def generate_multitool_query(
 ) -> Dict[str, Any]:
     """Generate a query that uses multiple tools."""
 
+    # Generate time-based UUID for tracking
+    query_uuid = str(uuid.uuid1())
+
     # Build tools summary
     tools_summary_lines = []
     for t in sampled_tools:
@@ -811,6 +815,7 @@ async def generate_multitool_query(
                     del data["tool_reasons"]
 
                 # Add metadata
+                data["uuid"] = query_uuid
                 data["tool_count"] = len(sampled_tools)
                 data["server_count"] = len(unique_servers)
                 data["complexity"] = data.get("complexity", "high")
@@ -884,6 +889,7 @@ def _make_error_result(sampled_tools: List[Dict], error: str) -> Dict:
     """Create an error result with the sampled tools."""
     unique_servers = set(t["server"] for t in sampled_tools)
     return {
+        "uuid": str(uuid.uuid1()),
         "query": f"[Error: {error}]",
         "constraints": [],
         "reference_tools": [
