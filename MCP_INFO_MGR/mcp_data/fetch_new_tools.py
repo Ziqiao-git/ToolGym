@@ -2,13 +2,16 @@
 Fetch tool descriptions for new servers using Smithery OAuth.
 
 Usage:
-    python MCP_INFO_MGR/mcp_data/fetch_new_tools.py          # Fetch all servers
+    python MCP_INFO_MGR/mcp_data/fetch_new_tools.py          # Fetch new servers
+    python MCP_INFO_MGR/mcp_data/fetch_new_tools.py --all    # Fetch all servers
     python MCP_INFO_MGR/mcp_data/fetch_new_tools.py --retry  # Retry only failed servers
+    python MCP_INFO_MGR/mcp_data/fetch_new_tools.py --server @example/mcp  # Fetch single server
 
 This script reads working/new_remote_servers.json (simple JSON array of server names)
 and fetches tool descriptions for each server via Smithery OAuth.
 
 With --retry flag, it will read the output file and retry only servers that failed.
+With --server flag, it will fetch a single server and update/add to the output file.
 
 On first run, a browser will open for Smithery OAuth authentication.
 Tokens are cached under ~/.mcp/smithery_tokens/.
@@ -126,15 +129,52 @@ async def main():
     parser = argparse.ArgumentParser(description="Fetch tool descriptions for MCP servers via OAuth")
     parser.add_argument("--retry", action="store_true", help="Retry only failed servers from previous run")
     parser.add_argument("--timeout", type=int, default=30, help="Timeout in seconds (default: 30)")
+    parser.add_argument("--all", action="store_true", help="Fetch all servers from remote_servers.json instead of new servers")
+    parser.add_argument("--server", type=str, help="Fetch a single server by name (e.g., @example/mcp)")
     args = parser.parse_args()
 
     script_dir = Path(__file__).parent
 
-    # Define file paths
-    input_file = script_dir / "working" / "new_remote_servers.json"
-    output_file = script_dir / "working" / "new_tool_descriptions.ndjson"
+    # Define file paths based on mode
+    if args.all:
+        input_file = script_dir / "working" / "remote_servers.json"
+        output_file = script_dir / "working" / "tool_descriptions.ndjson"
+    else:
+        input_file = script_dir / "working" / "new_remote_servers.json"
+        output_file = script_dir / "working" / "new_tool_descriptions.ndjson"
 
     print("Using Smithery OAuth authentication")
+
+    # Single server mode: fetch one server and update output file
+    if args.server:
+        qualified_name = args.server
+        url = f"https://server.smithery.ai/{qualified_name}"
+
+        print(f"\nFetching single server: {qualified_name}")
+        result = await fetch_tools_for_server(qualified_name, url, timeout=args.timeout)
+
+        # Load existing results if file exists
+        existing_results = {}
+        if output_file.exists():
+            for entry in load_servers_from_ndjson(output_file):
+                existing_results[entry["qualifiedName"]] = entry
+
+        # Update or add the result
+        existing_results[qualified_name] = result
+
+        # Write back all results
+        output_file.parent.mkdir(parents=True, exist_ok=True)
+        with output_file.open("w", encoding="utf-8") as out_f:
+            for entry in existing_results.values():
+                out_f.write(json.dumps(entry) + "\n")
+
+        if result["status"] == "ok":
+            print(f"\n✓ Successfully fetched {result['toolCount']} tools from {qualified_name}")
+        else:
+            print(f"\n✗ Failed to fetch {qualified_name}: {result['error']}")
+
+        print(f"  Output: {output_file}")
+        return 0 if result["status"] == "ok" else 1
 
     # Retry mode: load failed servers from output file
     if args.retry:
