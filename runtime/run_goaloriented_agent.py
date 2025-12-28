@@ -867,7 +867,7 @@ class GoalOrientedUser:
             Dict with keys: bonus_question (str), constraints (List[str])
         """
         history_text = "\n\n".join([
-            f"Turn {h['turn']}: {h['query']}\nAgent: {h['response'][:200]}..."
+            f"Turn {h['turn']}: {h['query']}\nAgent: {str(h['response'])}..."
             for h in conversation_history[-3:]
         ]) if conversation_history else "No previous turns"
 
@@ -951,7 +951,7 @@ Generate the bonus question now."""
 
         # Format conversation history
         history_text = "\n\n".join([
-            f"Turn {h['turn']}: {h['query']}\nAgent: {h['response'][:200]}..."
+            f"Turn {h['turn']}: {h['query']}\nAgent: {str(h['response'])}"
             for h in conversation_history[-3:]  # Last 3 turns
         ]) if conversation_history else "No previous turns"
 
@@ -1498,7 +1498,7 @@ class GoalOrientedController:
             final_decision=self.turns[-1].user_decision if self.turns else "NONE",
             final_satisfaction=self.turns[-1].satisfaction_level if self.turns else 0.0,
             timestamp=datetime.now().isoformat(),
-            agent_model=getattr(self.agent, 'model_name', 'unknown'),
+            agent_model=getattr(self.agent.llm.config, 'model_name', 'unknown'),
             user_model='anthropic/claude-3.5-sonnet',
             dynamically_loaded_servers=dynamically_loaded
         )

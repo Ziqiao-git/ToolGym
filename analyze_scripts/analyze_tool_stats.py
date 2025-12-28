@@ -25,6 +25,7 @@ Output:
     - Number of tools called (with duplicates and deduplicated)
     - Constraint completion status (from final turn)
     - Tool call success rates
+    - Subgoal completion rates and goal achievement statistics
 
 Multiturn Structure:
     - Each trajectory has multiple turns
@@ -137,6 +138,8 @@ def analyze_trajectory_stats(trajectories: List[Dict[str, Any]]) -> Dict[str, An
         "constraint_satisfaction": [],
         "tools_by_server": defaultdict(set),  # server -> set of tools
         "tool_call_details": [],  # All tool calls for detailed analysis
+        "subgoal_completion_rates": [],  # Subgoal completion rates
+        "subgoal_achieved_count": 0,  # Number of trajectories with goal achieved
     }
 
     for traj in trajectories:
@@ -214,6 +217,15 @@ def analyze_trajectory_stats(trajectories: List[Dict[str, Any]]) -> Dict[str, An
                 constraint_rate = final_turn.get("constraint_satisfaction_rate")
                 if constraint_rate is not None:
                     stats["constraint_satisfaction"].append(constraint_rate)
+
+        # Get subgoal completion rate and achievement status from metadata
+        goal_completion_rate = metadata.get("goal_completion_rate")
+        if goal_completion_rate is not None:
+            stats["subgoal_completion_rates"].append(goal_completion_rate)
+
+        goal_achieved = metadata.get("goal_achieved")
+        if goal_achieved:
+            stats["subgoal_achieved_count"] += 1
 
     return stats
 
@@ -356,6 +368,40 @@ def print_multiturn_analysis(stats: Dict[str, Any]):
         print(f"  Low (<50%):         {low:3d} ({low/len(constraint_rates)*100:.1f}%)")
     else:
         print("No constraint satisfaction data available")
+
+    # Subgoal completion
+    print("\n" + "-" * 80)
+    print("SUBGOAL COMPLETION ANALYSIS")
+    print("-" * 80)
+
+    subgoal_rates = stats['subgoal_completion_rates']
+    if subgoal_rates:
+        print(f"Trajectories with subgoal data: {len(subgoal_rates)}")
+        print(f"Average subgoal completion rate: {statistics.mean(subgoal_rates) * 100:.1f}%")
+        print(f"Median subgoal completion rate: {statistics.median(subgoal_rates) * 100:.1f}%")
+        print(f"Min completion rate: {min(subgoal_rates) * 100:.1f}%")
+        print(f"Max completion rate: {max(subgoal_rates) * 100:.1f}%")
+
+        # Goal achievement
+        total_with_data = len(subgoal_rates)
+        achieved = stats['subgoal_achieved_count']
+        print(f"\nGoal Achievement:")
+        print(f"  Goals fully achieved: {achieved:3d} ({achieved/total_with_data*100:.1f}%)")
+        print(f"  Goals not achieved:   {total_with_data - achieved:3d} ({(total_with_data - achieved)/total_with_data*100:.1f}%)")
+
+        # Distribution
+        perfect = sum(1 for r in subgoal_rates if r >= 1.0)
+        high = sum(1 for r in subgoal_rates if 0.8 <= r < 1.0)
+        medium = sum(1 for r in subgoal_rates if 0.5 <= r < 0.8)
+        low = sum(1 for r in subgoal_rates if r < 0.5)
+
+        print(f"\nSubgoal Completion Distribution:")
+        print(f"  Perfect (100%):     {perfect:3d} ({perfect/len(subgoal_rates)*100:.1f}%)")
+        print(f"  High (80-99%):      {high:3d} ({high/len(subgoal_rates)*100:.1f}%)")
+        print(f"  Medium (50-79%):    {medium:3d} ({medium/len(subgoal_rates)*100:.1f}%)")
+        print(f"  Low (<50%):         {low:3d} ({low/len(subgoal_rates)*100:.1f}%)")
+    else:
+        print("No subgoal completion data available")
 
     print("\n" + "=" * 80)
 
