@@ -43,7 +43,7 @@ def load_query_from_file(
         query_uuid: UUID of specific query to load
 
     Returns:
-        Dict with keys: query, uuid, hard_constraints, soft_constraints, reference_tools
+        Dict with keys: query, uuid, constraints, reference_tools
 
     Raises:
         ValueError: If query cannot be found or file format is invalid

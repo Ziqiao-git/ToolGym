@@ -113,12 +113,14 @@ CONSTRAINT TYPES AND HOW TO EMBED THEM IMPLICITLY:
       - "Check current permissions before making changes, then report what changed"
       - "Gather all context before taking actions"
 
-4. **DATA_COVERAGE** - Imply breadth through task structure
+4. **DATA_COVERAGE** - Imply breadth through EXPLICIT named entities
    ❌ EXPLICIT (bad): "Must analyze at least 3 companies"
+   ❌ VAGUE (bad): "Look at a few major cities" (no specific names)
    ✅ IMPLICIT (good):
-      - "Compare AAPL, MSFT, and GOOGL side-by-side"
-      - "Analyze the top 3 players in this space"
-      - "Check conditions in at least a few major cities"
+      - "Compare AAPL, MSFT, and GOOGL side-by-side" (explicit tickers)
+      - "Check weather in New York, Los Angeles, and Chicago" (explicit cities)
+      - "Analyze papers by Hinton, LeCun, and Bengio" (explicit authors)
+   IMPORTANT: Always name the specific entities in the query text!
 
 5. **RESPONSE_CONTENT** - Imply deliverables naturally
    ❌ EXPLICIT (bad): "Must provide at least 3 recommendations"
@@ -139,14 +141,14 @@ CONSTRAINT TYPES AND HOW TO EMBED THEM IMPLICITLY:
       - "Start by discovering what resources exist, then retrieve the most relevant ones"
       - "Prefer authoritative/official sources when available"
 
-═══════════════════════════════════════════════════════════════════════════════
-TRADEOFF EXAMPLES (verifiable within allowed types)
-═══════════════════════════════════════════════════════════════════════════════
-
-- Use DATA_COVERAGE to require covering both "low cost" and "low risk" options (e.g., at least 2 of each)
-- Use SEQUENCE_ORDER to force list → filter → justify choices (e.g., list all options, then mark which are excluded due to weather/budget)
-- Use RESPONSE_CONTENT to demand explicit tradeoff reasoning and recommendations (e.g., include pros/cons and final picks)
-- Keep all constraints in allowed types; no new/custom constraint types
+8. **TRADEOFF** - Imply competing factors the agent must balance
+   ❌ EXPLICIT (bad): "Balance cost vs. speed"
+   ✅ IMPLICIT (good):
+      - "Find options that are affordable but still reliable—I can stretch the budget for significantly better quality"
+      - "Time is important but not at the expense of accuracy—prioritize getting it right"
+      - "Look for the sweet spot between comprehensive coverage and API efficiency"
+      - "I need thorough research but the report should be actionable, not exhaustive"
+   Verification: {"tradeoff_factors": ["cost", "quality"], "resolution_required": true}
 
 ═══════════════════════════════════════════════════════════════════════════════
 QUERY STRUCTURE GUIDELINES
@@ -189,7 +191,7 @@ OUTPUT FORMAT (strict JSON):
   "query": "Detailed user query with IMPLICIT constraints woven into natural language...",
   "constraints": [
     {
-      "type": "TOOL_COUNT|SERVER_DIVERSITY|SERVER_RESTRICTION|DATA_COVERAGE|RESPONSE_CONTENT|NO_REDUNDANCY|TOOL_TYPE_PRIORITY|SEQUENCE_ORDER",
+      "type": "TOOL_COUNT|SERVER_DIVERSITY|SERVER_RESTRICTION|DATA_COVERAGE|RESPONSE_CONTENT|NO_REDUNDANCY|TOOL_TYPE_PRIORITY|SEQUENCE_ORDER|TRADEOFF",
       "description": "What the evaluator checks (NOT shown to agent)",
       "implicit_phrasing": "The natural language in the query that implies this constraint",
       "verification": {
@@ -218,8 +220,9 @@ For SERVER_RESTRICTION:
   {"preferred_servers": ["@semantic-scholar", "@arxiv"], "min_preferred": 2}
 
 For DATA_COVERAGE:
-  {"min_entities": 5, "entity_type": "companies"} or
-  {"required_keywords": ["machine learning", "neural networks"]}
+  {"entities": ["AAPL", "MSFT", "GOOGL"], "entity_type": "tickers"} or
+  {"entities": ["New York", "Los Angeles", "Chicago"], "entity_type": "cities"}
+  NOTE: Always list the SPECIFIC named entities from the query, not just a count!
 
 For RESPONSE_CONTENT:
   {"must_include": ["comparison", "recommendation"]} or
@@ -233,6 +236,11 @@ For TOOL_TYPE_PRIORITY:
 
 For SEQUENCE_ORDER:
   {"required_sequence": [["search", "fetch"], ["gather", "analyze"]]}
+
+For TRADEOFF:
+  {"tradeoff_factors": ["cost", "quality"], "resolution_required": true} or
+  {"tradeoff_factors": ["speed", "accuracy"], "resolution_required": true}
+  NOTE: The agent must demonstrate awareness of the tradeoff in their approach
 
 - CRITICAL:
 - Generate 4-8 constraints, ALL must be from the ALLOWED types
@@ -253,7 +261,8 @@ Requirements:
 - ALL {tool_count} tools must work together toward a single unified goal
 - Constraints must be IMPLICIT in the query text (agent infers them, not reads them as rules)
 - Make sure the query naturally requires EVERY tool listed above
-- Include at least one tradeoff between competing factors (e.g., cost vs risk/time/coverage) expressed using allowed constraint types
+- MUST include a TRADEOFF constraint expressing competing factors (cost vs quality, speed vs accuracy, breadth vs depth)
+- DATA_COVERAGE must list SPECIFIC named entities from the query (tickers, cities, authors, etc.)
 
 Return a JSON object with:
 - "query": The detailed user query with IMPLICIT constraints woven into natural language
@@ -363,10 +372,14 @@ SEQUENCE_ORDER:
   {{"required_sequence": [["search", "fetch"], ["list", "get"]]}}
 
 DATA_COVERAGE:
-  {{"min_entities": 3, "entity_type": "companies"}}
+  {{"entities": ["AAPL", "MSFT", "GOOGL"], "entity_type": "tickers"}}
+  NOTE: List the SPECIFIC named entities from the query!
 
 RESPONSE_CONTENT:
   {{"must_include": ["recommendation", "comparison"], "min_recommendations": 5}}
+
+TRADEOFF:
+  {{"tradeoff_factors": ["cost", "quality"], "resolution_required": true}}
 
 ═══════════════════════════════════════════════════════════════════════════════
 YOUR TASKS:
@@ -430,12 +443,18 @@ Verify and normalize the constraints now."""
         if removed:
             print(f"  🔍 Verifier removed {len(removed)} invalid constraints:")
             for r in removed[:3]:
-                print(f"     - {r.get('original', 'unknown')[:50]}... ({r.get('reason', 'invalid')})")
+                if isinstance(r, dict):
+                    orig = str(r.get('original', 'unknown'))[:50]
+                    reason = str(r.get('reason', 'invalid'))
+                    print(f"     - {orig}... ({reason})")
+                else:
+                    print(f"     - {str(r)[:50]}...")
 
         if merges:
             print(f"  🔗 Verifier merged constraints: {len(merges)} merges")
             for m in merges[:2]:
-                print(f"     - {m[:60]}...")
+                m_str = str(m) if not isinstance(m, str) else m
+                print(f"     - {m_str[:60]}...")
 
         # Final validation: ensure all constraints have required fields
         valid_constraints = []
@@ -448,14 +467,31 @@ Verify and normalize the constraints now."""
 
         # Ensure implicit_phrasing actually appears in the query (implicit, not external)
         filtered_constraints = []
-        query_text = (query or "").lower()
+        if isinstance(query, str):
+            query_text = query.lower()
+        else:
+            # Fallback: serialize non-string query for matching
+            query_text = str(query).lower()
+
         for c in valid_constraints:
-            phr = (c.get("implicit_phrasing") or "").lower()
+            phr_raw = c.get("implicit_phrasing", "")
+            phr = ""
+            if isinstance(phr_raw, str):
+                phr = phr_raw.strip().lower()
+            else:
+                # Coerce non-string phrasing to string for matching
+                phr = str(phr_raw).strip().lower()
+
             if phr and phr in query_text:
                 filtered_constraints.append(c)
             else:
                 preview = phr[:60] + ("..." if len(phr) > 60 else "")
                 print(f"  ⚠️ Dropping constraint without matching implicit phrasing in query: {preview}")
+
+        # Cap to max 8 constraints to respect prompt contract
+        if len(filtered_constraints) > 8:
+            print(f"  ⚠️ Trimming constraints to 8 (had {len(filtered_constraints)})")
+            filtered_constraints = filtered_constraints[:8]
 
         valid_constraints = filtered_constraints
 
@@ -853,7 +889,7 @@ async def generate_multitool_query(
                 VALID_CONSTRAINT_TYPES = {
                     "TOOL_COUNT", "SERVER_DIVERSITY", "SERVER_RESTRICTION",
                     "DATA_COVERAGE", "RESPONSE_CONTENT", "NO_REDUNDANCY",
-                    "TOOL_TYPE_PRIORITY", "SEQUENCE_ORDER"
+                    "TOOL_TYPE_PRIORITY", "SEQUENCE_ORDER", "TRADEOFF"
                 }
 
                 for c in raw_constraints:
@@ -863,6 +899,7 @@ async def generate_multitool_query(
                             validated_constraints.append({
                                 "type": c["type"],
                                 "description": c.get("description", ""),
+                                "implicit_phrasing": c.get("implicit_phrasing", ""),  # Preserve this field!
                                 "verification": c.get("verification", {})
                             })
                         else:
