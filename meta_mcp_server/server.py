@@ -202,7 +202,7 @@ async def main():
     import datetime
 
     # Path to the FAISS index
-    index_path = PROJECT_ROOT / "MCP_INFO_MGR" / "semantic_search"
+    index_path = PROJECT_ROOT / "MCP_INFO_MGR" / "mcp_data" / "working" / "semantic_index"
 
     if not index_path.exists():
         print(f"Error: Index not found at {index_path}", file=sys.stderr)

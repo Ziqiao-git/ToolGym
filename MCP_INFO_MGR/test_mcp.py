@@ -7,6 +7,7 @@ Run:
 On first run a browser opens for Smithery OAuth; tokens are cached under ~/.mcp/smithery_tokens/.
 """
 import asyncio
+import os
 import sys
 import json
 from pathlib import Path
@@ -25,9 +26,13 @@ SERVER_URL = "https://server.smithery.ai/asana"
 
 
 async def main() -> None:
+    # Allow overriding token cache location (e.g., persistent volume) via env.
+    storage_dir = os.getenv("SMITHERY_TOKEN_DIR")
+
     auth_provider, callback_handler = create_smithery_auth(
         server_url=SERVER_URL,
         client_name="Local MCP test",
+        storage_dir=storage_dir,
     )
 
     async with callback_handler:

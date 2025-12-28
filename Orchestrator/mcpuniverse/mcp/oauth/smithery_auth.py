@@ -12,6 +12,12 @@ from .storage import FileTokenStorage
 from .callback_handler import OAuthCallbackHandler
 
 
+# Singleton for shared callback handler (reused across servers to avoid port conflicts)
+_shared_callback_handler = None
+_shared_client_metadata = None
+_storage_dir = None
+
+
 def create_smithery_auth(
     server_url: str,
     client_name: str = "MCP Universe Client",
@@ -21,6 +27,10 @@ def create_smithery_auth(
 ) -> tuple[OAuthClientProvider, OAuthCallbackHandler]:
     """
     Create OAuth authentication provider for Smithery MCP servers.
+
+    Uses per-server token storage so each server maintains its own OAuth tokens.
+    The callback handler is shared to avoid port conflicts, but its state is reset
+    before each new OAuth flow.
 
     Args:
         server_url: The Smithery server URL (e.g., https://server.smithery.ai/exa/mcp)
@@ -43,31 +53,52 @@ def create_smithery_auth(
         ...         auth=auth_provider
         ...     )
     """
-    # Create token storage
-    storage = FileTokenStorage(storage_dir=storage_dir)
+    global _shared_callback_handler, _shared_client_metadata, _storage_dir
 
-    # Create callback handler
-    callback_handler = OAuthCallbackHandler(redirect_port=redirect_port)
+    # Remember storage dir for consistency
+    if _storage_dir is None:
+        _storage_dir = storage_dir
 
-    # Create OAuth client metadata
-    client_metadata = OAuthClientMetadata(
-        client_name=client_name,
-        client_uri="http://localhost",
-        redirect_uris=[callback_handler.redirect_uri],
-        grant_types=["authorization_code", "refresh_token"],
-        response_types=["code"],
-        scope="read write",
-        token_endpoint_auth_method="none"
-    )
+    # Reuse shared callback handler to avoid port conflicts
+    if _shared_callback_handler is None:
+        _shared_callback_handler = OAuthCallbackHandler(redirect_port=redirect_port)
 
-    # Create OAuth provider
+    # Reuse shared client metadata
+    if _shared_client_metadata is None:
+        _shared_client_metadata = OAuthClientMetadata(
+            client_name=client_name,
+            client_uri="http://localhost",
+            redirect_uris=[_shared_callback_handler.redirect_uri],
+            grant_types=["authorization_code", "refresh_token"],
+            response_types=["code"],
+            scope="read write",
+            token_endpoint_auth_method="none"
+        )
+
+    # IMPORTANT: Reset callback handler state before each new OAuth flow
+    # This prevents state mismatch when reusing the callback handler
+    _shared_callback_handler.reset_state()
+
+    # Create PER-SERVER storage so each server has its own tokens
+    # This follows Smithery's requirement that tokens are server-specific
+    server_storage = FileTokenStorage(storage_dir=_storage_dir, server_url=server_url)
+
+    # Create a NEW auth provider for EACH server URL with its own storage
     auth_provider = OAuthClientProvider(
         server_url=server_url,
-        client_metadata=client_metadata,
-        storage=storage,
-        redirect_handler=callback_handler.redirect_handler,
-        callback_handler=callback_handler.callback_handler,
+        client_metadata=_shared_client_metadata,
+        storage=server_storage,
+        redirect_handler=_shared_callback_handler.redirect_handler,
+        callback_handler=_shared_callback_handler.callback_handler,
         timeout=timeout
     )
 
-    return auth_provider, callback_handler
+    return auth_provider, _shared_callback_handler
+
+
+def reset_shared_auth():
+    """Reset shared OAuth resources. Useful for testing or cleanup."""
+    global _shared_callback_handler, _shared_client_metadata, _storage_dir
+    _shared_callback_handler = None
+    _shared_client_metadata = None
+    _storage_dir = None

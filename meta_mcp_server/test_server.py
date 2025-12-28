@@ -24,7 +24,7 @@ def test_search_tools():
     print("="*60)
 
     # Load index
-    index_path = PROJECT_ROOT / "MCP_INFO_MGR" / "semantic_search"
+    index_path = PROJECT_ROOT / "MCP_INFO_MGR" / "mcp_data" / "working" / "semantic_index"
     print(f"\nLoading index from {index_path}...")
     index = FAISSIndex.load(index_path)
     stats = index.get_stats()

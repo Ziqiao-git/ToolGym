@@ -65,3 +65,6 @@ MCP-Universe/
 test/
 test_result/
 analysis/
+
+# MCP data working directory (large data files, tokens, indices)
+MCP_INFO_MGR/mcp_data/working/

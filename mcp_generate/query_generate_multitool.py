@@ -63,6 +63,7 @@ The query should:
 2. **Be Coherent**: All tools should work together toward a unified goal (not a random list of unrelated tasks)
 3. **Have Natural Flow**: Tools should be used in a logical sequence where outputs inform next steps
 4. **Embed Constraints IMPLICITLY**: Constraints should be woven naturally into the query text, NOT stated as explicit rules
+5. **Highlight Tradeoffs**: Include competing factors (cost vs. risk/time/coverage) so the agent must balance them and explain choices
 
 TASK CATEGORIES that naturally combine many tools:
 
@@ -137,6 +138,15 @@ CONSTRAINT TYPES AND HOW TO EMBED THEM IMPLICITLY:
    ✅ IMPLICIT (good):
       - "Start by discovering what resources exist, then retrieve the most relevant ones"
       - "Prefer authoritative/official sources when available"
+
+═══════════════════════════════════════════════════════════════════════════════
+TRADEOFF EXAMPLES (verifiable within allowed types)
+═══════════════════════════════════════════════════════════════════════════════
+
+- Use DATA_COVERAGE to require covering both "low cost" and "low risk" options (e.g., at least 2 of each)
+- Use SEQUENCE_ORDER to force list → filter → justify choices (e.g., list all options, then mark which are excluded due to weather/budget)
+- Use RESPONSE_CONTENT to demand explicit tradeoff reasoning and recommendations (e.g., include pros/cons and final picks)
+- Keep all constraints in allowed types; no new/custom constraint types
 
 ═══════════════════════════════════════════════════════════════════════════════
 QUERY STRUCTURE GUIDELINES
@@ -224,8 +234,8 @@ For TOOL_TYPE_PRIORITY:
 For SEQUENCE_ORDER:
   {"required_sequence": [["search", "fetch"], ["gather", "analyze"]]}
 
-CRITICAL:
-- Generate 3-6 constraints, ALL must be from the ALLOWED types
+- CRITICAL:
+- Generate 4-8 constraints, ALL must be from the ALLOWED types
 - Each constraint MUST have "type", "description", "implicit_phrasing", and "verification"
 - The "implicit_phrasing" field shows WHERE in the query this constraint is implied
 - The "tool_reasons" object MUST contain an entry for EVERY tool provided in the input
@@ -243,10 +253,11 @@ Requirements:
 - ALL {tool_count} tools must work together toward a single unified goal
 - Constraints must be IMPLICIT in the query text (agent infers them, not reads them as rules)
 - Make sure the query naturally requires EVERY tool listed above
+- Include at least one tradeoff between competing factors (e.g., cost vs risk/time/coverage) expressed using allowed constraint types
 
 Return a JSON object with:
 - "query": The detailed user query with IMPLICIT constraints woven into natural language
-- "constraints": Array of 3-6 constraint objects for the EVALUATOR (not shown to agent)
+- "constraints": Array of 4-8 constraint objects for the EVALUATOR (not shown to agent)
 - "tool_reasons": A JSON object mapping EACH tool name to a SPECIFIC explanation of why it's needed (MUST have exactly {tool_count} entries)
 - "task_category": One of research|investigation|planning|technical|market_analysis|other
 
@@ -284,6 +295,7 @@ CRITICAL:
 3. Constraints must be IMPLIED in the query, NOT stated as explicit rules
 4. The "implicit_phrasing" field must quote or paraphrase the EXACT text in the query that implies the constraint
 5. DO NOT include explicit constraint language like "must use N servers" or "do not repeat calls"
+6. Generate between 4 and 8 constraints (be creative within the allowed types, include at least one tradeoff-focused constraint)
 """
 
 
@@ -364,7 +376,7 @@ YOUR TASKS:
 2. Convert complex verification schemas to the standard simple format above
 3. If multiple constraints have the same type, MERGE them into one
 4. REMOVE constraints that cannot be verified (time-based, budget-based, subjective)
-5. Ensure 3-6 total constraints in output
+5. Ensure 4-8 total constraints in output
 
 OUTPUT FORMAT (strict JSON):
 {{
@@ -433,6 +445,19 @@ Verify and normalize the constraints now."""
             else:
                 missing = [k for k in ["type", "description", "implicit_phrasing", "verification"] if k not in c]
                 print(f"  ⚠️ Constraint missing fields {missing}, skipping: {c.get('type', 'unknown')}")
+
+        # Ensure implicit_phrasing actually appears in the query (implicit, not external)
+        filtered_constraints = []
+        query_text = (query or "").lower()
+        for c in valid_constraints:
+            phr = (c.get("implicit_phrasing") or "").lower()
+            if phr and phr in query_text:
+                filtered_constraints.append(c)
+            else:
+                preview = phr[:60] + ("..." if len(phr) > 60 else "")
+                print(f"  ⚠️ Dropping constraint without matching implicit phrasing in query: {preview}")
+
+        valid_constraints = filtered_constraints
 
         print(f"  ✓ Final constraint count: {len(valid_constraints)}")
         return valid_constraints
@@ -585,7 +610,7 @@ def load_semantic_search(index_dir: Path = None) -> tuple:
         _embedder = BGEEmbedder()
 
         if index_dir is None:
-            index_dir = PROJECT_ROOT / "MCP_INFO_MGR" / "semantic_search"
+            index_dir = PROJECT_ROOT / "MCP_INFO_MGR" / "mcp_data" / "working" / "semantic_index"
 
         _faiss_index = FAISSIndex.load(index_dir)
         print(f"✓ Semantic search ready with {_faiss_index.index.ntotal} tools indexed")
@@ -863,8 +888,8 @@ async def generate_multitool_query(
                 else:
                     data["constraints"] = []
 
-                if len(data["constraints"]) < 3:
-                    print(f"  ⚠️ Only {len(data['constraints'])} valid constraints after verification (expected 3-6)")
+                if len(data["constraints"]) < 4:
+                    print(f"  ⚠️ Only {len(data['constraints'])} valid constraints after verification (expected 4-8)")
 
                 return data
 
@@ -1001,7 +1026,7 @@ async def main_async():
         "--index-dir",
         type=Path,
         default=None,
-        help="Directory containing FAISS index (default: MCP_INFO_MGR/semantic_search/)"
+        help="Directory containing FAISS index (default: MCP_INFO_MGR/mcp_data/working/semantic_index/)"
     )
 
     args = parser.parse_args()

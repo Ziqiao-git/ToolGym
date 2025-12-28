@@ -66,8 +66,9 @@ sys.path.insert(0, str(PROJECT_ROOT.parent))
 
 from dotenv import load_dotenv
 from openai import OpenAI, AsyncOpenAI
-from mcpuniverse.mcp.manager import MCPManager
-from mcpuniverse.mcp.config import ServerConfig
+from mcp import ClientSession
+from mcp.client.streamable_http import streamablehttp_client
+from mcpuniverse.mcp.oauth import create_smithery_auth, reset_shared_auth
 
 load_dotenv()
 
@@ -198,11 +199,16 @@ class ToolTester:
             # Rate limiter: 30 requests per minute to avoid throttling
             self.rate_limiter = RateLimiter(max_requests_per_minute=30)
 
-        # MCP Manager will be created after loading data
-        self.mcp_manager = None
+        # Server URLs will be built on-demand
+        self.server_urls = {}
+
+        # Track current connection resources for cleanup
+        self._current_callback_handler = None
+        self._current_transport_ctx = None
+        self._current_session = None
 
     def load_data(self):
-        """Load tool descriptions and build server configs."""
+        """Load tool descriptions and build server URLs."""
         # Load tool descriptions
         with open(self.tool_descriptions_path, 'r', encoding='utf-8') as f:
             for line in f:
@@ -213,26 +219,14 @@ class ToolTester:
                         self.tool_descriptions.append(entry)
         print(f"Loaded {len(self.tool_descriptions)} servers with working tools")
 
-        # Build server configs for MCP Manager
-        smithery_api_key = os.getenv("SMITHERY_API_KEY", "")
-        if not smithery_api_key:
-            raise ValueError("SMITHERY_API_KEY not found in environment")
-
-        server_configs = {}
+        # Build server URLs for OAuth connections
         for entry in self.tool_descriptions:
             server_name = entry.get("qualifiedName")
-            url = f"https://server.smithery.ai/{server_name}/mcp?api_key={smithery_api_key}"
-            server_configs[server_name] = {
-                "streamable_http": {
-                    "url": url,
-                    "headers": {}
-                },
-                "env": {}
-            }
+            # Use the URL from the entry if available, otherwise construct it
+            url = entry.get("url") or f"https://server.smithery.ai/{server_name}"
+            self.server_urls[server_name] = url
 
-        # Initialize MCP Manager with these configs
-        self.mcp_manager = MCPManager(config=server_configs)
-        print(f"Initialized MCP Manager with {len(server_configs)} server configurations")
+        print(f"Prepared {len(self.server_urls)} server URLs for OAuth connections")
 
     def generate_simple_test_arguments(self, input_schema: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -409,44 +403,122 @@ class ToolTester:
 
     async def connect_to_server(self, server_name: str):
         """
-        Connect to an MCP server using MCPManager.
+        Connect to an MCP server using OAuth authentication.
+
+        Uses the same pattern as fetch_new_tools.py for proper OAuth flow.
 
         Args:
             server_name: Qualified name of the server (e.g., 'exa', '@user/server')
 
         Returns:
-            MCPClient if successful, None otherwise
+            Tuple of (session, cleanup_func) if successful, (None, None) otherwise
         """
-        try:
-            # Build client using MCP Manager with timeout
-            client = await asyncio.wait_for(
-                self.mcp_manager.build_client(server_name, timeout=20),
-                timeout=25.0  # Slightly longer than internal timeout
-            )
-            return client
+        url = self.server_urls.get(server_name)
+        if not url:
+            print(f"  [ERROR] No URL found for server {server_name}")
+            return None, None
 
-        except asyncio.TimeoutError:
-            print(f"  [ERROR] Connection timeout (25s)")
-            return None
+        # Optional: override token cache location to persist across runs/hosts
+        storage_dir = os.getenv("SMITHERY_TOKEN_DIR")
+
+        try:
+            # Create OAuth provider for this server
+            auth_provider, callback_handler = create_smithery_auth(
+                server_url=url,
+                client_name="MCP Tool Tester",
+                storage_dir=storage_dir,
+            )
+
+            # Store references for cleanup
+            self._current_callback_handler = callback_handler
+            self._current_transport_ctx = None
+            self._current_session = None
+
+            # Enter callback handler context
+            await callback_handler.__aenter__()
+
+            # Connect with OAuth
+            transport_ctx = streamablehttp_client(url=url, auth=auth_provider)
+            self._current_transport_ctx = transport_ctx
+
+            try:
+                read, write, _ = await asyncio.wait_for(
+                    transport_ctx.__aenter__(),
+                    timeout=30
+                )
+            except asyncio.TimeoutError:
+                print(f"  [ERROR] Transport connection timeout")
+                await self._cleanup_current_connection()
+                return None, None
+
+            session = ClientSession(read, write)
+            self._current_session = session
+            await session.__aenter__()
+
+            try:
+                await asyncio.wait_for(session.initialize(), timeout=30)
+            except asyncio.TimeoutError:
+                print(f"  [ERROR] Session initialization timeout")
+                await self._cleanup_current_connection()
+                return None, None
+
+            # Create cleanup function
+            _callback = callback_handler
+            _transport = transport_ctx
+            _session = session
+
+            async def cleanup():
+                try:
+                    await _session.__aexit__(None, None, None)
+                except:
+                    pass
+                try:
+                    await _transport.__aexit__(None, None, None)
+                except:
+                    pass
+                try:
+                    await _callback.__aexit__(None, None, None)
+                except:
+                    pass
+
+            return session, cleanup
+
         except asyncio.CancelledError:
-            print(f"  [ERROR] Connection cancelled - likely auth error")
-            return None
+            print(f"  [ERROR] Connection cancelled")
+            await self._cleanup_current_connection()
+            return None, None
         except Exception as e:
-            # Extract useful error message
             error_msg = str(e)
             if "401" in error_msg or "Unauthorized" in error_msg:
-                print(f"  [ERROR] 401 Unauthorized - invalid API key for this server")
+                print(f"  [ERROR] 401 Unauthorized")
             elif "404" in error_msg:
-                print(f"  [ERROR] 404 Not Found - server may not exist")
-            elif "timeout" in error_msg.lower():
-                print(f"  [ERROR] Connection timeout")
-            elif "Cancelled" in error_msg:
-                print(f"  [ERROR] Connection cancelled (likely auth error)")
+                print(f"  [ERROR] 404 Not Found")
             else:
-                # Truncate long error messages
-                short_msg = error_msg.split('\n')[0][:100]
-                print(f"  [ERROR] Failed to connect: {short_msg}")
-            return None
+                short_msg = error_msg.split('\n')[0][:80]
+                print(f"  [ERROR] {short_msg}")
+            await self._cleanup_current_connection()
+            return None, None
+
+    async def _cleanup_current_connection(self):
+        """Cleanup current connection resources."""
+        if hasattr(self, '_current_session') and self._current_session:
+            try:
+                await self._current_session.__aexit__(None, None, None)
+            except:
+                pass
+        if hasattr(self, '_current_transport_ctx') and self._current_transport_ctx:
+            try:
+                await self._current_transport_ctx.__aexit__(None, None, None)
+            except:
+                pass
+        if hasattr(self, '_current_callback_handler') and self._current_callback_handler:
+            try:
+                await self._current_callback_handler.__aexit__(None, None, None)
+            except:
+                pass
+        self._current_session = None
+        self._current_transport_ctx = None
+        self._current_callback_handler = None
 
     async def test_tool(self, server_name: str, tool: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -480,8 +552,8 @@ class ToolTester:
             result["llm_evaluation"] = None
 
         # Connect to server
-        client = await self.connect_to_server(server_name)
-        if client is None:
+        session, cleanup = await self.connect_to_server(server_name)
+        if session is None:
             result["status"] = "connection_failed"
             result["error"] = "Failed to connect to server"
             return result
@@ -502,7 +574,7 @@ class ToolTester:
             # Execute tool with timeout
             try:
                 tool_result = await asyncio.wait_for(
-                    client.execute_tool(tool_name, test_args),
+                    session.call_tool(tool_name, test_args),
                     timeout=30.0  # 30 second timeout
                 )
 
@@ -544,11 +616,12 @@ class ToolTester:
                 print(f"    [FAILED] {str(e)}")
 
         finally:
-            # Cleanup client
-            try:
-                await client.cleanup()
-            except Exception:
-                pass
+            # Cleanup session
+            if cleanup:
+                try:
+                    await cleanup()
+                except Exception:
+                    pass
 
         return result
 
@@ -748,6 +821,13 @@ class ToolTester:
             json.dump(output_data, f, indent=2)
 
         print(f"\nResults saved to: {output_path}")
+
+    async def cleanup_shared_resources(self):
+        """Cleanup shared OAuth resources."""
+        # Cleanup any remaining connection
+        await self._cleanup_current_connection()
+        # Reset the singleton OAuth resources
+        reset_shared_auth()
 
 
 async def evaluate_existing_results(args):
@@ -1019,6 +1099,9 @@ async def main():
 
         # Save results
         tester.save_results(args.output)
+
+        # Cleanup shared resources
+        await tester.cleanup_shared_resources()
 
     except ValueError as e:
         print(f"\nError: {e}")

@@ -39,6 +39,18 @@ class OAuthCallbackHandler:
         self._server_thread: Optional[threading.Thread] = None
         self._loop = None
 
+    def reset_state(self):
+        """
+        Reset callback state for a new OAuth flow.
+
+        MUST be called before each new OAuth flow when reusing the callback handler,
+        otherwise the previous callback's state will cause a mismatch.
+        """
+        self._auth_code = None
+        self._state = None
+        self._error = None
+        self._received_event = asyncio.Event()
+
 
     def _create_request_handler(self):
         """Create a request handler class with access to this instance."""
