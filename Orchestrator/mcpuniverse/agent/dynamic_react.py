@@ -162,14 +162,27 @@ class DynamicReActAgent(ReAct):
                 self._logger.info(f"🔐 Smithery server detected, using OAuth authentication...")
                 # Use OAuth for Smithery servers
                 from mcpuniverse.mcp.oauth import create_smithery_auth
+                from urllib.parse import urlparse, parse_qs, urlencode
                 import warnings
 
                 # Suppress anyio cancel scope warnings that occur during cleanup
                 # These are expected when OAuth servers fail to connect
                 warnings.filterwarnings('ignore', message='.*cancel scope.*', category=RuntimeWarning)
 
-                # Remove any API key from URL
-                base_url = server_url.split("?")[0]
+                # Parse URL and preserve config parameter (needed for server-specific settings like FMP_ACCESS_TOKEN)
+                parsed = urlparse(server_url)
+                query_params = parse_qs(parsed.query)
+
+                # Remove api_key (will use OAuth) but keep config
+                query_params.pop('api_key', None)
+
+                # Rebuild URL with preserved config
+                if query_params:
+                    # Flatten query params (parse_qs returns lists)
+                    flat_params = {k: v[0] if isinstance(v, list) else v for k, v in query_params.items()}
+                    base_url = f"{parsed.scheme}://{parsed.netloc}{parsed.path}?{urlencode(flat_params)}"
+                else:
+                    base_url = f"{parsed.scheme}://{parsed.netloc}{parsed.path}"
 
                 auth_provider, callback_handler = create_smithery_auth(
                     server_url=base_url,

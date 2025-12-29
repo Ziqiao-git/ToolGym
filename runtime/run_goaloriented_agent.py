@@ -1736,12 +1736,35 @@ async def main():
     print(f"{'='*70}\n")
 
     # Setup - load simple server list and convert to config format
+    # OAuth authentication is handled by the Smithery OAuth flow in dynamic_react.py
+    # Server-specific configs (like FMP_ACCESS_TOKEN) are passed via URL config parameter
+    import os
     server_list = json.loads(
         (PROJECT_ROOT / "MCP_INFO_MGR/mcp_data/working/remote_servers.json").read_text()
     )
+
+    # Server-specific configs (base64 encoded JSON) - for servers that need extra auth tokens
+    fmp_config = os.environ.get("FMP_CONFIG_BASE64", "")
+    server_specific_configs = {
+        # FMP servers need FMP_ACCESS_TOKEN passed via config parameter
+        "@imbenrabi/financial-modeling-prep-mcp-server": fmp_config,
+        "@vijitdaroch/financial-modeling-prep-mcp-server": fmp_config,
+        "@hollaugo/financial-research-mcp": fmp_config,
+        "@hollaugo/financial-research-mcp-server": fmp_config,
+        "@Parichay-Pothepalli/financial-research-mcp": fmp_config,
+    }
+
+    def build_server_url(server_name: str) -> str:
+        """Build server URL with optional config parameter for servers that need it."""
+        base_url = f"https://server.smithery.ai/{server_name}"
+        config_b64 = server_specific_configs.get(server_name, "")
+        if config_b64:
+            return f"{base_url}?config={config_b64}"
+        return base_url
+
     all_server_configs = {
         server: {
-            "streamable_http": {"url": f"https://server.smithery.ai/{server}", "headers": {}},
+            "streamable_http": {"url": build_server_url(server), "headers": {}},
             "env": {}
         }
         for server in server_list
