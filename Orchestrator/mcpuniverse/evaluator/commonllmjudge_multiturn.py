@@ -1541,9 +1541,15 @@ def evaluate_trajectory_with_steps(
 
     Supports both single-turn and multi-turn goal-oriented trajectories.
 
+    For multi-turn trajectories:
+    - Evaluates the final answer at the end of EACH turn
+    - Each turn's evaluation uses cumulative history (all previous turns + current turn)
+    - Computes average final answer score across all turns
+
     NO holistic trajectory evaluation - only:
     1. Step-by-step: evaluate each step individually
-    2. Final answer: evaluate only the final answer quality
+    2. Per-turn final answer: evaluate final answer at end of each turn
+    3. Overall final answer: average of all per-turn evaluations
 
     Returns combined result with both evaluations.
     """
@@ -1603,30 +1609,90 @@ def evaluate_trajectory_with_steps(
     # Get final answer from trajectory
     task_id = traj_obj.get("_filename", "unknown")
 
-    if turns and isinstance(turns, list):
-        # Multi-turn: get final answer from last turn
-        last_turn = turns[-1] if turns else {}
-        final_answer = last_turn.get("agent_response", "")
-    else:
-        # Single-turn
-        exe = traj_obj.get("execution", {}) or {}
-        final_answer = exe.get("final_response", "")
-
-    # Build history for grounding evaluation
-    history_text = build_history_from_reasoning_trace(traj_obj)
-
     # Extract actual tools used
     actual_tools = extract_actual_tools_from_trajectory(traj_obj)
 
-    # Evaluate final answer with history for grounding evaluation
-    final_answer_eval = evaluate_final_answer(
-        query=query,
-        final_answer=final_answer,
-        history=history_text,
-        constraints=constraints,
-        model_name=model_name,
-        temperature=temperature,
-    )
+    # NEW: Per-turn final answer evaluation for multi-turn trajectories
+    if turns and isinstance(turns, list) and len(turns) > 0:
+        # Multi-turn: evaluate final answer at the end of each turn
+        per_turn_evaluations = []
+
+        for turn_idx, turn in enumerate(turns, 1):
+            # Build cumulative history up to and including this turn
+            cumulative_turns = turns[:turn_idx]
+            cumulative_history = build_multiturn_history(cumulative_turns)
+
+            # Get final answer for this turn
+            turn_final_answer = turn.get("agent_response", "")
+
+            # Evaluate this turn's final answer with cumulative history
+            turn_eval = evaluate_final_answer(
+                query=query,
+                final_answer=turn_final_answer,
+                history=cumulative_history,
+                constraints=constraints,
+                model_name=model_name,
+                temperature=temperature,
+            )
+
+            per_turn_evaluations.append({
+                "turn_number": turn_idx,
+                "final_answer": turn_final_answer[:500] + "..." if len(turn_final_answer) > 500 else turn_final_answer,  # Truncate for readability
+                "evaluation": turn_eval,
+            })
+
+        # Compute average final answer score across all turns
+        avg_final_answer_score = sum(
+            te["evaluation"].get("final_answer_score", 0)
+            for te in per_turn_evaluations
+        ) / len(per_turn_evaluations)
+
+        # Also compute average per dimension
+        avg_answer_reasonableness = sum(
+            te["evaluation"].get("answer_reasonableness", 0)
+            for te in per_turn_evaluations
+        ) / len(per_turn_evaluations)
+
+        avg_grounding = sum(
+            te["evaluation"].get("grounding", 0)
+            for te in per_turn_evaluations
+        ) / len(per_turn_evaluations)
+
+        avg_constraint_adherence = sum(
+            te["evaluation"].get("constraint_adherence", 0)
+            for te in per_turn_evaluations
+        ) / len(per_turn_evaluations)
+
+        # Overall evaluation is the average across all turns
+        final_answer_eval = {
+            "per_turn_evaluations": per_turn_evaluations,
+            "average_final_answer_score": avg_final_answer_score,
+            "average_answer_reasonableness": avg_answer_reasonableness,
+            "average_grounding": avg_grounding,
+            "average_constraint_adherence": avg_constraint_adherence,
+            "total_turns": len(turns),
+        }
+
+        # Use last turn's answer as the "final" answer
+        final_answer = turns[-1].get("agent_response", "")
+
+    else:
+        # Single-turn trajectory
+        exe = traj_obj.get("execution", {}) or {}
+        final_answer = exe.get("final_response", "")
+
+        # Build history for grounding evaluation
+        history_text = build_history_from_reasoning_trace(traj_obj)
+
+        # Evaluate final answer with history for grounding evaluation
+        final_answer_eval = evaluate_final_answer(
+            query=query,
+            final_answer=final_answer,
+            history=history_text,
+            constraints=constraints,
+            model_name=model_name,
+            temperature=temperature,
+        )
 
     # Build result with trajectory metadata for constraint comparison
     result = {
@@ -1819,9 +1885,11 @@ def main():
         with open(traj_path, 'r', encoding='utf-8') as f:
             traj_data = json.load(f)
 
-        query = traj_data.get("metadata", {}).get("query", "")
+        # Extract query from metadata (supports both single-turn and goal-oriented formats)
+        metadata = traj_data.get("metadata", {})
+        query = metadata.get("query") or metadata.get("seed_query") or metadata.get("user_goal", "")
         if not query:
-            print("[ERROR] No query found in trajectory metadata", file=sys.stderr)
+            print("[ERROR] No query found in trajectory metadata (tried 'query', 'seed_query', 'user_goal')", file=sys.stderr)
             sys.exit(1)
 
         # Step-by-step evaluation mode
@@ -2001,12 +2069,22 @@ def main():
 
                     # Save per-pass summary
                     valid_results = [r for r in pass_results if not r.get("error")]
+
+                    # Helper function to extract final answer score (handles both single-turn and multi-turn)
+                    def get_final_answer_score(result):
+                        eval_dict = result.get("final_answer_evaluation", {})
+                        # For multi-turn: use average_final_answer_score
+                        if "average_final_answer_score" in eval_dict:
+                            return eval_dict["average_final_answer_score"]
+                        # For single-turn: use final_answer_score
+                        return eval_dict.get("final_answer_score", 0)
+
                     pass_summary = {
                         "pass_number": pass_num,
                         "total_evaluated": len(pass_results),
                         "errors": len([r for r in pass_results if r.get("error")]),
                         "avg_final_answer_score": sum(
-                            r.get("final_answer_evaluation", {}).get("final_answer_score", 0)
+                            get_final_answer_score(r)
                             for r in valid_results
                         ) / max(1, len(valid_results)),
                         "avg_step_score": sum(
@@ -2022,12 +2100,22 @@ def main():
 
                 # Save overall summary
                 all_valid = [r for r in results if r and not r.get("error")]
+
+                # Helper function to extract final answer score (handles both single-turn and multi-turn)
+                def get_final_answer_score(result):
+                    eval_dict = result.get("final_answer_evaluation", {})
+                    # For multi-turn: use average_final_answer_score
+                    if "average_final_answer_score" in eval_dict:
+                        return eval_dict["average_final_answer_score"]
+                    # For single-turn: use final_answer_score
+                    return eval_dict.get("final_answer_score", 0)
+
                 summary = {
                     "total_evaluated": len([r for r in results if r is not None]),
                     "errors": len([r for r in results if r and r.get("error")]),
                     "passes": sorted(results_by_pass.keys()),
                     "avg_final_answer_score": sum(
-                        r.get("final_answer_evaluation", {}).get("final_answer_score", 0)
+                        get_final_answer_score(r)
                         for r in all_valid
                     ) / max(1, len(all_valid)),
                     "avg_step_score": sum(

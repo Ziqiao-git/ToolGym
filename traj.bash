@@ -7,8 +7,8 @@
 # ============================================
 
 # Model settings
-MODEL="google/gemini-3-pro-preview"
-USER_MODEL="google/gemini-3-pro-preview"
+MODEL="openai/gpt-5.2"
+USER_MODEL="openai/gpt-5.2"
 
 # Input/Output
 SEEDS_FILE="mcp_generate/requests/multitool_50.json"
