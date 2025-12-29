@@ -134,6 +134,8 @@ def analyze_trajectory_stats(trajectories: List[Dict[str, Any]]) -> Dict[str, An
         "unique_servers_per_traj": [],
         "tool_calls_total": [],
         "tool_calls_unique": [],
+        "tool_calls_real_total": [],  # Excluding meta-mcp::search_tools
+        "tool_calls_real_unique": [],  # Excluding meta-mcp::search_tools
         "tool_success_rate": [],
         "constraint_satisfaction": [],
         "tools_by_server": defaultdict(set),  # server -> set of tools
@@ -151,6 +153,8 @@ def analyze_trajectory_stats(trajectories: List[Dict[str, Any]]) -> Dict[str, An
         servers_in_traj = set()
         tools_in_traj = []
         tools_unique_in_traj = set()
+        tools_real_in_traj = []  # Excluding meta-mcp::search_tools
+        tools_real_unique_in_traj = set()  # Excluding meta-mcp::search_tools
         successful_calls = 0
         total_calls = 0
 
@@ -175,6 +179,11 @@ def analyze_trajectory_stats(trajectories: List[Dict[str, Any]]) -> Dict[str, An
                 tools_in_traj.append(tool_full_name)
                 tools_unique_in_traj.add(tool_full_name)
                 stats["tools_by_server"][server].add(tool)
+
+                # Track real tools (excluding meta-mcp::search_tools)
+                if not (server == "meta-mcp" and tool == "search_tools"):
+                    tools_real_in_traj.append(tool_full_name)
+                    tools_real_unique_in_traj.add(tool_full_name)
 
                 # Check if the result indicates an error
                 # Note: results may not align 1-1 with tool_calls, so we check all results
@@ -201,6 +210,8 @@ def analyze_trajectory_stats(trajectories: List[Dict[str, Any]]) -> Dict[str, An
         stats["unique_servers_per_traj"].append(len(servers_in_traj))
         stats["tool_calls_total"].append(len(tools_in_traj))
         stats["tool_calls_unique"].append(len(tools_unique_in_traj))
+        stats["tool_calls_real_total"].append(len(tools_real_in_traj))
+        stats["tool_calls_real_unique"].append(len(tools_real_unique_in_traj))
 
         if total_calls > 0:
             stats["tool_success_rate"].append(successful_calls / total_calls)
@@ -284,12 +295,21 @@ def print_multiturn_analysis(stats: Dict[str, Any]):
 
     total_calls = stats['tool_calls_total']
     unique_calls = stats['tool_calls_unique']
+    real_total_calls = stats['tool_calls_real_total']
+    real_unique_calls = stats['tool_calls_real_unique']
 
     if total_calls:
         print(f"Average total tool calls per trajectory: {statistics.mean(total_calls):.2f}")
         print(f"Average unique tool calls per trajectory: {statistics.mean(unique_calls):.2f}")
         print(f"Total tool calls (with duplicates): {sum(total_calls)}")
         print(f"Average duplication rate: {(sum(total_calls) - sum(unique_calls)) / sum(total_calls) * 100:.1f}%")
+
+        print(f"\n--- Real Tool Calls (excluding meta-mcp::search_tools) ---")
+        print(f"Average real tool calls per trajectory: {statistics.mean(real_total_calls):.2f}")
+        print(f"Average unique real tool calls per trajectory: {statistics.mean(real_unique_calls):.2f}")
+        print(f"Total real tool calls (with duplicates): {sum(real_total_calls)}")
+        if sum(real_total_calls) > 0:
+            print(f"Real tool duplication rate: {(sum(real_total_calls) - sum(real_unique_calls)) / sum(real_total_calls) * 100:.1f}%")
 
     # Tool success rate
     print("\n" + "-" * 80)
