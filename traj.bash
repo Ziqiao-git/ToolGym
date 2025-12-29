@@ -7,8 +7,8 @@
 # ============================================
 
 # Model settings
-MODEL="openai/gpt-4o-mini"
-USER_MODEL="openai/gpt-4o-mini"
+MODEL="deepseek/deepseek-v3.2"
+USER_MODEL="deepseek/deepseek-v3.2"
 
 # Input/Output
 SEEDS_FILE="mcp_generate/requests/multitool_50.json"

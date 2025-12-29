@@ -117,32 +117,21 @@ class OAuthCallbackHandler:
         """Start the local HTTP server in a background thread."""
         handler_class = self._create_request_handler()
 
-        # Try to bind to port, retry with next port if occupied
-        port = self.redirect_port
-        max_retries = 10
-
-        for attempt in range(max_retries):
-            try:
-                self._server = HTTPServer(('localhost', port), handler_class)
-                # Update redirect_port and redirect_uri if we used a different port
-                if port != self.redirect_port:
-                    original_port = self.redirect_port
-                    self.redirect_port = port
-                    self.redirect_uri = f"http://localhost:{port}/oauth/callback"
-                    print(f"⚠️  Port {original_port} was busy, using port {port} instead")
-                break
-            except OSError as e:
-                # Check for "Address already in use" error
-                # errno 48 on macOS, 98 on Linux, 10048 on Windows
-                if e.errno in (48, 98, 10048) or 'Address already in use' in str(e):
-                    port += 1
-                    if attempt == max_retries - 1:
-                        raise RuntimeError(
-                            f"Could not find available port after {max_retries} attempts. "
-                            f"Tried ports {self.redirect_port}-{port}"
-                        ) from e
-                else:
-                    raise
+        # Smithery OAuth only accepts localhost:8765 as registered redirect URI
+        # Do NOT fallback to other ports - it will cause "Unregistered redirect_uri" errors
+        try:
+            self._server = HTTPServer(('localhost', self.redirect_port), handler_class)
+        except OSError as e:
+            # Check for "Address already in use" error
+            # errno 48 on macOS, 98 on Linux, 10048 on Windows
+            if e.errno in (48, 98, 10048) or 'Address already in use' in str(e):
+                raise RuntimeError(
+                    f"Port {self.redirect_port} is already in use. "
+                    f"Smithery OAuth requires exactly this port. "
+                    f"Run 'lsof -i :{self.redirect_port}' to find the process, then kill it."
+                ) from e
+            else:
+                raise
 
         def run_server():
             self._server.serve_forever()
@@ -204,7 +193,9 @@ class OAuthCallbackHandler:
     async def __aenter__(self):
         """Async context manager entry."""
         self._loop = asyncio.get_running_loop()
-        self.start_server()
+        # Only start server if not already running (may have been started early for port detection)
+        if self._server is None:
+            self.start_server()
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):

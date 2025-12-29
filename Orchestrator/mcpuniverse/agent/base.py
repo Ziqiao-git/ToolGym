@@ -488,6 +488,12 @@ class BaseAgent(Executor, ExportConfigMixin, metaclass=ComponentABCMeta):
                                 self._logger.info("With arguments: %s", str(tool_call["arguments"]))
                             response = await self._mcp_clients[tool_call["server"]].execute_tool(
                                 tool_call["tool"], tool_call["arguments"], callbacks=callbacks)
+                            if self._logger is not None:
+                                # Log tool result (truncate if too long)
+                                result_str = str(response.model_dump(mode="json") if hasattr(response, 'model_dump') else response)
+                                if len(result_str) > 2000:
+                                    result_str = result_str[:2000] + "... [truncated]"
+                                self._logger.info("Tool result: %s", result_str)
                             t.add({
                                 "type": "tool",
                                 "class": self.__class__.__name__,

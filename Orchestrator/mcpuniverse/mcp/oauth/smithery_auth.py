@@ -62,8 +62,11 @@ def create_smithery_auth(
     # Reuse shared callback handler to avoid port conflicts
     if _shared_callback_handler is None:
         _shared_callback_handler = OAuthCallbackHandler(redirect_port=redirect_port)
+        # Start server immediately to determine actual port (may fallback if port is busy)
+        # This ensures redirect_uri has the correct port before creating client metadata
+        _shared_callback_handler.start_server()
 
-    # Reuse shared client metadata
+    # Reuse shared client metadata (created AFTER server starts so we have correct port)
     if _shared_client_metadata is None:
         _shared_client_metadata = OAuthClientMetadata(
             client_name=client_name,

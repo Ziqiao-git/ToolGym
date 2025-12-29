@@ -3,15 +3,14 @@
 # Usage: ./generate_missing_trajectories.sh <trajectory_dir> <model> [options]
 #
 # Example:
+#   ./generate_missing_trajectories.sh trajectories/goaloriented/gpt-4o-mini openai/gpt-4o-mini --goal-oriented
 #   ./generate_missing_trajectories.sh trajectories/claude-3.5 anthropic/claude-3.5-sonnet
 #   ./generate_missing_trajectories.sh trajectories/gpt-4omini openai/gpt-4o-mini --dry-run
-#   ./generate_missing_trajectories.sh trajectories/deepseek-v3.2 deepseek/deepseek-v3.2 --max-concurrent 5
 
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
-QUERY_FILE="${PROJECT_ROOT}/mcp_generate/queries_verification.json"
 
 # Colors for output
 RED='\033[0;31m'
@@ -24,20 +23,25 @@ usage() {
     echo "Usage: $0 <trajectory_dir> <model> [options]"
     echo ""
     echo "Arguments:"
-    echo "  trajectory_dir    Path to trajectory directory (e.g., trajectories/claude-3.5)"
+    echo "  trajectory_dir    Path to trajectory directory (e.g., trajectories/goaloriented/gpt-4o-mini)"
     echo "  model             Model name (e.g., anthropic/claude-3.5-sonnet, openai/gpt-4o-mini)"
     echo ""
     echo "Options:"
+    echo "  --goal-oriented        Use goal-oriented agent (run_goaloriented_agent.py)"
+    echo "  --query-file FILE      Custom query file (default: depends on agent type)"
+    echo "  --user-model MODEL     User model for goal-oriented agent (default: same as model)"
+    echo "  --persona NAME         Persona for goal-oriented agent (default: curious_researcher)"
     echo "  --dry-run              Show what would be generated without actually running"
     echo "  --max-concurrent N     Run N trajectories in parallel (default: 5)"
-    echo "  --max-iterations N     Max reasoning iterations per query (default: 20)"
+    echo "  --max-iterations N     Max reasoning iterations per query (default: 60)"
     echo "  --loop                 Keep retrying until all trajectories are complete"
     echo "  --max-retries N        Maximum retry rounds when using --loop (default: 10)"
+    echo "  --pass N               Only generate missing for pass N (default: all passes 1,2,3)"
     echo ""
     echo "Example:"
+    echo "  $0 trajectories/goaloriented/gpt-4o-mini openai/gpt-4o-mini --goal-oriented"
     echo "  $0 trajectories/claude-3.5 anthropic/claude-3.5-sonnet"
-    echo "  $0 trajectories/deepseek-v3.2 deepseek/deepseek-v3.2 --max-concurrent 3"
-    echo "  $0 trajectories/deepseek-v3.2 deepseek/deepseek-v3.2 --loop --max-retries 5"
+    echo "  $0 trajectories/goaloriented/gpt-4o-mini openai/gpt-4o-mini --goal-oriented --pass 1"
     exit 1
 }
 
@@ -50,7 +54,16 @@ TRAJECTORY_DIR="$1"
 MODEL="$2"
 DRY_RUN=false
 MAX_CONCURRENT=5
-MAX_ITERATIONS=20  # Default iterations for trajectory generation
+MAX_ITERATIONS=60  # Default iterations for trajectory generation
+GOAL_ORIENTED=false
+USER_MODEL=""
+PERSONA="curious_researcher"
+SPECIFIC_PASS=""
+
+# Default query files
+REACT_QUERY_FILE="${PROJECT_ROOT}/mcp_generate/queries_verification.json"
+GOALORIENTED_QUERY_FILE="${PROJECT_ROOT}/mcp_generate/requests/multitool_50.json"
+QUERY_FILE=""
 
 # Parse optional arguments
 shift 2
@@ -59,6 +72,22 @@ MAX_RETRIES=10  # Maximum retry rounds to prevent infinite loops
 
 while [ $# -gt 0 ]; do
     case "$1" in
+        --goal-oriented)
+            GOAL_ORIENTED=true
+            shift
+            ;;
+        --query-file)
+            QUERY_FILE="$2"
+            shift 2
+            ;;
+        --user-model)
+            USER_MODEL="$2"
+            shift 2
+            ;;
+        --persona)
+            PERSONA="$2"
+            shift 2
+            ;;
         --dry-run)
             DRY_RUN=true
             shift
@@ -79,12 +108,30 @@ while [ $# -gt 0 ]; do
             MAX_RETRIES="$2"
             shift 2
             ;;
+        --pass)
+            SPECIFIC_PASS="$2"
+            shift 2
+            ;;
         *)
             echo -e "${RED}Unknown option: $1${NC}"
             usage
             ;;
     esac
 done
+
+# Set default query file based on agent type
+if [ -z "$QUERY_FILE" ]; then
+    if [ "$GOAL_ORIENTED" = true ]; then
+        QUERY_FILE="$GOALORIENTED_QUERY_FILE"
+    else
+        QUERY_FILE="$REACT_QUERY_FILE"
+    fi
+fi
+
+# Set default user model
+if [ -z "$USER_MODEL" ]; then
+    USER_MODEL="$MODEL"
+fi
 
 # Validate trajectory directory
 if [ ! -d "$TRAJECTORY_DIR" ]; then
@@ -105,6 +152,7 @@ for q in items:
 ")
 TOTAL_QUERIES=$(echo "$ALL_UUIDS" | wc -l | tr -d ' ')
 echo -e "${GREEN}Found $TOTAL_QUERIES queries${NC}"
+echo -e "${BLUE}Agent type: $([ "$GOAL_ORIENTED" = true ] && echo "Goal-Oriented" || echo "ReAct")${NC}"
 
 # Function to get existing UUIDs for a pass
 get_existing_uuids() {
@@ -133,6 +181,21 @@ find_missing_uuids() {
     done
 }
 
+# Function to get query index by UUID
+get_query_index() {
+    local target_uuid=$1
+    python3 -c "
+import json
+with open('$QUERY_FILE') as f:
+    data = json.load(f)
+items = data.get('items', data) if isinstance(data, dict) else data
+for i, q in enumerate(items):
+    if q['uuid'] == '$target_uuid':
+        print(i)
+        break
+"
+}
+
 # Function to generate a single trajectory (called by parallel workers)
 generate_single() {
     local task=$1
@@ -144,24 +207,47 @@ generate_single() {
 
     echo -e "${BLUE}[${task_num}/${total}]${NC} ${YELLOW}Starting pass@${pass_num} for ${uuid}...${NC}"
 
-    if python "${SCRIPT_DIR}/run_react_agent.py" \
-        --query-file "$QUERY_FILE" \
-        --query-uuid "$uuid" \
-        --model "$MODEL" \
-        --pass-number "$pass_num" \
-        --max-iterations "$MAX_ITERATIONS" \
-        --save-trajectory \
-        --output-dir "$TRAJECTORY_DIR" 2>&1; then
-        echo "success" > "$result_file"
-        echo -e "${BLUE}[${task_num}/${total}]${NC} ${GREEN}✓ Completed pass@${pass_num} for ${uuid}${NC}"
+    # Get the query index for this UUID
+    local query_index=$(get_query_index "$uuid")
+
+    if [ "$GOAL_ORIENTED" = true ]; then
+        # Goal-oriented agent
+        if python "${SCRIPT_DIR}/run_goaloriented_agent.py" \
+            --seeds "$QUERY_FILE" \
+            --model "$MODEL" \
+            --user-model "$USER_MODEL" \
+            --persona "$PERSONA" \
+            --query-index "$query_index" \
+            --pass-number "$pass_num" \
+            --max-iterations "$MAX_ITERATIONS" \
+            --save-trajectory 2>&1; then
+            echo "success" > "$result_file"
+            echo -e "${BLUE}[${task_num}/${total}]${NC} ${GREEN}✓ Completed pass@${pass_num} for ${uuid}${NC}"
+        else
+            echo "failed" > "$result_file"
+            echo -e "${BLUE}[${task_num}/${total}]${NC} ${RED}✗ Failed pass@${pass_num} for ${uuid}${NC}"
+        fi
     else
-        echo "failed" > "$result_file"
-        echo -e "${BLUE}[${task_num}/${total}]${NC} ${RED}✗ Failed pass@${pass_num} for ${uuid}${NC}"
+        # ReAct agent
+        if python "${SCRIPT_DIR}/run_react_agent.py" \
+            --query-file "$QUERY_FILE" \
+            --query-uuid "$uuid" \
+            --model "$MODEL" \
+            --pass-number "$pass_num" \
+            --max-iterations "$MAX_ITERATIONS" \
+            --save-trajectory \
+            --output-dir "$TRAJECTORY_DIR" 2>&1; then
+            echo "success" > "$result_file"
+            echo -e "${BLUE}[${task_num}/${total}]${NC} ${GREEN}✓ Completed pass@${pass_num} for ${uuid}${NC}"
+        else
+            echo "failed" > "$result_file"
+            echo -e "${BLUE}[${task_num}/${total}]${NC} ${RED}✗ Failed pass@${pass_num} for ${uuid}${NC}"
+        fi
     fi
 }
 
-export -f generate_single
-export SCRIPT_DIR QUERY_FILE MODEL TRAJECTORY_DIR MAX_ITERATIONS
+export -f generate_single get_query_index
+export SCRIPT_DIR QUERY_FILE MODEL TRAJECTORY_DIR MAX_ITERATIONS GOAL_ORIENTED USER_MODEL PERSONA
 export RED GREEN YELLOW BLUE NC
 
 # Main function to run one round of generation
@@ -180,8 +266,15 @@ run_generation_round() {
     MISSING_PASS2=()
     MISSING_PASS3=()
 
+    # Determine which passes to check
+    if [ -n "$SPECIFIC_PASS" ]; then
+        PASSES_TO_CHECK=($SPECIFIC_PASS)
+    else
+        PASSES_TO_CHECK=(1 2 3)
+    fi
+
     # Check each pass
-    for pass in 1 2 3; do
+    for pass in "${PASSES_TO_CHECK[@]}"; do
         existing_count=$(get_existing_uuids $pass | wc -l | tr -d ' ')
         missing_uuids=$(find_missing_uuids $pass)
         missing_count=$(echo "$missing_uuids" | grep -c . 2>/dev/null | tr -d '[:space:]' || echo 0)
@@ -274,9 +367,11 @@ run_generation_round() {
         echo "$task $task_num $TOTAL_TASKS"
     done | xargs -P "$MAX_CONCURRENT" -L 1 bash -c 'generate_single $0 $1 $2'
 
-    # Count results
-    GENERATED=$(find "$TEMP_DIR" -name "result_*" -exec cat {} \; | grep -c "success" 2>/dev/null || echo 0)
-    FAILED=$(find "$TEMP_DIR" -name "result_*" -exec cat {} \; | grep -c "failed" 2>/dev/null || echo 0)
+    # Count results (use tr to remove any whitespace/newlines)
+    GENERATED=$(find "$TEMP_DIR" -name "result_*" -exec cat {} \; 2>/dev/null | grep -c "success" | tr -d '[:space:]')
+    GENERATED=${GENERATED:-0}
+    FAILED=$(find "$TEMP_DIR" -name "result_*" -exec cat {} \; 2>/dev/null | grep -c "failed" | tr -d '[:space:]')
+    FAILED=${FAILED:-0}
 
     # Cleanup temp directory
     rm -rf "$TEMP_DIR"
