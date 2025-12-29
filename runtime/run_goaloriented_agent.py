@@ -1201,6 +1201,25 @@ class GoalOrientedController:
             for turn in self.turns
         ]
 
+    def _get_model_name(self, obj) -> str:
+        """Safely extract model name from agent or LLM object."""
+        # Try different attribute paths
+        for attr in ['_llm', 'llm']:
+            llm = getattr(obj, attr, None)
+            if llm is not None:
+                config = getattr(llm, 'config', None)
+                if config is not None:
+                    model_name = getattr(config, 'model_name', None)
+                    if model_name:
+                        return model_name
+        # Try direct config access (for LLM objects)
+        config = getattr(obj, 'config', None)
+        if config is not None:
+            model_name = getattr(config, 'model_name', None)
+            if model_name:
+                return model_name
+        return 'unknown'
+
     async def run_conversation(self, seed_query: str) -> GoalTrajectory:
         """Run a complete goal-oriented conversation."""
         print("\n" + "="*70)
@@ -1498,8 +1517,8 @@ class GoalOrientedController:
             final_decision=self.turns[-1].user_decision if self.turns else "NONE",
             final_satisfaction=self.turns[-1].satisfaction_level if self.turns else 0.0,
             timestamp=datetime.now().isoformat(),
-            agent_model=getattr(self.agent.llm.config, 'model_name', 'unknown'),
-            user_model='anthropic/claude-3.5-sonnet',
+            agent_model=self._get_model_name(self.agent),
+            user_model=self._get_model_name(self.user.llm),
             dynamically_loaded_servers=dynamically_loaded
         )
 
@@ -1565,26 +1584,34 @@ async def run_single_conversation(
             process = await asyncio.create_subprocess_exec(
                 *cmd,
                 stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
+                stderr=asyncio.subprocess.STDOUT  # Merge stderr into stdout
             )
 
-            _, stderr = await process.communicate()
+            stdout, _ = await process.communicate()
+            output = stdout.decode() if stdout else ""
 
             if process.returncode == 0:
-                print(f"[{query_index + 1}] ✓ Conversation {query_uuid} completed successfully")
+                # Check if trajectory was actually saved by looking for the save message
+                if "💾 Saved trajectory:" in output:
+                    print(f"[{query_index + 1}] ✓ Conversation {query_uuid} completed and saved")
+                else:
+                    print(f"[{query_index + 1}] ⚠️  Conversation {query_uuid} completed but trajectory NOT saved")
+                    # Print last 500 chars of output for debugging
+                    print(f"    Output tail: {output[-500:]}")
                 return {
                     "index": query_index + 1,
                     "uuid": query_uuid,
                     "status": "success"
                 }
             else:
-                error_msg = stderr.decode() if stderr else "Unknown error"
-                print(f"[{query_index + 1}] ✗ Conversation {query_uuid} failed: {error_msg[:200]}")
+                # Print the last part of output for debugging
+                print(f"[{query_index + 1}] ✗ Conversation {query_uuid} failed (exit code {process.returncode})")
+                print(f"    Output tail: {output[-500:]}")
                 return {
                     "index": query_index + 1,
                     "uuid": query_uuid,
                     "status": "failed",
-                    "error": error_msg[:500]
+                    "error": output[-500:]
                 }
         except Exception as e:
             query_uuid = query_item.get("uuid", f"query_{query_index}")

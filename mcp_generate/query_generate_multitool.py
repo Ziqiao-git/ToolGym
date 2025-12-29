@@ -308,21 +308,129 @@ CRITICAL:
 """
 
 
+async def _rewrite_constraints_and_query(
+    query: str,
+    constraints: List[Dict]
+) -> tuple[str, List[Dict]]:
+    """
+    Rewrite constraints and/or query to ensure implicit_phrasing matches.
+    Returns (updated_query, updated_constraints).
+
+    The LLM can either:
+    1. Find existing phrasing in the query that implies the constraint
+    2. Modify the query to naturally include the constraint's intent
+    """
+    if not constraints:
+        return query, []
+
+    rewrite_prompt = f"""You are a constraint and query harmonizer. The constraints below have "implicit_phrasing" fields that don't match the actual query text.
+
+YOUR TASK: Make the constraints and query consistent. You have TWO options for each constraint:
+
+OPTION 1: Find existing phrasing in the query that implies the constraint (preferred if possible)
+OPTION 2: Modify the query to naturally include language that implies the constraint
+
+ORIGINAL QUERY:
+{query}
+
+CONSTRAINTS TO FIX:
+{json.dumps(constraints, indent=2)}
+
+RULES:
+1. The "implicit_phrasing" MUST be an EXACT substring that appears in the final query (case-insensitive)
+2. If modifying the query, add natural language that fits the user's request style - don't add explicit constraint rules
+3. Keep modifications minimal and natural-sounding
+4. Keep constraint type, description, and verification unchanged
+5. If a constraint truly cannot be implied naturally, set "implicit_phrasing": null
+
+GOOD query modifications (natural):
+- "...and cross-reference data from multiple sources to ensure accuracy"
+- "...work efficiently without repeating searches"
+- "...compare at least 3-5 options before recommending"
+
+BAD query modifications (explicit rules):
+- "You must use at least 5 different servers"
+- "Do not make duplicate API calls"
+
+OUTPUT FORMAT (strict JSON):
+{{
+  "updated_query": "the query with any necessary additions to support the constraints",
+  "rewritten_constraints": [
+    {{
+      "type": "CONSTRAINT_TYPE",
+      "description": "same as input",
+      "implicit_phrasing": "exact text from updated_query that implies this",
+      "verification": {{ /* same as input */ }}
+    }}
+  ],
+  "query_modifications": ["list of phrases added to the query, if any"]
+}}
+
+Harmonize the constraints and query now."""
+
+    try:
+        resp = await CLIENT.chat.completions.create(
+            model=MODEL_NAME,
+            messages=[
+                {"role": "system", "content": "You are a constraint and query harmonizer. Output valid JSON only."},
+                {"role": "user", "content": rewrite_prompt},
+            ],
+            temperature=0.3,
+            max_tokens=6000,
+            response_format={"type": "json_object"},
+        )
+
+        text = resp.choices[0].message.content
+        if not text or not text.strip():
+            return query, []
+
+        result = json.loads(text.strip())
+        updated_query = result.get("updated_query", query)
+        rewritten = result.get("rewritten_constraints", [])
+        modifications = result.get("query_modifications", [])
+
+        if modifications:
+            print(f"    📝 Query modified with {len(modifications)} additions")
+
+        # Validate that the new phrasing actually matches the updated query
+        query_lower = updated_query.lower()
+        valid_rewritten = []
+        for c in rewritten:
+            phr = c.get("implicit_phrasing")
+            if phr is None:
+                # LLM couldn't find matching phrasing, skip this constraint
+                continue
+            if isinstance(phr, str) and phr.strip().lower() in query_lower:
+                valid_rewritten.append(c)
+            else:
+                # Still doesn't match, drop it
+                print(f"    ⚠️ Rewrite still doesn't match query, dropping: {c.get('type')}")
+
+        return updated_query, valid_rewritten
+
+    except Exception as e:
+        print(f"  ⚠️ Constraint/query rewrite failed: {e}")
+        return query, []
+
+
 async def _verify_constraints(
     query: str,
     constraints: List[Dict],
     sampled_tools: List[Dict]
-) -> List[Dict]:
+) -> tuple[str, List[Dict]]:
     """
     Verify and fix constraints using a second LLM pass.
+    Returns (updated_query, verified_constraints).
+
     Ensures:
     1. Each constraint has implicit_phrasing field
     2. Verification schemas use standard format
     3. Duplicate constraint types are merged
-    4. Invalid constraints are removed
+    4. Invalid constraints are removed or rewritten
+    5. Query may be modified to support constraints if needed
     """
     if not constraints:
-        return []
+        return query, []
 
     # Build context about available tools
     servers = set(t["server"] for t in sampled_tools)
@@ -466,7 +574,10 @@ Verify and normalize the constraints now."""
                 print(f"  ⚠️ Constraint missing fields {missing}, skipping: {c.get('type', 'unknown')}")
 
         # Ensure implicit_phrasing actually appears in the query (implicit, not external)
+        # If not found, try to rewrite the constraint with correct phrasing
         filtered_constraints = []
+        constraints_to_rewrite = []
+
         if isinstance(query, str):
             query_text = query.lower()
         else:
@@ -485,8 +596,17 @@ Verify and normalize the constraints now."""
             if phr and phr in query_text:
                 filtered_constraints.append(c)
             else:
-                preview = phr[:60] + ("..." if len(phr) > 60 else "")
-                print(f"  ⚠️ Dropping constraint without matching implicit phrasing in query: {preview}")
+                # Queue for rewrite instead of dropping
+                constraints_to_rewrite.append(c)
+
+        # Try to rewrite constraints and/or query to make them match
+        updated_query = query
+        if constraints_to_rewrite:
+            print(f"  🔄 Attempting to rewrite {len(constraints_to_rewrite)} constraints (and query if needed)...")
+            updated_query, rewritten = await _rewrite_constraints_and_query(query, constraints_to_rewrite)
+            if rewritten:
+                print(f"  ✓ Successfully rewrote {len(rewritten)} constraints")
+                filtered_constraints.extend(rewritten)
 
         # Cap to max 8 constraints to respect prompt contract
         if len(filtered_constraints) > 8:
@@ -496,11 +616,11 @@ Verify and normalize the constraints now."""
         valid_constraints = filtered_constraints
 
         print(f"  ✓ Final constraint count: {len(valid_constraints)}")
-        return valid_constraints
+        return updated_query, valid_constraints
 
     except Exception as e:
         print(f"  ⚠️ Constraint verification failed: {e}, keeping original")
-        return constraints
+        return query, constraints
 
 
 def _infer_constraint_type(constraint_str: str) -> Optional[Dict]:
@@ -913,14 +1033,15 @@ async def generate_multitool_query(
                         else:
                             print(f"  ⚠️ Skipping unverifiable constraint: {c[:50]}...")
 
-                # Run verification pass to double-check constraints
+                # Run verification pass to double-check constraints (may update query too)
                 if validated_constraints:
                     print(f"  🔍 Running constraint verifier...")
-                    verified_constraints = await _verify_constraints(
+                    updated_query, verified_constraints = await _verify_constraints(
                         query=data["query"],
                         constraints=validated_constraints,
                         sampled_tools=sampled_tools
                     )
+                    data["query"] = updated_query  # Update query if it was modified
                     data["constraints"] = verified_constraints
                 else:
                     data["constraints"] = []
