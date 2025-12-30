@@ -1,16 +1,76 @@
 #!/bin/bash
 # Generate missing trajectories for an existing trajectory folder
-# Usage: ./generate_missing_trajectories.sh <trajectory_dir> <model> [options]
+# Usage: ./generate_missing_trajectories.sh [options]
+#
+# You can either set the configuration variables below OR pass command line arguments.
+# Command line arguments will override the configuration variables.
 #
 # Example:
+#   # Edit CONFIG section below, then just run:
+#   ./generate_missing_trajectories.sh
+#
+#   # Or use command line arguments:
 #   ./generate_missing_trajectories.sh trajectories/goaloriented/gpt-4o-mini openai/gpt-4o-mini --goal-oriented
-#   ./generate_missing_trajectories.sh trajectories/claude-3.5 anthropic/claude-3.5-sonnet
-#   ./generate_missing_trajectories.sh trajectories/gpt-4omini openai/gpt-4o-mini --dry-run
 
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+
+###############################################################################
+# CONFIGURATION - Edit these variables to set defaults
+###############################################################################
+
+# Model configuration (the trajectory folder will be auto-derived from model name)
+CONFIG_MODEL="deepseek/deepseek-v3.2"           # Model to use (e.g., openai/gpt-4o-mini, deepseek/deepseek-chat)
+CONFIG_USER_MODEL="deepseek/deepseek-v3.2"                             # User model for goal-oriented (leave empty to use same as CONFIG_MODEL)
+CONFIG_PERSONA="curious_researcher"              # Persona for goal-oriented agent
+
+# Agent type
+CONFIG_GOAL_ORIENTED=true                        # true for goal-oriented, false for ReAct
+
+# Execution settings
+CONFIG_MAX_CONCURRENT=5                          # Number of parallel workers
+CONFIG_MAX_ITERATIONS=60                         # Max reasoning iterations per query
+CONFIG_LOOP_UNTIL_COMPLETE=true                  # Keep retrying until all complete
+CONFIG_MAX_RETRIES=10                            # Max retry rounds when looping
+
+# Pass configuration (leave empty for all passes 1,2,3)
+CONFIG_SPECIFIC_PASS=""                          # e.g., "1" for pass@1 only, "" for all
+
+# Query file (leave empty for default based on agent type)
+CONFIG_QUERY_FILE=""
+
+# Trajectory directory - AUTO-DERIVED from model name
+# Format: trajectories/goaloriented/<model_short_name> or trajectories/<model_short_name>
+# Override by setting CONFIG_TRAJECTORY_DIR_OVERRIDE
+CONFIG_TRAJECTORY_DIR_OVERRIDE=""               # Leave empty to auto-derive, or set manually
+
+###############################################################################
+# END CONFIGURATION
+###############################################################################
+
+# Auto-derive trajectory directory from model name
+_derive_trajectory_dir() {
+    local model="$1"
+    local goal_oriented="$2"
+
+    # Extract model short name (e.g., "deepseek/deepseek-chat" -> "deepseek-chat")
+    local model_short=$(echo "$model" | sed 's|.*/||')
+
+    if [ "$goal_oriented" = true ]; then
+        echo "trajectories/goaloriented/${model_short}"
+    else
+        echo "trajectories/${model_short}"
+    fi
+}
+
+# Set CONFIG_TRAJECTORY_DIR based on override or auto-derive
+if [ -n "$CONFIG_TRAJECTORY_DIR_OVERRIDE" ]; then
+    CONFIG_TRAJECTORY_DIR="$CONFIG_TRAJECTORY_DIR_OVERRIDE"
+else
+    CONFIG_TRAJECTORY_DIR="$(_derive_trajectory_dir "$CONFIG_MODEL" "$CONFIG_GOAL_ORIENTED")"
+fi
 
 # Colors for output
 RED='\033[0;31m'
@@ -20,14 +80,15 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 usage() {
-    echo "Usage: $0 <trajectory_dir> <model> [options]"
+    echo "Usage: $0 [trajectory_dir] [model] [options]"
     echo ""
-    echo "Arguments:"
+    echo "Arguments (optional if CONFIG variables are set at top of script):"
     echo "  trajectory_dir    Path to trajectory directory (e.g., trajectories/goaloriented/gpt-4o-mini)"
     echo "  model             Model name (e.g., anthropic/claude-3.5-sonnet, openai/gpt-4o-mini)"
     echo ""
     echo "Options:"
     echo "  --goal-oriented        Use goal-oriented agent (run_goaloriented_agent.py)"
+    echo "  --react                Use ReAct agent (run_react_agent.py)"
     echo "  --query-file FILE      Custom query file (default: depends on agent type)"
     echo "  --user-model MODEL     User model for goal-oriented agent (default: same as model)"
     echo "  --persona NAME         Persona for goal-oriented agent (default: curious_researcher)"
@@ -35,45 +96,62 @@ usage() {
     echo "  --max-concurrent N     Run N trajectories in parallel (default: 5)"
     echo "  --max-iterations N     Max reasoning iterations per query (default: 60)"
     echo "  --loop                 Keep retrying until all trajectories are complete"
+    echo "  --no-loop              Disable loop mode"
     echo "  --max-retries N        Maximum retry rounds when using --loop (default: 10)"
     echo "  --pass N               Only generate missing for pass N (default: all passes 1,2,3)"
     echo ""
+    echo "Current CONFIG defaults:"
+    echo "  MODEL:           $CONFIG_MODEL"
+    echo "  TRAJECTORY_DIR:  $CONFIG_TRAJECTORY_DIR"
+    echo "  GOAL_ORIENTED:   $CONFIG_GOAL_ORIENTED"
+    echo "  MAX_CONCURRENT:  $CONFIG_MAX_CONCURRENT"
+    echo "  LOOP:            $CONFIG_LOOP_UNTIL_COMPLETE"
+    echo ""
     echo "Example:"
+    echo "  $0                           # Use CONFIG variables"
+    echo "  $0 --dry-run                 # Use CONFIG variables with dry-run"
     echo "  $0 trajectories/goaloriented/gpt-4o-mini openai/gpt-4o-mini --goal-oriented"
-    echo "  $0 trajectories/claude-3.5 anthropic/claude-3.5-sonnet"
-    echo "  $0 trajectories/goaloriented/gpt-4o-mini openai/gpt-4o-mini --goal-oriented --pass 1"
     exit 1
 }
 
-# Parse arguments
-if [ $# -lt 2 ]; then
-    usage
-fi
-
-TRAJECTORY_DIR="$1"
-MODEL="$2"
+# Initialize from CONFIG variables
+TRAJECTORY_DIR="$CONFIG_TRAJECTORY_DIR"
+MODEL="$CONFIG_MODEL"
 DRY_RUN=false
-MAX_CONCURRENT=5
-MAX_ITERATIONS=60  # Default iterations for trajectory generation
-GOAL_ORIENTED=false
-USER_MODEL=""
-PERSONA="curious_researcher"
-SPECIFIC_PASS=""
+MAX_CONCURRENT="$CONFIG_MAX_CONCURRENT"
+MAX_ITERATIONS="$CONFIG_MAX_ITERATIONS"
+GOAL_ORIENTED="$CONFIG_GOAL_ORIENTED"
+USER_MODEL="$CONFIG_USER_MODEL"
+PERSONA="$CONFIG_PERSONA"
+SPECIFIC_PASS="$CONFIG_SPECIFIC_PASS"
+LOOP_UNTIL_COMPLETE="$CONFIG_LOOP_UNTIL_COMPLETE"
+MAX_RETRIES="$CONFIG_MAX_RETRIES"
 
 # Default query files
 REACT_QUERY_FILE="${PROJECT_ROOT}/mcp_generate/queries_verification.json"
 GOALORIENTED_QUERY_FILE="${PROJECT_ROOT}/mcp_generate/requests/multitool_50.json"
-QUERY_FILE=""
+QUERY_FILE="$CONFIG_QUERY_FILE"
 
-# Parse optional arguments
-shift 2
-LOOP_UNTIL_COMPLETE=false
-MAX_RETRIES=10  # Maximum retry rounds to prevent infinite loops
+# Check if first argument looks like a path (not an option)
+if [ $# -ge 1 ] && [[ ! "$1" =~ ^-- ]]; then
+    TRAJECTORY_DIR="$1"
+    shift
+fi
+
+# Check if second argument looks like a model (not an option)
+if [ $# -ge 1 ] && [[ ! "$1" =~ ^-- ]]; then
+    MODEL="$1"
+    shift
+fi
 
 while [ $# -gt 0 ]; do
     case "$1" in
         --goal-oriented)
             GOAL_ORIENTED=true
+            shift
+            ;;
+        --react)
+            GOAL_ORIENTED=false
             shift
             ;;
         --query-file)
@@ -104,6 +182,10 @@ while [ $# -gt 0 ]; do
             LOOP_UNTIL_COMPLETE=true
             shift
             ;;
+        --no-loop)
+            LOOP_UNTIL_COMPLETE=false
+            shift
+            ;;
         --max-retries)
             MAX_RETRIES="$2"
             shift 2
@@ -112,12 +194,26 @@ while [ $# -gt 0 ]; do
             SPECIFIC_PASS="$2"
             shift 2
             ;;
+        -h|--help)
+            usage
+            ;;
         *)
             echo -e "${RED}Unknown option: $1${NC}"
             usage
             ;;
     esac
 done
+
+# Validate required parameters
+if [ -z "$MODEL" ]; then
+    echo -e "${RED}Error: MODEL is not set. Either set CONFIG_MODEL or pass as argument.${NC}"
+    usage
+fi
+
+if [ -z "$TRAJECTORY_DIR" ]; then
+    echo -e "${RED}Error: TRAJECTORY_DIR is not set. Either set CONFIG_TRAJECTORY_DIR or pass as argument.${NC}"
+    usage
+fi
 
 # Set default query file based on agent type
 if [ -z "$QUERY_FILE" ]; then
@@ -133,11 +229,26 @@ if [ -z "$USER_MODEL" ]; then
     USER_MODEL="$MODEL"
 fi
 
-# Validate trajectory directory
+# Validate trajectory directory - create if it doesn't exist
 if [ ! -d "$TRAJECTORY_DIR" ]; then
-    echo -e "${RED}Error: Directory '$TRAJECTORY_DIR' does not exist${NC}"
-    exit 1
+    echo -e "${YELLOW}Directory '$TRAJECTORY_DIR' does not exist. Creating it...${NC}"
+    mkdir -p "$TRAJECTORY_DIR"
 fi
+
+# Print current configuration
+echo ""
+echo -e "${BLUE}========== CONFIGURATION ==========${NC}"
+echo -e "  Model:           ${GREEN}$MODEL${NC}"
+echo -e "  User Model:      ${GREEN}$USER_MODEL${NC}"
+echo -e "  Trajectory Dir:  ${GREEN}$TRAJECTORY_DIR${NC}"
+echo -e "  Agent Type:      ${GREEN}$([ "$GOAL_ORIENTED" = true ] && echo "Goal-Oriented" || echo "ReAct")${NC}"
+echo -e "  Max Concurrent:  ${GREEN}$MAX_CONCURRENT${NC}"
+echo -e "  Max Iterations:  ${GREEN}$MAX_ITERATIONS${NC}"
+echo -e "  Loop Mode:       ${GREEN}$LOOP_UNTIL_COMPLETE${NC}"
+echo -e "  Query File:      ${GREEN}$QUERY_FILE${NC}"
+[ -n "$SPECIFIC_PASS" ] && echo -e "  Specific Pass:   ${GREEN}$SPECIFIC_PASS${NC}"
+echo -e "${BLUE}====================================${NC}"
+echo ""
 
 # Get all UUIDs from the query file
 echo -e "${YELLOW}Loading queries from $QUERY_FILE...${NC}"

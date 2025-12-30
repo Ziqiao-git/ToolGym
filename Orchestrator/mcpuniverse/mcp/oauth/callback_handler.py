@@ -113,25 +113,61 @@ class OAuthCallbackHandler:
 
         return CallbackRequestHandler
 
-    def start_server(self):
-        """Start the local HTTP server in a background thread."""
+    def start_server(self, try_alternate_ports: bool = True):
+        """
+        Start the local HTTP server in a background thread.
+
+        Args:
+            try_alternate_ports: If True and primary port is busy, try alternate ports.
+                               Note: Smithery OAuth may require specific ports to be registered.
+        """
+        # If server is already running, don't start another one
+        if self._server is not None:
+            return
+
         handler_class = self._create_request_handler()
 
-        # Smithery OAuth only accepts localhost:8765 as registered redirect URI
-        # Do NOT fallback to other ports - it will cause "Unregistered redirect_uri" errors
-        try:
-            self._server = HTTPServer(('localhost', self.redirect_port), handler_class)
-        except OSError as e:
-            # Check for "Address already in use" error
-            # errno 48 on macOS, 98 on Linux, 10048 on Windows
-            if e.errno in (48, 98, 10048) or 'Address already in use' in str(e):
-                raise RuntimeError(
-                    f"Port {self.redirect_port} is already in use. "
-                    f"Smithery OAuth requires exactly this port. "
-                    f"Run 'lsof -i :{self.redirect_port}' to find the process, then kill it."
-                ) from e
-            else:
-                raise
+        # Try the primary port first, then alternates if enabled
+        ports_to_try = [self.redirect_port]
+        if try_alternate_ports:
+            # Add alternate ports in case the primary is busy
+            # These should ideally be registered with Smithery, but some may work
+            ports_to_try.extend([8766, 8767, 8768, 8769, 8770])
+
+        last_error = None
+        for port in ports_to_try:
+            try:
+                self._server = HTTPServer(('localhost', port), handler_class)
+                # Success! Update the port and redirect_uri
+                if port != self.redirect_port:
+                    import logging
+                    logging.getLogger(__name__).info(
+                        f"Port {self.redirect_port} was busy, using alternate port {port}"
+                    )
+                    self.redirect_port = port
+                    self.redirect_uri = f"http://localhost:{port}/oauth/callback"
+                break
+            except OSError as e:
+                # Check for "Address already in use" error
+                # errno 48 on macOS, 98 on Linux, 10048 on Windows
+                if e.errno in (48, 98, 10048) or 'Address already in use' in str(e):
+                    last_error = e
+                    continue  # Try next port
+                else:
+                    raise
+
+        if self._server is None:
+            # All ports failed
+            import logging
+            logging.getLogger(__name__).warning(
+                f"All OAuth callback ports ({ports_to_try}) are in use. "
+                f"OAuth callback server could not start. "
+                f"If OAuth is needed and fails, run 'lsof -i :{self.redirect_port}' "
+                f"to find and kill blocking processes."
+            )
+            # Don't raise - let the OAuth flow continue and fail later if needed
+            # This allows parallel agents to work when tokens are cached
+            return
 
         def run_server():
             self._server.serve_forever()

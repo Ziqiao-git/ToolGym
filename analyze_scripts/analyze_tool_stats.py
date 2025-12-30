@@ -30,6 +30,7 @@ Output:
 Multiturn Structure:
     - Each trajectory has multiple turns
     - Each turn has tool_calls with server/tool/status
+    - Each turn has reasoning_trace with type="result" entries (aligned 1:1 with tool_calls)
     - Constraints are evaluated at the end (final turn metadata)
 """
 from __future__ import annotations
@@ -42,8 +43,30 @@ from pathlib import Path
 from collections import defaultdict
 from typing import Dict, Any, List, Tuple
 
+
 # Default trajectories directory
 DEFAULT_TRAJECTORIES_DIR = Path(__file__).parent.parent / "trajectories" / "goaloriented"
+
+# Error patterns to detect in tool call results
+ERROR_PATTERNS = [
+    'error executing tool',
+    'error occurred during executing tool',
+    'failed to',
+    'request failed',
+    'status code 4',  # 400, 401, 402, 403, 404, 429, etc.
+    'status code 5',  # 500, 502, 503, etc.
+    'timed out',
+    'timeout',
+    'could not be loaded',
+    'server_not_in_configs',
+    'validation error',
+    'unauthorized',
+    'forbidden',
+    '"error"',
+    '"status":403',
+    '"status":429',
+    '"status":500',
+]
 
 
 def load_multiturn_trajectories(traj_dir: Path, model_filter: str = None) -> List[Dict[str, Any]]:
@@ -63,8 +86,8 @@ def load_multiturn_trajectories(traj_dir: Path, model_filter: str = None) -> Lis
         print(f"Warning: Directory does not exist: {traj_dir}")
         return trajectories
 
-    # Find all JSON files recursively
-    for json_file in traj_dir.rglob("*.json"):
+    # Find only trajectory JSON files (exclude batch summaries, etc.)
+    for json_file in traj_dir.rglob("trajectory_*.json"):
         try:
             with open(json_file, 'r', encoding='utf-8') as f:
                 data = json.load(f)
@@ -82,7 +105,7 @@ def load_multiturn_trajectories(traj_dir: Path, model_filter: str = None) -> Lis
     return trajectories
 
 
-def check_result_has_error(result_content: Any) -> bool:
+def check_result_has_error(result_content: Any) -> Tuple[bool, str]:
     """
     Check if a result content indicates an error.
 
@@ -90,34 +113,18 @@ def check_result_has_error(result_content: Any) -> bool:
         result_content: The content from reasoning_trace result
 
     Returns:
-        True if the result indicates an error, False otherwise
+        Tuple of (has_error, matched_pattern)
     """
     if result_content is None:
-        return False
+        return False, ""
 
     content_str = str(result_content).lower()
 
-    # Error indicators
-    error_patterns = [
-        'error executing tool',
-        'error occurred during executing tool',
-        'failed to',
-        'request failed',
-        'status code 4',  # 400, 401, 402, 403, 404, 429, etc.
-        'status code 5',  # 500, 502, 503, etc.
-        'timed out',
-        'timeout',
-        'could not be loaded',
-        'validation error',
-        'unauthorized',
-        'forbidden',
-        '"error"',
-        '"status":403',
-        '"status":429',
-        '"status":500',
-    ]
+    for pattern in ERROR_PATTERNS:
+        if pattern in content_str:
+            return True, pattern
 
-    return any(pattern in content_str for pattern in error_patterns)
+    return False, ""
 
 
 def analyze_trajectory_stats(trajectories: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -142,6 +149,7 @@ def analyze_trajectory_stats(trajectories: List[Dict[str, Any]]) -> Dict[str, An
         "tool_call_details": [],  # All tool calls for detailed analysis
         "subgoal_completion_rates": [],  # Subgoal completion rates
         "subgoal_achieved_count": 0,  # Number of trajectories with goal achieved
+        "error_pattern_counts": defaultdict(int),  # Error pattern -> count
     }
 
     for traj in trajectories:
@@ -163,6 +171,7 @@ def analyze_trajectory_stats(trajectories: List[Dict[str, Any]]) -> Dict[str, An
             reasoning_trace = turn.get("reasoning_trace", [])
 
             # Extract results from reasoning_trace for error checking
+            # Results are in the same order as tool_calls
             results = [t.get("content") for t in reasoning_trace if t.get("type") == "result"]
 
             for idx, call in enumerate(tool_calls):
@@ -186,11 +195,15 @@ def analyze_trajectory_stats(trajectories: List[Dict[str, Any]]) -> Dict[str, An
                     tools_real_unique_in_traj.add(tool_full_name)
 
                 # Check if the result indicates an error
-                # Note: results may not align 1-1 with tool_calls, so we check all results
+                # Results are aligned 1:1 with tool_calls
                 has_error = False
+                error_pattern = ""
                 if idx < len(results):
-                    has_error = check_result_has_error(results[idx])
+                    has_error, error_pattern = check_result_has_error(results[idx])
+                    if has_error:
+                        stats["error_pattern_counts"][error_pattern] += 1
 
+                # A call is successful only if status is "success" AND no error in result
                 is_success = status == "success" and not has_error
 
                 # Track success
@@ -204,6 +217,7 @@ def analyze_trajectory_stats(trajectories: List[Dict[str, Any]]) -> Dict[str, An
                     "tool": tool,
                     "status": status,
                     "has_error": has_error,
+                    "error_pattern": error_pattern,
                     "is_success": is_success
                 })
 
@@ -337,6 +351,14 @@ def print_multiturn_analysis(stats: Dict[str, Any]):
             print(f"\nFailure breakdown:")
             print(f"  - Status='success' but result has error: {status_success_but_error}")
             print(f"  - Status != 'success': {status_not_success}")
+
+            # Show error pattern breakdown
+            error_patterns = stats['error_pattern_counts']
+            if error_patterns:
+                print(f"\nError patterns detected:")
+                sorted_patterns = sorted(error_patterns.items(), key=lambda x: x[1], reverse=True)
+                for pattern, count in sorted_patterns[:10]:
+                    print(f"  - '{pattern}': {count}")
 
         # Success rate by server
         print("\nSuccess Rate by Server:")
