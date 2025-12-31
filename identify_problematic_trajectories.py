@@ -3,88 +3,124 @@
 Identify problematic trajectories that should be regenerated.
 
 Categories of issues:
-1. API errors (insufficient funds, rate limits, etc.)
+1. LLM provider errors (timeout, rate limit, insufficient funds) - CRITICAL
 2. Empty or minimal trajectories (no tool calls, no meaningful response)
-3. Server errors (500, 503, etc.)
-4. Timeout errors
-5. Authentication errors
-6. Very low goal completion rate with no tool calls
+3. Tool-level errors (external API failures) - NOT critical, just logged
+4. Very low goal completion rate with no tool calls
+
+Key distinction:
+- LLM PROVIDER errors (OpenRouter, model API) → should regenerate
+- TOOL errors (external APIs like flight data, weather) → normal, don't regenerate
 """
 
 import json
 import os
 import sys
+import re
 from pathlib import Path
 from typing import Dict, List, Tuple, Any
 from collections import defaultdict
 
-# Error patterns to detect in trajectory content
-ERROR_PATTERNS = {
-    'insufficient_funds': [
-        'insufficient credits',
-        'insufficient funds',
-        'payment required',
-        'credit limit',
-        '"code":402',
-        'status code 402',
+# ============================================================================
+# LLM PROVIDER ERROR PATTERNS - These indicate the trajectory should be regenerated
+# These are errors from OpenRouter/model providers, NOT from external tool APIs
+# ============================================================================
+LLM_PROVIDER_ERROR_PATTERNS = {
+    'llm_timeout': [
+        'llm request timed out after multiple retries',  # Exact message from agent
+        'llm request timed out',
     ],
-    'rate_limit': [
-        'rate limit',
-        'too many requests',
-        '"code":429',
+    'llm_rate_limit': [
+        '"code":429',  # HTTP 429 from LLM provider
         'status code 429',
+        'rate limit exceeded',  # Specific rate limit message
     ],
-    'server_error': [
-        'internal server error',
-        '"code":500',
-        '"code":502',
-        '"code":503',
-        'status code 500',
-        'status code 502',
-        'status code 503',
-        'service unavailable',
-        'bad gateway',
+    'llm_insufficient_funds': [
+        '"code":402',  # HTTP 402 from LLM provider
+        'status code 402',
+        'insufficient credits',
+        'payment required',
     ],
-    'timeout': [
-        'timed out',
-        'timeout',
-        'connection timeout',
-        'read timeout',
-    ],
-    'auth_error': [
-        'unauthorized',
-        'authentication failed',
-        'invalid api key',
-        'forbidden',
-        '"code":401',
-        '"code":403',
-    ],
-    'model_error': [
+    'llm_model_error': [
         'model not found',
         'invalid model',
         'model is not available',
     ],
-    'content_filter': [
+    'llm_content_filter': [
         'content filter',
-        'content policy',
-        'flagged by',
+        'content policy violation',
+        'flagged by our safety system',
     ],
 }
 
-def check_for_error_patterns(content: str) -> List[Tuple[str, str]]:
-    """Check content for error patterns. Returns list of (category, pattern) tuples."""
+# ============================================================================
+# TOOL ERROR PATTERNS - These are from external APIs, NOT critical for regeneration
+# Logged for informational purposes but don't trigger regeneration
+# ============================================================================
+TOOL_ERROR_PATTERNS = {
+    'tool_auth_error': [
+        '401 client error',
+        '403 client error',
+        'unauthorized for url',
+        'forbidden for url',
+    ],
+    'tool_server_error': [
+        '500 server error',
+        '502 bad gateway',
+        '503 service unavailable',
+    ],
+    'tool_timeout': [
+        'connection timeout',
+        'read timeout',
+        'connect timeout',
+    ],
+}
+
+
+def check_agent_response_for_llm_errors(agent_response) -> List[Tuple[str, str]]:
+    """
+    Check agent_response field specifically for LLM provider errors.
+    This is the most reliable indicator of LLM-level failures.
+    """
+    if not agent_response:
+        return []
+
+    # Handle case where agent_response is a dict (convert to string)
+    if isinstance(agent_response, dict):
+        agent_response = json.dumps(agent_response)
+
+    response_lower = str(agent_response).lower()
+    found_errors = []
+
+    for category, patterns in LLM_PROVIDER_ERROR_PATTERNS.items():
+        for pattern in patterns:
+            if pattern in response_lower:
+                found_errors.append((category, pattern))
+                break
+
+    return found_errors
+
+
+def check_for_tool_errors(content: str) -> List[Tuple[str, str]]:
+    """
+    Check for tool-level errors (external API failures).
+    These are informational only - don't trigger regeneration.
+    """
     content_lower = content.lower()
     found_errors = []
-    for category, patterns in ERROR_PATTERNS.items():
+
+    for category, patterns in TOOL_ERROR_PATTERNS.items():
         for pattern in patterns:
             if pattern in content_lower:
                 found_errors.append((category, pattern))
-                break  # Only need one match per category
+                break
+
     return found_errors
 
 def analyze_trajectory(filepath: Path) -> Dict[str, Any]:
     """Analyze a single trajectory file for issues."""
     issues = []
+    tool_issues = []  # Informational only, don't trigger regeneration
     stats = {
         'total_turns': 0,
         'total_tool_calls': 0,
@@ -101,6 +137,7 @@ def analyze_trajectory(filepath: Path) -> Dict[str, Any]:
         return {
             'filepath': str(filepath),
             'issues': [('parse_error', f'JSON parse error: {e}')],
+            'tool_issues': [],
             'stats': stats,
             'should_regenerate': True,
         }
@@ -108,6 +145,7 @@ def analyze_trajectory(filepath: Path) -> Dict[str, Any]:
         return {
             'filepath': str(filepath),
             'issues': [('read_error', f'File read error: {e}')],
+            'tool_issues': [],
             'stats': stats,
             'should_regenerate': True,
         }
@@ -123,8 +161,8 @@ def analyze_trajectory(filepath: Path) -> Dict[str, Any]:
     if len(turns) == 0:
         issues.append(('empty_trajectory', 'No turns in trajectory'))
 
-    # Analyze each turn
-    full_content = json.dumps(data)  # For pattern matching
+    # Track if we found LLM-level errors
+    found_llm_errors = set()
 
     for turn in turns:
         tool_calls = turn.get('tool_calls', [])
@@ -136,52 +174,74 @@ def analyze_trajectory(filepath: Path) -> Dict[str, Any]:
             else:
                 stats['failed_tool_calls'] += 1
 
-        # Check agent response
+        # =====================================================================
+        # KEY CHECK: Look for LLM timeout in agent_response field
+        # This is the most reliable indicator of LLM-level failure
+        # =====================================================================
         agent_response = turn.get('agent_response', '')
-        if agent_response and len(agent_response) > 100:
-            stats['has_meaningful_response'] = True
 
-        # Check reasoning trace for errors
+        # Check if this is a meaningful response or an error message
+        llm_errors = check_agent_response_for_llm_errors(agent_response)
+        for category, pattern in llm_errors:
+            if category not in found_llm_errors:
+                issues.append((category, f'In agent_response: "{pattern}"'))
+                found_llm_errors.add(category)
+
+        # Check if response is meaningful (not an error message)
+        # Convert to string if needed
+        agent_response_str = json.dumps(agent_response) if isinstance(agent_response, dict) else str(agent_response) if agent_response else ''
+        if agent_response_str and len(agent_response_str) > 100:
+            # Make sure it's not just an error message
+            if not any(p in agent_response_str.lower() for p in ['timed out', 'error', 'failed']):
+                stats['has_meaningful_response'] = True
+
+        # Check reasoning trace for tool-level errors (informational only)
         reasoning_trace = turn.get('reasoning_trace', [])
         for trace in reasoning_trace:
             if trace.get('type') == 'result':
                 result_content = str(trace.get('content', ''))
-                errors = check_for_error_patterns(result_content)
-                for category, pattern in errors:
-                    issues.append((category, f'Found in result: {pattern}'))
+                # Tool errors - informational only
+                tool_errs = check_for_tool_errors(result_content)
+                for category, pattern in tool_errs:
+                    tool_issues.append((category, f'Tool result: {pattern}'))
 
-    # Check full content for error patterns
-    errors = check_for_error_patterns(full_content)
-    for category, pattern in errors:
-        if (category, f'Found in result: {pattern}') not in issues:
-            issues.append((category, f'Found in content: {pattern}'))
-
-    # Determine if should regenerate
+    # =========================================================================
+    # Determine if should regenerate - ONLY for LLM-level errors
+    # =========================================================================
     should_regenerate = False
 
-    # Definite regeneration triggers
-    critical_categories = ['insufficient_funds', 'rate_limit', 'auth_error', 'model_error']
+    # Critical LLM provider errors trigger regeneration
+    critical_categories = ['llm_timeout', 'llm_rate_limit', 'llm_insufficient_funds', 'llm_model_error']
     for issue_cat, _ in issues:
         if issue_cat in critical_categories:
             should_regenerate = True
             break
 
-    # Empty or minimal trajectory
+    # Empty trajectory
     if stats['total_turns'] == 0:
         should_regenerate = True
-    elif stats['total_tool_calls'] == 0 and stats['goal_completion_rate'] < 0.1:
-        issues.append(('minimal_trajectory', 'No tool calls and very low goal completion'))
+
+    # No tool calls AND no meaningful response AND very low goal completion
+    # This catches cases where agent refused or couldn't proceed
+    if (stats['total_tool_calls'] == 0 and
+        not stats['has_meaningful_response'] and
+        stats['goal_completion_rate'] < 0.1):
+        issues.append(('minimal_trajectory', 'No tool calls, no meaningful response, very low goal completion'))
         should_regenerate = True
 
-    # All tool calls failed
-    if stats['total_tool_calls'] > 0 and stats['successful_tool_calls'] == 0:
-        issues.append(('all_tools_failed', 'All tool calls failed'))
+    # All tool calls failed AND no meaningful response
+    # Only regenerate if the agent couldn't produce ANY useful output
+    if (stats['total_tool_calls'] > 0 and
+        stats['successful_tool_calls'] == 0 and
+        not stats['has_meaningful_response']):
+        issues.append(('all_tools_failed', 'All tool calls failed with no meaningful response'))
         should_regenerate = True
 
     return {
         'filepath': str(filepath),
         'filename': filepath.name,
         'issues': issues,
+        'tool_issues': tool_issues,  # Informational only
         'stats': stats,
         'should_regenerate': should_regenerate,
     }
@@ -207,9 +267,9 @@ def print_summary(results: List[Dict[str, Any]], verbose: bool = False):
     print(f"TRAJECTORY ANALYSIS SUMMARY")
     print(f"{'='*80}")
     print(f"Total trajectories analyzed: {total}")
-    print(f"Problematic trajectories: {len(problematic)} ({100*len(problematic)/total:.1f}%)" if total > 0 else "No trajectories found")
+    print(f"Problematic (should regenerate): {len(problematic)} ({100*len(problematic)/total:.1f}%)" if total > 0 else "No trajectories found")
 
-    # Group by issue category
+    # Group by issue category (critical issues that trigger regeneration)
     issue_counts = defaultdict(int)
     issue_files = defaultdict(list)
 
@@ -220,7 +280,7 @@ def print_summary(results: List[Dict[str, Any]], verbose: bool = False):
 
     if issue_counts:
         print(f"\n{'='*80}")
-        print("ISSUES BY CATEGORY:")
+        print("CRITICAL ISSUES (trigger regeneration):")
         print(f"{'='*80}")
         for category, count in sorted(issue_counts.items(), key=lambda x: -x[1]):
             print(f"  {category}: {count} files")
@@ -229,6 +289,19 @@ def print_summary(results: List[Dict[str, Any]], verbose: bool = False):
                     print(f"    - {fname}")
                 if len(issue_files[category]) > 5:
                     print(f"    ... and {len(issue_files[category]) - 5} more")
+
+    # Group tool issues (informational only)
+    tool_issue_counts = defaultdict(int)
+    for r in results:
+        for category, _ in r.get('tool_issues', []):
+            tool_issue_counts[category] += 1
+
+    if tool_issue_counts and verbose:
+        print(f"\n{'='*80}")
+        print("TOOL ISSUES (informational only, do NOT trigger regeneration):")
+        print(f"{'='*80}")
+        for category, count in sorted(tool_issue_counts.items(), key=lambda x: -x[1]):
+            print(f"  {category}: {count} occurrences")
 
     # Group by directory
     dir_counts = defaultdict(lambda: {'total': 0, 'problematic': 0})

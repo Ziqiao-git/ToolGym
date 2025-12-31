@@ -2075,4 +2075,149 @@ python -m MCP_INFO_MGR.semantic_search.build_search_index --input MCP_INFO_MGR/m
 
 ---
 
-*Last updated: 2025-11-11 (Added goal-oriented agent)*
+## Goal-Oriented Trajectory Evaluation
+
+### Evaluate Goal-Oriented Multi-Turn Trajectories
+
+Evaluate goal-oriented trajectories using a specialized evaluator that assesses both User LLM and Agent LLM quality:
+
+```bash
+cd /Users/xiziqiao/Documents/MCP-Research/MCP-R
+
+# Static evaluation only (no LLM cost - fast)
+python Orchestrator/mcpuniverse/evaluator/goaloriented_evaluator.py \
+  -t trajectories/goaloriented/trajectory_xxx.json \
+  -s
+
+# Full evaluation with LLM-as-Judge
+python Orchestrator/mcpuniverse/evaluator/goaloriented_evaluator.py \
+  -t trajectories/goaloriented/trajectory_xxx.json \
+  -m openai/gpt-4o-mini
+
+# Batch evaluation on a directory
+python Orchestrator/mcpuniverse/evaluator/goaloriented_evaluator.py \
+  -d trajectories/goaloriented \
+  -m openai/gpt-4o-mini \
+  -r \
+  -o evaluation/goaloriented
+
+# Skip per-turn step evaluation (faster, still does final answer eval)
+python Orchestrator/mcpuniverse/evaluator/goaloriented_evaluator.py \
+  -d trajectories/goaloriented \
+  -m openai/gpt-4o-mini \
+  --skip-step-eval \
+  -o evaluation/goaloriented
+
+# Parallel batch evaluation
+python Orchestrator/mcpuniverse/evaluator/goaloriented_evaluator.py \
+  -d trajectories/goaloriented \
+  -m openai/gpt-4o-mini \
+  -p 5 \
+  -o evaluation/goaloriented
+```
+
+**Arguments:**
+- `-t, --trajectory`: Path to single trajectory file
+- `-d, --traj_dir`: Directory containing trajectory files
+- `-m, --model`: LLM model for evaluation (default: `openai/gpt-4o-mini`)
+- `-s, --static-only`: Only compute static metrics (no LLM calls, no cost)
+- `-r, --recursive`: Search subdirectories for trajectories
+- `-o, --output-dir`: Output directory (default: `evaluation/goaloriented`)
+- `-p, --parallel N`: Number of parallel workers for batch evaluation
+- `--skip-step-eval`: Skip per-turn evaluation (faster, still does final answer)
+
+**Evaluation Components:**
+
+1. **Static Verification (No LLM Cost)**
+   - Agent metrics: total_tool_calls, tool_success_rate, meta_mcp_calls, servers_used
+   - Trajectory metrics: goal_completion_rate, constraint_satisfaction_rate, total_turns
+   - Constraint verification: SERVER_DIVERSITY, NO_REDUNDANCY, SEQUENCE_ORDER, DATA_COVERAGE, TOOL_COUNT
+   - Tool failure breakdown: external failures (auth, rate limits) vs agent issues
+   - Ground truth extraction: User LLM's own satisfaction signals per turn
+
+2. **LLM-as-Judge Evaluation**
+   - **User LLM Quality**: sub-goal decomposition, goal tracking coherence, follow-up intent quality
+   - **Agent Step-by-Step**: per-turn thinking quality, tool selection, tool execution, response quality
+   - **Agent Final Answer**: completeness, accuracy, coherence, actionability, constraint adherence
+
+**Output JSON Structure:**
+```json
+{
+  "trajectory_file": "trajectory_xxx.json",
+  "trajectory_uuid": "cefe49d2-e453-11f0-9000-5e42cb4e4d74",
+  "agent_metrics": {
+    "total_tool_calls": 10,
+    "successful_tool_calls": 10,
+    "tool_success_rate": 1.0,
+    "meta_mcp_calls": 6,
+    "servers_used": ["meta-mcp", "@imbenrabi/financial-modeling-prep-mcp-server"],
+    "tool_failure_breakdown": {
+      "external_failures": 4,
+      "external_failure_details": [...]
+    }
+  },
+  "trajectory_metrics": {
+    "goal_completion_rate": 0.75,
+    "total_turns": 4,
+    "constraint_verification": {
+      "static_satisfied": 4,
+      "static_violated": 1,
+      "verifications": [...]
+    },
+    "ground_truth": {
+      "per_turn_ground_truth": [
+        {
+          "turn_number": 1,
+          "tool_calls_count": 10,
+          "meta_mcp_calls_count": 6,
+          "satisfaction_level": 0.4,
+          "goal_progress": 0.0
+        }
+      ],
+      "satisfaction_vs_step_score_correlation": 0.735
+    }
+  },
+  "user_llm_quality": {
+    "subgoal_decomposition_quality": 5.0,
+    "goal_tracking_coherence": 4.0,
+    "overall_user_quality": 4.0
+  },
+  "agent_step_evaluations": [
+    {
+      "turn_number": 1,
+      "thinking_quality": 6.0,
+      "tool_selection_quality": 5.0,
+      "tool_execution_quality": 4.0,
+      "step_overall": 5.0
+    }
+  ],
+  "agent_final_answer": {
+    "completeness": 0.0,
+    "accuracy": 5.0,
+    "coherence": 8.0,
+    "overall_final_answer": 3.0
+  },
+  "agent_step_avg_score": 3.25,
+  "overall_score": 3.08,
+  "evaluation_model": "openai/gpt-4o-mini",
+  "static_only": false
+}
+```
+
+**Key Features:**
+
+- **Tool Failure Analysis**: Distinguishes between external failures (auth tokens, rate limits, server errors) and agent misuse
+- **Constraint Verification**: Static verification for quantifiable constraints, LLM judgment for subjective ones
+- **Ground Truth Correlation**: Compares LLM-as-judge scores against User LLM's own satisfaction signals to validate judge reliability
+- **Meta-MCP Tracking**: Tracks tool discovery calls separately from task-specific tool calls per turn
+
+**Interpreting Results:**
+
+- `overall_score`: Combined average of user_llm_quality, agent_step_avg, and agent_final_answer
+- `satisfaction_vs_step_score_correlation`: Higher values (>0.6) indicate judge agrees with User LLM's evaluation
+- `external_failures`: Tool failures NOT the agent's fault (auth, rate limits) - tracked separately
+- `meta_mcp_calls`: Number of tool discovery/search calls - useful for analyzing exploration behavior
+
+---
+
+*Last updated: 2025-12-30 (Added goal-oriented trajectory evaluator)*
