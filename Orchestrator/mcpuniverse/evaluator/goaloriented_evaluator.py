@@ -275,6 +275,7 @@ class AgentStepEvaluation:
     tool_selection_quality: float = 0.0 # 0-10: Appropriateness of tool choices
     tool_execution_quality: float = 0.0 # 0-10: How well tools were used
     response_quality: float = 0.0       # 0-10: Quality of final response for this turn
+    grounding: float = 0.0              # 0-10: Are claims in the response grounded in tool results?
     step_overall: float = 0.0           # 0-10: Overall step quality
     reasoning: str = ""
 
@@ -283,7 +284,6 @@ class AgentStepEvaluation:
 class AgentFinalAnswerEvaluation:
     """Evaluation of concatenated final answers across all turns."""
     completeness: float = 0.0           # 0-10: Did agent address all parts of the goal?
-    accuracy: float = 0.0               # 0-10: Are the answers factually correct?
     coherence: float = 0.0              # 0-10: Do answers across turns form coherent narrative?
     actionability: float = 0.0          # 0-10: Are responses actionable/useful?
     constraint_adherence: float = 0.0   # 0-10: Did agent respect stated constraints?
@@ -431,7 +431,7 @@ def compute_agent_static_metrics(trajectory: Dict[str, Any]) -> AgentStaticMetri
                     breakdown.external_failure_details.append(ToolErrorInfo(
                         server=server,
                         tool=tool_name,
-                        arguments=str(tc.get("arguments", {}))[:300],
+                        arguments=str(tc.get("arguments", {})),  # No truncation
                         error_message=pattern,
                         is_external_failure=True,
                     ))
@@ -827,7 +827,7 @@ def evaluate_user_llm_quality(trajectory: Dict[str, Any], model_name: str) -> Op
     for turn in turns:
         turn_summary = {
             "turn": turn.get("turn_number", 0),
-            "query": turn.get("query", "")[:500],  # Truncate long queries
+            "query": turn.get("query", ""),  # No truncation
             "user_decision": turn.get("user_decision", ""),
             "satisfaction_level": turn.get("satisfaction_level", 0),
             "user_reasoning": turn.get("user_reasoning", ""),
@@ -841,13 +841,13 @@ def evaluate_user_llm_quality(trajectory: Dict[str, Any], model_name: str) -> Op
     prompt = f"""Evaluate the User LLM's quality in this goal-oriented conversation.
 
 ## Original User Goal:
-{user_goal[:2000]}
+{user_goal}
 
 ## Sub-Goals Defined:
-{json.dumps(sub_goals, indent=2)[:2000]}
+{json.dumps(sub_goals, indent=2)}
 
 ## Turn-by-Turn User Behavior:
-{json.dumps(turn_summaries, indent=2)[:8000]}
+{json.dumps(turn_summaries, indent=2)}
 
 ## Final Metrics:
 - Goal Completion Rate: {metadata.get('goal_completion_rate', 0)}
@@ -886,6 +886,12 @@ For this turn, evaluate:
 2. Tool Selection Quality: Did the agent choose appropriate tools?
 3. Tool Execution Quality: Did the agent use tools correctly with proper arguments?
 4. Response Quality: How well did the agent respond to the user's query?
+5. Grounding: Are the claims in the agent's response grounded in the tool results? Does the response reference and use the actual data returned by tools, or does it hallucinate/make unsupported claims?
+
+IMPORTANT - Tool Definition:
+- Search tools (search_tools server) are NOT considered actual tool usage
+- If the agent made NO tool calls OR only used search_tools, score Tool Selection Quality, Tool Execution Quality, AND Grounding as 0
+- Only tools from other servers (non-search_tools) count as actual tool usage
 
 Score each on 0-10 scale:
 - 0-2: Very poor
@@ -900,6 +906,7 @@ Respond with a JSON object:
     "tool_selection_quality": <0-10>,
     "tool_execution_quality": <0-10>,
     "response_quality": <0-10>,
+    "grounding": <0-10>,
     "step_overall": <0-10>,
     "reasoning": "<brief explanation>"
 }
@@ -922,42 +929,42 @@ def evaluate_agent_step(
     tool_calls = turn.get("tool_calls", [])
     reasoning_trace = turn.get("reasoning_trace", [])
 
-    # Build reasoning trace summary
+    # Build reasoning trace summary - NO TRUNCATION
     trace_summary = []
-    for item in reasoning_trace[:20]:  # Limit to first 20 items
+    for item in reasoning_trace:  # Include all items
         trace_type = item.get("type", "")
-        content = str(item.get("content", ""))[:500]
+        content = str(item.get("content", ""))
         trace_summary.append({"type": trace_type, "content": content})
 
-    # Build tool calls summary
+    # Build tool calls summary - NO TRUNCATION
     tool_summary = []
-    for tc in tool_calls[:10]:  # Limit to first 10
+    for tc in tool_calls:  # Include all tool calls
         tool_summary.append({
             "server": tc.get("server", ""),
             "tool": tc.get("tool", ""),
             "status": tc.get("status", ""),
-            "arguments": str(tc.get("arguments", {}))[:200],
+            "arguments": str(tc.get("arguments", {})),  # No truncation
         })
 
     prompt = f"""Evaluate the agent's performance on Turn {turn_number}.
 
 ## User Goal (Context):
-{user_goal[:1000]}
+{user_goal}
 
 ## This Turn's Query:
-{query[:1000]}
+{query}
 
 ## Agent's Reasoning Trace:
-{json.dumps(trace_summary, indent=2)[:4000]}
+{json.dumps(trace_summary, indent=2)}
 
 ## Tool Calls Made:
-{json.dumps(tool_summary, indent=2)[:2000]}
+{json.dumps(tool_summary, indent=2)}
 
 ## Agent's Response:
-{str(agent_response)[:3000]}
+{str(agent_response)}
 
 ## Constraints to Consider:
-{json.dumps(constraints[:5], indent=2)[:1000]}
+{json.dumps(constraints, indent=2)}
 
 Please evaluate this turn and respond with a JSON object."""
 
@@ -977,6 +984,7 @@ Please evaluate this turn and respond with a JSON object."""
         tool_selection_quality=float(parsed.get("tool_selection_quality", 0)),
         tool_execution_quality=float(parsed.get("tool_execution_quality", 0)),
         response_quality=float(parsed.get("response_quality", 0)),
+        grounding=float(parsed.get("grounding", 0)),
         step_overall=float(parsed.get("step_overall", 0)),
         reasoning=parsed.get("reasoning", ""),
     )
@@ -990,10 +998,9 @@ AGENT_FINAL_ANSWER_SYSTEM_PROMPT = """You are an expert evaluator assessing the 
 
 You will see the CONCATENATED final answers from ALL turns of the conversation. Evaluate:
 1. Completeness: Did the agent address all parts of the user's goal across all turns?
-2. Accuracy: Are the answers factually correct and reliable?
-3. Coherence: Do the responses across turns form a coherent, non-contradictory narrative?
-4. Actionability: Are the responses useful and actionable for the user?
-5. Constraint Adherence: Did the agent respect the stated constraints throughout?
+2. Coherence: Do the responses across turns form a coherent, non-contradictory narrative?
+3. Actionability: Are the responses useful and actionable for the user?
+4. Constraint Adherence: Did the agent respect the stated constraints throughout?
 
 Score each on 0-10 scale:
 - 0-2: Very poor
@@ -1005,7 +1012,6 @@ Score each on 0-10 scale:
 Respond with a JSON object:
 {
     "completeness": <0-10>,
-    "accuracy": <0-10>,
     "coherence": <0-10>,
     "actionability": <0-10>,
     "constraint_adherence": <0-10>,
@@ -1049,23 +1055,17 @@ def evaluate_agent_final_answer(
 
     all_responses = "\n".join(concatenated_responses)
 
-    # Truncate if too long but keep structure
-    if len(all_responses) > 15000:
-        # Keep first and last parts with indicator
-        first_part = all_responses[:7000]
-        last_part = all_responses[-7000:]
-        all_responses = f"{first_part}\n\n[... TRUNCATED FOR LENGTH ...]\n\n{last_part}"
-
+    # No truncation - include all responses
     prompt = f"""Evaluate the agent's OVERALL performance by examining the concatenated responses from ALL turns.
 
 ## User Goal:
-{user_goal[:2000]}
+{user_goal}
 
 ## Sub-Goals to Achieve:
-{json.dumps(sub_goals[:10], indent=2)[:1500]}
+{json.dumps(sub_goals, indent=2)}
 
 ## Constraints:
-{json.dumps(constraints[:5], indent=2)[:1000]}
+{json.dumps(constraints, indent=2)}
 
 ## CONCATENATED AGENT RESPONSES (ALL TURNS):
 {all_responses}
@@ -1090,7 +1090,6 @@ Please provide a comprehensive evaluation of the agent's overall performance and
 
     return AgentFinalAnswerEvaluation(
         completeness=float(parsed.get("completeness", 0)),
-        accuracy=float(parsed.get("accuracy", 0)),
         coherence=float(parsed.get("coherence", 0)),
         actionability=float(parsed.get("actionability", 0)),
         constraint_adherence=float(parsed.get("constraint_adherence", 0)),
