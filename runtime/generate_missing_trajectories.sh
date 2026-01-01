@@ -22,15 +22,15 @@ PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 ###############################################################################
 
 # Model configuration (the trajectory folder will be auto-derived from model name)
-CONFIG_MODEL="deepseek/deepseek-v3.2"           # Model to use (e.g., openai/gpt-4o-mini, deepseek/deepseek-chat)
-CONFIG_USER_MODEL="deepseek/deepseek-v3.2"                             # User model for goal-oriented (leave empty to use same as CONFIG_MODEL)
+CONFIG_MODEL="openai/gpt-5.2"           # Model to use (e.g., openai/gpt-4o-mini, deepseek/deepseek-chat)
+CONFIG_USER_MODEL="openai/gpt-5.2"                             # User model for goal-oriented (leave empty to use same as CONFIG_MODEL)
 CONFIG_PERSONA="curious_researcher"              # Persona for goal-oriented agent
 
 # Agent type
 CONFIG_GOAL_ORIENTED=true                        # true for goal-oriented, false for ReAct
 
 # Execution settings
-CONFIG_MAX_CONCURRENT=5                          # Number of parallel workers
+CONFIG_MAX_CONCURRENT=10                         # Number of parallel workers
 CONFIG_MAX_ITERATIONS=60                         # Max reasoning iterations per query
 CONFIG_LOOP_UNTIL_COMPLETE=true                  # Keep retrying until all complete
 CONFIG_MAX_RETRIES=10                            # Max retry rounds when looping

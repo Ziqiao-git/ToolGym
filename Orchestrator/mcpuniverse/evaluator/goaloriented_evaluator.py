@@ -44,10 +44,11 @@ import argparse
 import sys
 from typing import Any, Dict, List, Optional, Tuple
 from collections import defaultdict
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field, asdict
 from datetime import datetime
 from dotenv import load_dotenv
+from tqdm import tqdm
 
 load_dotenv()
 
@@ -1418,11 +1419,17 @@ def main():
         )
 
     if args.parallel > 1 and len(trajectories) > 1:
+        # Parallel evaluation with progress bar
         with ThreadPoolExecutor(max_workers=args.parallel) as executor:
-            results = list(executor.map(eval_one, trajectories))
+            futures = {executor.submit(eval_one, traj): traj for traj in trajectories}
+            with tqdm(total=len(trajectories), desc="Evaluating", unit="traj") as pbar:
+                for future in as_completed(futures):
+                    result = future.result()
+                    results.append(result)
+                    pbar.update(1)
     else:
-        for i, traj in enumerate(trajectories):
-            print(f"Evaluating [{i+1}/{len(trajectories)}]: {traj.get('_filename', 'unknown')}")
+        # Sequential evaluation with progress bar
+        for traj in tqdm(trajectories, desc="Evaluating", unit="traj"):
             result = eval_one(traj)
             results.append(result)
 

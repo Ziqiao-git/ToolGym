@@ -378,7 +378,17 @@ class DynamicReActAgent(ReAct):
                 _response = llm_response.strip().strip('`').strip()
                 if _response.startswith("json"):
                     _response = _response[4:].strip()
-                tool_call = json.loads(_response)
+                # Try to parse the first JSON object (handles concatenated JSON from some models)
+                try:
+                    tool_call = json.loads(_response)
+                except json.JSONDecodeError as e:
+                    if "Extra data" in str(e):
+                        # Model output multiple JSON objects concatenated - parse only the first one
+                        decoder = json.JSONDecoder()
+                        tool_call, _ = decoder.raw_decode(_response)
+                        self._logger.warning(f"Parsed first JSON object from concatenated output (Extra data at char {e.pos})")
+                    else:
+                        raise  # Re-raise if it's a different JSON error
             else:
                 tool_call = llm_response
 

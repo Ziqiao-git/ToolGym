@@ -77,7 +77,17 @@ class Reflection(ReAct):
         response = response.strip().strip('`').strip()
         if response.startswith("json"):
             response = response[4:].strip()
-        parsed_response = json.loads(response)
+        # Try to parse the first JSON object (handles concatenated JSON from some models)
+        try:
+            parsed_response = json.loads(response)
+        except json.JSONDecodeError as e:
+            if "Extra data" in str(e):
+                # Model output multiple JSON objects concatenated - parse only the first one
+                decoder = json.JSONDecoder()
+                parsed_response, _ = decoder.raw_decode(response)
+                self._logger.warning(f"Parsed first JSON object from concatenated output (Extra data at char {e.pos})")
+            else:
+                raise  # Re-raise if it's a different JSON error
         return parsed_response
 
     async def _execute(
@@ -119,7 +129,17 @@ class Reflection(ReAct):
                 if response.startswith("json"):
                     response = response[4:].strip()
                 # import pdb;pdb.set_trace()
-                parsed_response = json.loads(response)
+                # Try to parse the first JSON object (handles concatenated JSON from some models)
+                try:
+                    parsed_response = json.loads(response)
+                except json.JSONDecodeError as e:
+                    if "Extra data" in str(e):
+                        # Model output multiple JSON objects concatenated - parse only the first one
+                        decoder = json.JSONDecoder()
+                        parsed_response, _ = decoder.raw_decode(response)
+                        self._logger.warning(f"Parsed first JSON object from concatenated output (Extra data at char {e.pos})")
+                    else:
+                        raise  # Re-raise if it's a different JSON error
                 if "thought" not in parsed_response:
                     raise ValueError("Invalid response format")
                 self._add_history(
