@@ -1,41 +1,46 @@
-# =============================================================================
-# Single-turn trajectory evaluation (commonllmjudge)
-# =============================================================================
-# python Orchestrator/mcpuniverse/evaluator/commonllmjudge.py \
-#   --traj_dir trajectories/iter20/deepseek-v3.2 \
-#   --model openai/gpt-5.1-chat \
-#   --step-by-step \
-#   --recursive \
-#   --parallel 30 \
-#   --output-dir evaluation/iter20/deepseek-v3.2
+#!/bin/bash
 
-# =============================================================================
-# Goal-oriented multi-turn trajectory evaluation (goaloriented_evaluator)
-# =============================================================================
+# Fixed evaluation model
+EVALUATOR="openai/gpt-4o"
 
-# Full evaluation with LLM-as-Judge (per-turn + final answer)
-# python Orchestrator/mcpuniverse/evaluator/goaloriented_evaluator.py \
-#   -d trajectories/goaloriented/claude-opus-4.5 \
-#   -m openai/gpt-4o-mini \
-#   -r \
-#   -p 10 \
-#   -o evaluation/goaloriented/claude-opus-4.5
+# Data paths to evaluate
+DATA_PATHS=(
+  "trajectories/goaloriented/claude-opus-4.5"
+  "trajectories/goaloriented/gpt-oss-120b"
+  "trajectories/goaloriented/qwen3-235b-a22b-2507"
+)
 
+# Number of parallel processes
+PARALLEL=10
 
+# Extract short name of evaluator (remove prefix)
+EVAL_SHORT_NAME=$(echo "$EVALUATOR" | awk -F'/' '{print $NF}')
 
-# Evaluate specific model trajectories
-# Output format: evaluation/goaloriented/{agent_model}_by_{eval_model}
+echo "Evaluator: $EVALUATOR"
+echo "Number of data paths: ${#DATA_PATHS[@]}"
+echo "========================================"
 
-# Configuration - just change these two variables
-AGENT_MODEL="qwen3-235b-a22b-2507"         
-EVAL_MODEL="openai/gpt-4o"
+# Iterate through all data paths
+for DATA_PATH in "${DATA_PATHS[@]}"; do
+  # Extract model name from data path (last part)
+  MODEL_NAME=$(basename "$DATA_PATH")
 
-# Extract eval model name (remove provider prefix)
-EVAL_MODEL_NAME="${EVAL_MODEL##*/}"
+  # Construct output path
+  OUTPUT_PATH="evaluation/goaloriented/${MODEL_NAME}_by_${EVAL_SHORT_NAME}"
 
-python Orchestrator/mcpuniverse/evaluator/goaloriented_evaluator.py \
-  -d "trajectories/goaloriented/${AGENT_MODEL}" \
-  -m "${EVAL_MODEL}" \
-  -r \
-  -p 10 \
-  -o "evaluation/goaloriented/${AGENT_MODEL}_by_${EVAL_MODEL_NAME}"
+  echo "Evaluating: $MODEL_NAME"
+  echo "Data path: $DATA_PATH"
+  echo "Output path: $OUTPUT_PATH"
+
+  python Orchestrator/mcpuniverse/evaluator/goaloriented_evaluator.py \
+    -d "$DATA_PATH" \
+    -m "$EVALUATOR" \
+    -p "$PARALLEL" \
+    -r \
+    -o "$OUTPUT_PATH"
+
+  echo "Completed: $MODEL_NAME"
+  echo "----------------------------------------"
+done
+
+echo "All evaluations completed!"
