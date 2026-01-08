@@ -8,7 +8,7 @@ robustness when tools fail unexpectedly.
 Usage:
     # Control group: No interception
     python runtime/emergency_test.py \
-        --query-file mcp_generate/generated_queries.json \
+        --query-file task_creation_engine/generated_queries.json \
         --strategy no_interception \
         --max-iterations 20 \
         --model anthropic/claude-3.5-sonnet \
@@ -16,7 +16,7 @@ Usage:
 
     # Strategy 1: Intercept first non-search tool
     python runtime/emergency_test.py \
-        --query-file mcp_generate/generated_queries.json \
+        --query-file task_creation_engine/generated_queries.json \
         --strategy first_non_search \
         --max-iterations 20 \
         --model anthropic/claude-3.5-sonnet \
@@ -24,7 +24,7 @@ Usage:
 
     # Strategy 2: Random 20% probability interception
     python runtime/emergency_test.py \
-        --query-file mcp_generate/generated_queries.json \
+        --query-file task_creation_engine/generated_queries.json \
         --strategy random_20 \
         --max-iterations 20 \
         --model anthropic/claude-3.5-sonnet \
@@ -33,7 +33,7 @@ Usage:
 
     # Run all strategies (recommended)
     python runtime/emergency_test.py \
-        --query-file mcp_generate/queries10.json \
+        --query-file task_creation_engine/queries10.json \
         --strategy all \
         --max-iterations 20 \
         --model anthropic/claude-3.5-sonnet \

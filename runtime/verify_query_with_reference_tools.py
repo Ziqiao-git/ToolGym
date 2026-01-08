@@ -9,27 +9,27 @@ we pre-load the specific reference tools and see if the agent can solve the task
 Usage:
     # Verify a single query
     python runtime/verify_query_with_reference_tools.py \
-        --query-file mcp_generate/requests/constrained_multi_tool_queries_121servers.json \
+        --query-file task_creation_engine/requests/constrained_multi_tool_queries_121servers.json \
         --query-index 0 \
         --max-iterations 10
 
     # Verify all queries sequentially
     python runtime/verify_query_with_reference_tools.py \
-        --query-file mcp_generate/requests/constrained_multi_tool_queries_121servers.json \
+        --query-file task_creation_engine/requests/constrained_multi_tool_queries_121servers.json \
         --all
 
     # Verify all queries in parallel (recommended for speed)
     python runtime/verify_query_with_reference_tools.py \
-        --query-file mcp_generate/requests/constrained_multi_tool_queries_121servers.json \
+        --query-file task_creation_engine/requests/constrained_multi_tool_queries_121servers.json \
         --all \
         --parallel 4
 
     # Verify and generate refined queries (saved as individual files in a directory)
     python runtime/verify_query_with_reference_tools.py \
-        --query-file mcp_generate/requests/constrained_multi_tool_queries_121servers.json \
+        --query-file task_creation_engine/requests/constrained_multi_tool_queries_121servers.json \
         --all \
         --parallel 4 \
-        --refine-output mcp_generate/requests/refined_batch_001
+        --refine-output task_creation_engine/requests/refined_batch_001
 """
 from __future__ import annotations
 

@@ -23,7 +23,13 @@ from mcpuniverse.mcp.manager import MCPManager
 from mcpuniverse.llm.manager import ModelManager
 from mcpuniverse.agent.dynamic_react import DynamicReActAgent
 from dotenv import load_dotenv
-from emergency_interceptor import EmergencyInterceptor, InterceptionStrategy
+from state_controller import (
+    StateController,
+    ToolControlPolicy,
+    ToolFailureStrategy,
+    EmergencyInterceptor,  # Legacy compatibility
+    InterceptionStrategy,  # Legacy compatibility
+)
 
 
 async def main():
@@ -73,7 +79,7 @@ async def main():
         meta_mcp_config = {
             "stdio": {
                 "command": "python",
-                "args": [str(PROJECT_ROOT / "meta_mcp_server" / "server.py")],
+                "args": [str(PROJECT_ROOT / "tool_retrieval_index" / "server.py")],
             }
         }
         mcp_manager.add_server_config("meta-mcp", meta_mcp_config)

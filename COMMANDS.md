@@ -101,7 +101,7 @@ python runtime/run_multiturn_agent.py \
 
 # Run multiple seed queries from file
 python runtime/run_multiturn_agent.py \
-  --seeds mcp_generate/requests/multiturn_seeds_test.json \
+  --seeds task_creation_engine/requests/multiturn_seeds_test.json \
   --persona curious_researcher \
   --max-turns 5 \
   --save-trajectory
@@ -191,14 +191,14 @@ python runtime/run_goaloriented_agent.py \
 
 # From seeds file (recommended)
 python runtime/run_goaloriented_agent.py \
-  --seeds mcp_generate/requests/goaloriented_seeds_test.json \
+  --seeds task_creation_engine/requests/goaloriented_seeds_test.json \
   --persona curious_researcher \
   --max-turns 8 \
   --save-trajectory
 
 # Custom models and settings
 python runtime/run_goaloriented_agent.py \
-  --seeds mcp_generate/requests/goaloriented_seeds.json \
+  --seeds task_creation_engine/requests/goaloriented_seeds.json \
   --persona thorough_analyst \
   --model "anthropic/claude-3.5-sonnet" \
   --user-model "anthropic/claude-3.5-sonnet" \
@@ -296,10 +296,10 @@ Run multiple queries sequentially from a JSON file (useful for benchmarking):
 cd /Users/xiziqiao/Documents/MCP-Research/MCP-R
 
 # Run all queries in the file
-bash runtime/run_benchmark.sh mcp_generate/requests/generated_queries.json
+bash runtime/run_benchmark.sh task_creation_engine/requests/generated_queries.json
 
 # Example with different query file
-bash runtime/run_benchmark.sh mcp_generate/requests/my_queries.json
+bash runtime/run_benchmark.sh task_creation_engine/requests/my_queries.json
 ```
 
 **Input JSON Format:**
@@ -329,7 +329,7 @@ bash runtime/run_benchmark.sh mcp_generate/requests/my_queries.json
 
 **Example Output:**
 ```
-Loading queries from mcp_generate/requests/generated_queries.json...
+Loading queries from task_creation_engine/requests/generated_queries.json...
 Found 2 queries
 
 ============================================================
@@ -360,14 +360,14 @@ cd /Users/xiziqiao/Documents/MCP-Research/MCP-R
 
 # Generate single pass (pass@1)
 python runtime/batch_generate_trajectories.py \
-  --query-file mcp_generate/refined_with_uuid.json \
+  --query-file task_creation_engine/refined_with_uuid.json \
   --max-iterations 20 \
   --model openai/gpt-4o-mini \
   --pass-number 1
 
 # Generate with Claude model
 python runtime/batch_generate_trajectories.py \
-  --query-file mcp_generate/refined_with_uuid.json \
+  --query-file task_creation_engine/refined_with_uuid.json \
   --max-iterations 20 \
   --model anthropic/claude-3.5-sonnet \
   --pass-number 1
@@ -375,7 +375,7 @@ python runtime/batch_generate_trajectories.py \
 # Generate multiple passes for pass@5 evaluation
 for pass in 1 2 3 4 5; do
   python runtime/batch_generate_trajectories.py \
-    --query-file mcp_generate/refined_with_uuid.json \
+    --query-file task_creation_engine/refined_with_uuid.json \
     --max-iterations 20 \
     --model anthropic/claude-3.5-sonnet \
     --pass-number $pass
@@ -426,7 +426,7 @@ This enables measuring model reliability and variance across multiple runs.
 # Generate 5 attempts for each query with GPT-4o-mini
 for pass in 1 2 3 4 5; do
   python runtime/batch_generate_trajectories.py \
-    --query-file mcp_generate/refined_with_uuid.json \
+    --query-file task_creation_engine/refined_with_uuid.json \
     --max-iterations 20 \
     --model openai/gpt-4o-mini \
     --pass-number $pass
@@ -435,7 +435,7 @@ done
 # Evaluate each pass separately with step-by-step evaluation
 for pass in 1 2 3 4 5; do
   python Orchestrator/mcpuniverse/evaluator/commonllmjudge.py \
-    --prompt mcp_generate/refined_with_uuid.json \
+    --prompt task_creation_engine/refined_with_uuid.json \
     --traj_dir trajectories/openai-gpt-4o-mini/pass@${pass} \
     --step-by-step \
     --model openai/gpt-4o-mini \
@@ -445,7 +445,7 @@ done
 # For Claude
 for pass in 1 2 3 4 5; do
   python Orchestrator/mcpuniverse/evaluator/commonllmjudge.py \
-    --prompt mcp_generate/refined_with_uuid.json \
+    --prompt task_creation_engine/refined_with_uuid.json \
     --traj_dir trajectories/anthropic-claude-3.5-sonnet/pass@${pass} \
     --step-by-step \
     --model openai/gpt-4o-mini \
@@ -481,7 +481,7 @@ cd /Users/xiziqiao/Documents/MCP-Research/MCP-R
 - `--max-iterations N`: (Optional) Max reasoning iterations per query (default: 10, matches batch_generate)
 
 **What it does:**
-1. Loads all query UUIDs from `mcp_generate/queries_verification.json`
+1. Loads all query UUIDs from `task_creation_engine/queries_verification.json`
 2. Scans `trajectory_dir` for existing trajectories in `pass@1/`, `pass@2/`, `pass@3/`
 3. Identifies missing UUIDs per pass
 4. Shows summary of existing vs missing trajectories
@@ -490,7 +490,7 @@ cd /Users/xiziqiao/Documents/MCP-Research/MCP-R
 
 **Example Output:**
 ```
-Loading queries from mcp_generate/queries_verification.json...
+Loading queries from task_creation_engine/queries_verification.json...
 Found 50 queries
 
 Scanning for missing trajectories...
@@ -535,19 +535,19 @@ When you have multiple query files (e.g., different datasets), organize evaluati
 cd /Users/xiziqiao/Documents/MCP-Research/MCP-R
 
 # Example: You have two datasets
-# - mcp_generate/refined_with_uuid.json (original dataset)
-# - mcp_generate/generated_queries_shuang.json (new dataset)
+# - task_creation_engine/refined_with_uuid.json (original dataset)
+# - task_creation_engine/generated_queries_shuang.json (new dataset)
 
 # Generate trajectories for new dataset
 for pass in 1 2 3 4 5; do
   python runtime/batch_generate_trajectories.py \
-    --query-file mcp_generate/generated_queries_shuang.json \
+    --query-file task_creation_engine/generated_queries_shuang.json \
     --max-iterations 20 \
     --model openai/gpt-4o-mini \
     --pass-number $pass
 
   python runtime/batch_generate_trajectories.py \
-    --query-file mcp_generate/generated_queries_shuang.json \
+    --query-file task_creation_engine/generated_queries_shuang.json \
     --max-iterations 20 \
     --model anthropic/claude-3.5-sonnet \
     --pass-number $pass
@@ -557,7 +557,7 @@ done
 for pass in 1 2 3 4 5; do
   # GPT-4o-mini for shuang dataset
   python Orchestrator/mcpuniverse/evaluator/commonllmjudge.py \
-    --prompt mcp_generate/generated_queries_shuang.json \
+    --prompt task_creation_engine/generated_queries_shuang.json \
     --traj_dir trajectories/openai-gpt-4o-mini/pass@${pass} \
     --step-by-step \
     --model openai/gpt-4o-mini \
@@ -565,7 +565,7 @@ for pass in 1 2 3 4 5; do
 
   # Claude for shuang dataset
   python Orchestrator/mcpuniverse/evaluator/commonllmjudge.py \
-    --prompt mcp_generate/generated_queries_shuang.json \
+    --prompt task_creation_engine/generated_queries_shuang.json \
     --traj_dir trajectories/anthropic-claude-3.5-sonnet/pass@${pass} \
     --step-by-step \
     --model openai/gpt-4o-mini \
@@ -971,15 +971,15 @@ Generate test queries for single-turn benchmarking:
 ```bash
 cd /Users/xiziqiao/Documents/MCP-Research/MCP-R
 
-python mcp_generate/query_generate.py \
+python task_creation_engine/query_generate.py \
   --in MCP_INFO_MGR/mcp_data/indexed/tool_descriptions.ndjson \
-  --out mcp_generate/requests/generated_queries.json \
+  --out task_creation_engine/requests/generated_queries.json \
   --num-queries 20
 
 # Generate more queries
-python mcp_generate/query_generate.py \
+python task_creation_engine/query_generate.py \
   --in MCP_INFO_MGR/mcp_data/indexed/tool_descriptions.ndjson \
-  --out mcp_generate/requests/queries_100.json \
+  --out task_creation_engine/requests/queries_100.json \
   --num-queries 100
 ```
 
@@ -1009,15 +1009,15 @@ Generate seed queries optimized for multi-turn conversations:
 cd /Users/xiziqiao/Documents/MCP-Research/MCP-R
 
 # Generate multi-turn seed queries
-python mcp_generate/query_generate_multiturn.py \
+python task_creation_engine/query_generate_multiturn.py \
   --in MCP_INFO_MGR/mcp_data/indexed/tool_descriptions.ndjson \
-  --out mcp_generate/requests/multiturn_seeds.json \
+  --out task_creation_engine/requests/multiturn_seeds.json \
   --num-queries 20
 
 # Generate with custom model
-python mcp_generate/query_generate_multiturn.py \
+python task_creation_engine/query_generate_multiturn.py \
   --in MCP_INFO_MGR/mcp_data/indexed/tool_descriptions.ndjson \
-  --out mcp_generate/requests/multiturn_seeds_100.json \
+  --out task_creation_engine/requests/multiturn_seeds_100.json \
   --num-queries 100 \
   --model "anthropic/claude-3.5-sonnet"
 ```
@@ -1060,7 +1060,7 @@ python mcp_generate/query_generate_multiturn.py \
 **Use with Multi-Turn Agent:**
 ```bash
 python runtime/run_multiturn_agent.py \
-  --seeds mcp_generate/requests/multiturn_seeds.json \
+  --seeds task_creation_engine/requests/multiturn_seeds.json \
   --persona curious_researcher \
   --max-turns 5 \
   --save-trajectory
@@ -1076,15 +1076,15 @@ Generate seed queries WITH GOALS for goal-oriented conversations:
 cd /Users/xiziqiao/Documents/MCP-Research/MCP-R
 
 # Generate goal-oriented seed queries
-python mcp_generate/query_generate_goaloriented.py \
+python task_creation_engine/query_generate_goaloriented.py \
   --in MCP_INFO_MGR/mcp_data/indexed/tool_descriptions.ndjson \
-  --out mcp_generate/requests/goaloriented_seeds.json \
+  --out task_creation_engine/requests/goaloriented_seeds.json \
   --num-queries 20
 
 # Generate with custom model
-python mcp_generate/query_generate_goaloriented.py \
+python task_creation_engine/query_generate_goaloriented.py \
   --in MCP_INFO_MGR/mcp_data/indexed/tool_descriptions.ndjson \
-  --out mcp_generate/requests/goaloriented_seeds_100.json \
+  --out task_creation_engine/requests/goaloriented_seeds_100.json \
   --num-queries 100 \
   --model "anthropic/claude-3.5-sonnet"
 ```
@@ -1145,7 +1145,7 @@ python mcp_generate/query_generate_goaloriented.py \
 **Use with Goal-Oriented Agent:**
 ```bash
 python runtime/run_goaloriented_agent.py \
-  --seeds mcp_generate/requests/goaloriented_seeds.json \
+  --seeds task_creation_engine/requests/goaloriented_seeds.json \
   --persona curious_researcher \
   --max-turns 8 \
   --save-trajectory
@@ -1164,27 +1164,27 @@ cd /Users/xiziqiao/Documents/MCP-Research/MCP-R
 
 # Verify single query
 python runtime/verify_query_with_reference_tools.py \
-  --query-file mcp_generate/requests/constrained_multi_tool_queries_121servers.json \
+  --query-file task_creation_engine/requests/constrained_multi_tool_queries_121servers.json \
   --query-index 0 \
   --max-iterations 10
 
 # Verify all queries sequentially
 python runtime/verify_query_with_reference_tools.py \
-  --query-file mcp_generate/requests/constrained_multi_tool_queries_121servers.json \
+  --query-file task_creation_engine/requests/constrained_multi_tool_queries_121servers.json \
   --all
 
 # Verify all queries in parallel (RECOMMENDED - much faster)
 python runtime/verify_query_with_reference_tools.py \
-  --query-file mcp_generate/requests/constrained_multi_tool_queries_121servers.json \
+  --query-file task_creation_engine/requests/constrained_multi_tool_queries_121servers.json \
   --all \
   --parallel 4
 
 # Verify AND refine insufficient queries (saves one file per query)
 python runtime/verify_query_with_reference_tools.py \
-  --query-file mcp_generate/requests/constrained_multi_tool_queries_121servers.json \
+  --query-file task_creation_engine/requests/constrained_multi_tool_queries_121servers.json \
   --all \
   --parallel 4 \
-  --refine-output mcp_generate/requests/refined_batch_001
+  --refine-output task_creation_engine/requests/refined_batch_001
 ```
 
 **Arguments:**
@@ -1284,13 +1284,13 @@ export PYTHONPATH="/Users/xiziqiao/Documents/MCP-Research/MCP-R/Orchestrator:$PY
 
 # Evaluate all trajectories matching queries in prompt file (sequential)
 python Orchestrator/mcpuniverse/evaluator/commonllmjudge.py \
-  --prompt mcp_generate/prompt/benchmark_tasks.json \
+  --prompt task_creation_engine/prompt/benchmark_tasks.json \
   --traj_dir trajectories \
   --save_json evaluation/batch_results.json
 
 # With custom model and threshold
 python Orchestrator/mcpuniverse/evaluator/commonllmjudge.py \
-  --prompt mcp_generate/prompt/benchmark_tasks.json \
+  --prompt task_creation_engine/prompt/benchmark_tasks.json \
   --traj_dir trajectories \
   --model anthropic/claude-3.5-sonnet \
   --threshold 0.9 \
@@ -1304,7 +1304,7 @@ cd /Users/xiziqiao/Documents/MCP-Research/MCP-R
 
 # Parallel evaluation with combined output file
 python runtime/concurrent_judge.py \
-  --prompt mcp_generate/generated_queries_clean.json \
+  --prompt task_creation_engine/generated_queries_clean.json \
   --traj-dir trajectories/openai-gpt-4o-mini_c0d1ab7c/pass@1 \
   --model openai/gpt-4o-mini \
   --step-by-step \
@@ -1313,7 +1313,7 @@ python runtime/concurrent_judge.py \
 
 # Parallel evaluation with individual files per query (recommended)
 python runtime/concurrent_judge.py \
-  --prompt mcp_generate/generated_queries_clean.json \
+  --prompt task_creation_engine/generated_queries_clean.json \
   --traj-dir trajectories/openai-gpt-4o-mini_c0d1ab7c/pass@1 \
   --model openai/gpt-4o-mini \
   --step-by-step \
@@ -1930,18 +1930,18 @@ End-to-end workflow for benchmarking and evaluating MCP agents:
 cd /Users/xiziqiao/Documents/MCP-Research/MCP-R
 
 # Step 1: Generate benchmark queries
-python mcp_generate/query_generate.py \
+python task_creation_engine/query_generate.py \
   --in MCP_INFO_MGR/mcp_data/indexed/tool_descriptions.ndjson \
-  --out mcp_generate/prompt/benchmark_tasks.json \
+  --out task_creation_engine/prompt/benchmark_tasks.json \
   --num-queries 50
 
 # Step 2: Run agent on all queries (saves trajectories)
-bash runtime/run_benchmark.sh mcp_generate/prompt/benchmark_tasks.json
+bash runtime/run_benchmark.sh task_creation_engine/prompt/benchmark_tasks.json
 
 # Step 3: Evaluate all trajectories with LLM judge
 export PYTHONPATH="/Users/xiziqiao/Documents/MCP-Research/MCP-R/Orchestrator:$PYTHONPATH"
 python Orchestrator/mcpuniverse/evaluator/commonllmjudge.py \
-  --prompt mcp_generate/prompt/benchmark_tasks.json \
+  --prompt task_creation_engine/prompt/benchmark_tasks.json \
   --traj_dir trajectories \
   --model openai/gpt-4o-mini \
   --save_json evaluation/benchmark_results.json
@@ -2019,7 +2019,7 @@ OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
   - `trajectories/trajectory_*.json`
 
 - **Generated Queries:**
-  - `mcp_generate/prompt/benchmark_tasks.json`
+  - `task_creation_engine/prompt/benchmark_tasks.json`
 
 - **Evaluation Results:**
   - `evaluation/benchmark_results.json`
@@ -2041,7 +2041,7 @@ cd ..
 python runtime/run_react_agent.py "Your query" --save-trajectory
 
 # Generate queries
-python mcp_generate/query_generate.py --in MCP_INFO_MGR/mcp_data/indexed/tool_descriptions.ndjson --out mcp_generate/prompt/benchmark_tasks.json --num-queries 20
+python task_creation_engine/query_generate.py --in MCP_INFO_MGR/mcp_data/indexed/tool_descriptions.ndjson --out task_creation_engine/prompt/benchmark_tasks.json --num-queries 20
 
 # Evaluate trajectory
 export PYTHONPATH="/Users/xiziqiao/Documents/MCP-Research/MCP-R/Orchestrator:$PYTHONPATH"

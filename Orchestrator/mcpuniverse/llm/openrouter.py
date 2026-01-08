@@ -30,6 +30,7 @@ class OpenRouterConfig(BaseConfig):
         presence_penalty (float): Penalizes repeated topics (default: 0.0).
         max_completion_tokens (int): Maximum number of tokens in the completion (default: 2048).
         seed (int): Random seed for reproducibility (default: 12345).
+        timeout (int): Request timeout in seconds (default: 180).
     """
     model_name: str = "qwen/qwen3-30b-a3b-instruct-2507"
     api_key: str = os.getenv("OPENROUTER_API_KEY", "")
@@ -39,6 +40,7 @@ class OpenRouterConfig(BaseConfig):
     presence_penalty: float = 0.0
     max_completion_tokens: int = 2048
     seed: int = 12345
+    timeout: int = 180
 
 
 class OpenRouterModel(BaseLLM):
@@ -91,7 +93,7 @@ class OpenRouterModel(BaseLLM):
                 messages=messages,
                 model=self.config.model_name,
                 temperature=self.config.temperature,
-                timeout=int(kwargs.get("timeout", 30)),
+                timeout=int(kwargs.get("timeout", self.config.timeout)),
                 top_p=self.config.top_p,
                 frequency_penalty=self.config.frequency_penalty,
                 presence_penalty=self.config.presence_penalty,
@@ -104,7 +106,7 @@ class OpenRouterModel(BaseLLM):
             messages=messages,
             model=self.config.model_name,
             temperature=self.config.temperature,
-            timeout=int(kwargs.get("timeout", 30)),
+            timeout=int(kwargs.get("timeout", self.config.timeout)),
             top_p=self.config.top_p,
             frequency_penalty=self.config.frequency_penalty,
             presence_penalty=self.config.presence_penalty,

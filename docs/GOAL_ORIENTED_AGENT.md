@@ -163,9 +163,9 @@ Termination:
 ### Generate Goal-Oriented Seeds
 
 ```bash
-python mcp_generate/query_generate_goaloriented.py \
+python task_creation_engine/query_generate_goaloriented.py \
   --in MCP_INFO_MGR/mcp_data/indexed/tool_descriptions.ndjson \
-  --out mcp_generate/requests/goaloriented_seeds.json \
+  --out task_creation_engine/requests/goaloriented_seeds.json \
   --num-queries 20
 ```
 
@@ -195,7 +195,7 @@ Output format:
 ```bash
 # From seeds file
 python runtime/run_goaloriented_agent.py \
-  --seeds mcp_generate/requests/goaloriented_seeds.json \
+  --seeds task_creation_engine/requests/goaloriented_seeds.json \
   --persona curious_researcher \
   --max-turns 8 \
   --save-trajectory
@@ -328,7 +328,7 @@ The system supports various goal types:
 ## Files
 
 - **Runtime**: `runtime/run_goaloriented_agent.py` (~850 lines)
-- **Query Generation**: `mcp_generate/query_generate_goaloriented.py` (~400 lines)
+- **Query Generation**: `task_creation_engine/query_generate_goaloriented.py` (~400 lines)
 - **Trajectories**: `trajectories/goaloriented/goal_*.json`
 - **Documentation**: `docs/GOAL_ORIENTED_AGENT.md` (this file)
 
@@ -336,14 +336,14 @@ The system supports various goal types:
 
 ```bash
 # Generate 5 test seeds
-python mcp_generate/query_generate_goaloriented.py \
+python task_creation_engine/query_generate_goaloriented.py \
   --in MCP_INFO_MGR/mcp_data/indexed/tool_descriptions.ndjson \
-  --out mcp_generate/requests/goaloriented_seeds_test.json \
+  --out task_creation_engine/requests/goaloriented_seeds_test.json \
   --num-queries 5
 
 # Run on test seeds
 python runtime/run_goaloriented_agent.py \
-  --seeds mcp_generate/requests/goaloriented_seeds_test.json \
+  --seeds task_creation_engine/requests/goaloriented_seeds_test.json \
   --persona casual_user \
   --max-turns 6 \
   --save-trajectory

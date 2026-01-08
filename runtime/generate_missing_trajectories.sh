@@ -128,8 +128,8 @@ LOOP_UNTIL_COMPLETE="$CONFIG_LOOP_UNTIL_COMPLETE"
 MAX_RETRIES="$CONFIG_MAX_RETRIES"
 
 # Default query files
-REACT_QUERY_FILE="${PROJECT_ROOT}/mcp_generate/queries_verification.json"
-GOALORIENTED_QUERY_FILE="${PROJECT_ROOT}/mcp_generate/requests/multitool_50.json"
+REACT_QUERY_FILE="${PROJECT_ROOT}/task_creation_engine/queries_verification.json"
+GOALORIENTED_QUERY_FILE="${PROJECT_ROOT}/task_creation_engine/requests/multitool_50.json"
 QUERY_FILE="$CONFIG_QUERY_FILE"
 
 # Check if first argument looks like a path (not an option)

@@ -68,3 +68,6 @@ analysis/
 
 # MCP data working directory (large data files, tokens, indices)
 MCP_INFO_MGR/mcp_data/working/traj.bash
+
+# evaluation scripts
+analyze_scripts/

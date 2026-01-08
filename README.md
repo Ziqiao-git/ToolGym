@@ -18,7 +18,7 @@ The system generates diverse benchmark tasks, runs a ReAct agent with dynamic se
 
 ```bash
 # Step 1: Generate benchmark tasks (5 queries per MCP server)
-python mcp_generate/query_generate.py \
+python task_creation_engine/query_generate.py \
   --in MCP_INFO_MGR/mcp_data/usable/useable_remote_server_metadata.ndjson \
   --out evaluation/benchmark_tasks.json
 
@@ -121,7 +121,7 @@ async def cleanup():
 
 ### 2. Meta-MCP Server
 
-**Location:** `meta_mcp_server/server.py`
+**Location:** `tool_retrieval_index/server.py`
 
 Provides semantic search across all indexed tools:
 
@@ -193,7 +193,7 @@ MCP-R/
 │   ├── run_react_agent.py             # Main CLI for running agent
 │   └── README.md                       # Runtime documentation
 │
-├── meta_mcp_server/                    # Semantic search server
+├── tool_retrieval_index/                    # Semantic search server
 │   └── server.py                       # MCP server with search_tools
 │
 ├── MCP_INFO_MGR/                       # MCP data management
@@ -230,7 +230,7 @@ MCP-R/
 │           ├── runner.py              # Task execution
 │           └── task.py                # Task definitions
 │
-├── mcp_generate/                       # Query generation
+├── task_creation_engine/                       # Query generation
 │   ├── query_generate.py              # Generate benchmark queries
 │   └── .env                           # API keys (gitignored)
 │
@@ -269,7 +269,7 @@ MCP-R/
 - [x] Comprehensive documentation
 
 #### Evaluation Pipeline (Step 1/3)
-- [x] Query generation script (`mcp_generate/query_generate.py`)
+- [x] Query generation script (`task_creation_engine/query_generate.py`)
   - Generates 5 realistic queries per MCP server
   - Uses GPT-5 with structured output
   - Validates concrete, operational questions
@@ -307,7 +307,7 @@ MCP-R/
 ```
 Step 1: Generate Tasks          Step 2: Run Agent              Step 3: Evaluate
 ─────────────────────           ──────────────────             ────────────────
-mcp_generate/                   runtime/                       Orchestrator/
+task_creation_engine/                   runtime/                       Orchestrator/
 query_generate.py               run_react_agent.py             evaluator/
                                                                commonllmjudge.py
         ↓                               ↓                              ↓
@@ -524,7 +524,7 @@ OPENROUTER_API_KEY=sk-or-v1-...
 SMITHERY_API_KEY=your-smithery-key
 ```
 
-**`mcp_generate/.env`:**
+**`task_creation_engine/.env`:**
 ```bash
 OPENROUTER_API_KEY=sk-or-v1-...
 SMITHERY_API_KEY=your-smithery-key

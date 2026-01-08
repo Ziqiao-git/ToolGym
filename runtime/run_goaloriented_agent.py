@@ -18,7 +18,7 @@ Usage:
 
     # Single query from JSON file by index
     python runtime/run_goaloriented_agent.py \
-        --seeds mcp_generate/requests/multitool_50_100.json \
+        --seeds task_creation_engine/requests/multitool_50_100.json \
         --query-index 0 \
         --model google/gemini-3-pro-preview \
         --user-model google/gemini-3-pro-preview \
@@ -27,7 +27,7 @@ Usage:
 
     # Batch mode - parallel execution of multiple queries
     python runtime/run_goaloriented_agent.py \
-        --seeds mcp_generate/requests/multitool_50_100.json \
+        --seeds task_creation_engine/requests/multitool_50_100.json \
         --persona curious_researcher \
         --model google/gemini-3-pro-preview \
         --user-model google/gemini-3-pro-preview \
@@ -332,6 +332,7 @@ class GoalTrajectory:
     agent_model: str
     user_model: str
     dynamically_loaded_servers: List[str]
+    timeout_occurred: bool = False  # Flag indicating trajectory was cut short due to LLM timeout
 
     def to_dict(self) -> Dict:
         """Convert to dictionary for JSON serialization."""
@@ -350,6 +351,7 @@ class GoalTrajectory:
                 "timestamp": self.timestamp,
                 "agent_model": self.agent_model,
                 "user_model": self.user_model,
+                "timeout_occurred": self.timeout_occurred,
             },
             "turns": [turn.to_dict() for turn in self.turns],
             "summary": {
@@ -1222,6 +1224,9 @@ class GoalOrientedController:
 
     async def run_conversation(self, seed_query: str) -> GoalTrajectory:
         """Run a complete goal-oriented conversation."""
+        # Initialize timeout flag - used by resume logic to detect if we stopped due to timeout
+        self._timeout_occurred = False
+
         print("\n" + "="*70)
         print("🎯 STARTING GOAL-ORIENTED CONVERSATION")
         print("="*70)
@@ -1272,6 +1277,16 @@ class GoalOrientedController:
             response = await self.agent.execute(current_query)
             agent_response = response.response
             print(f"\n🤖 Agent Response:\n{agent_response}\n")
+
+            # CRITICAL: Check for LLM timeout immediately - DO NOT record this turn
+            # Timeouts should not be saved in trajectories at all
+            agent_response_str = json.dumps(agent_response) if isinstance(agent_response, dict) else str(agent_response) if agent_response else ""
+            if "timed out" in agent_response_str.lower() or "llm request timed out" in agent_response_str.lower():
+                print("🛑 LLM TIMEOUT DETECTED - Stopping trajectory recording immediately")
+                print("⚠️  This turn will NOT be recorded. Trajectory ends at previous turn.")
+                # Set a flag to indicate timeout occurred (for resume logic)
+                self._timeout_occurred = True
+                break  # Exit the conversation loop without recording this turn
 
             # 3b. Extract tool calls and results
             turn_tool_calls = [
@@ -1519,7 +1534,8 @@ class GoalOrientedController:
             timestamp=datetime.now().isoformat(),
             agent_model=self._get_model_name(self.agent),
             user_model=self._get_model_name(self.user.llm),
-            dynamically_loaded_servers=dynamically_loaded
+            dynamically_loaded_servers=dynamically_loaded,
+            timeout_occurred=self._timeout_occurred  # Flag for resume logic
         )
 
         print("="*70 + "\n")
@@ -1805,13 +1821,13 @@ async def main():
             meta_mcp_config = {
                 "stdio": {
                     "command": "python",
-                    "args": [str(PROJECT_ROOT / "meta_mcp_server" / "server.py")],
+                    "args": [str(PROJECT_ROOT / "tool_retrieval_index" / "server.py")],
                 }
             }
             mcp_manager.add_server_config("meta-mcp", meta_mcp_config)
 
-            agent_llm = model_manager.build_model("openrouter", config={"model_name": args.model})
-            user_llm = model_manager.build_model("openrouter", config={"model_name": args.user_model})
+            agent_llm = model_manager.build_model("openrouter", config={"model_name": args.model, "timeout": 180})
+            user_llm = model_manager.build_model("openrouter", config={"model_name": args.user_model, "timeout": 180})
 
             # React config matching run_react_agent
             react_config = {

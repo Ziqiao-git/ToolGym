@@ -8,7 +8,7 @@
 
 ```bash
 python runtime/emergency_test.py \
-    --query-file mcp_generate/generated_queries.json \
+    --query-file task_creation_engine/generated_queries.json \
     --strategy no_interception \
     --max-iterations 20 \
     --model anthropic/claude-3.5-sonnet \
@@ -19,7 +19,7 @@ python runtime/emergency_test.py \
 
 ```bash
 python runtime/emergency_test.py \
-    --query-file mcp_generate/generated_queries.json \
+    --query-file task_creation_engine/generated_queries.json \
     --strategy first_non_search \
     --max-iterations 20 \
     --model anthropic/claude-3.5-sonnet \
@@ -30,7 +30,7 @@ python runtime/emergency_test.py \
 
 ```bash
 python runtime/emergency_test.py \
-    --query-file mcp_generate/generated_queries.json \
+    --query-file task_creation_engine/generated_queries.json \
     --strategy random_20 \
     --max-iterations 20 \
     --model anthropic/claude-3.5-sonnet \
@@ -42,7 +42,7 @@ python runtime/emergency_test.py \
 
 ```bash
 python runtime/emergency_test.py \
-    --query-file mcp_generate/generated_queries.json \
+    --query-file task_creation_engine/generated_queries.json \
     --strategy all \
     --max-iterations 20 \
     --model anthropic/claude-3.5-sonnet \
@@ -200,7 +200,7 @@ trajectories/
     "batch_id": "xyz789",
     "test_type": "emergency_interception",
     "timestamp": "2025-12-13T...",
-    "query_file": "mcp_generate/generated_queries.json",
+    "query_file": "task_creation_engine/generated_queries.json",
     "total_queries": 100,
     "total_runs": 300,
     "successful": 270,
@@ -397,7 +397,7 @@ emergency_test.py (主进程)
 
 # 或者手动运行小规模测试
 python runtime/emergency_test.py \
-    --query-file mcp_generate/generated_queries.json \
+    --query-file task_creation_engine/generated_queries.json \
     --strategy all \
     --max-iterations 10 \
     --model anthropic/claude-3.5-sonnet \

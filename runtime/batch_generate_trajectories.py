@@ -8,13 +8,13 @@ trajectories with UUIDs for each one.
 Usage:
     # Generate all trajectories
     python runtime/batch_generate_trajectories.py \
-        --query-file mcp_generate/generated_queries.json \
+        --query-file task_creation_engine/generated_queries.json \
         --max-iterations 10 \
         --model anthropic/claude-3.5-sonnet
 
     # Generate with custom batch name
     python runtime/batch_generate_trajectories.py \
-        --query-file mcp_generate/queries_verification.json \
+        --query-file task_creation_engine/queries_verification.json \
         --model openai/gpt-4o-mini \
         --pass-number 1 \
         --batch-name my_experiment

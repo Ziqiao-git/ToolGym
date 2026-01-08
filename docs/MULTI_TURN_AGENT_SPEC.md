@@ -599,7 +599,7 @@ For real-time simulation, we only need to generate **seed queries** that are lik
 - "What's the weather in Tokyo and are there any events happening?" → User might ask about specific dates/venues
 - "Search for machine learning tools on GitHub" → User will want details on top results
 
-**Generation Script** (`mcp_generate/query_generate_multiturn.py`):
+**Generation Script** (`task_creation_engine/query_generate_multiturn.py`):
 
 ```python
 MULTITURN_SEED_SYSTEM_PROMPT = """
@@ -629,9 +629,9 @@ Generate seed query in this format:
 
 **Usage**:
 ```bash
-python mcp_generate/query_generate_multiturn.py \
+python task_creation_engine/query_generate_multiturn.py \
   --in MCP_INFO_MGR/mcp_data/indexed/tool_descriptions.ndjson \
-  --out mcp_generate/prompt/multiturn_seeds.json \
+  --out task_creation_engine/prompt/multiturn_seeds.json \
   --num-queries 50
 ```
 
@@ -692,7 +692,7 @@ MCP-R/
 │           ├── commonllmjudge.py       # Existing single-turn
 │           └── multiturn_judge.py      # New multi-turn evaluator
 │
-├── mcp_generate/
+├── task_creation_engine/
 │   ├── query_generate_multiturn.py     # Multi-turn seed generation
 │   └── prompt/
 │       └── multiturn_benchmark.json    # Multi-turn benchmark
@@ -958,7 +958,7 @@ A successful multi-turn environment implementation will:
 - Single-turn agent: `/runtime/run_react_agent.py`
 - Trajectory format: `/trajectories/trajectory_*.json`
 - Evaluation framework: `/Orchestrator/mcpuniverse/evaluator/commonllmjudge.py`
-- Query generation: `/mcp_generate/query_generate.py`
+- Query generation: `/task_creation_engine/query_generate.py`
 
 ---
 

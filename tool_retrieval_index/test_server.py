@@ -72,7 +72,7 @@ def test_search_tools():
     print("Test Complete!")
     print("="*60)
     print("\nNext steps:")
-    print("1. Run the MCP server: python meta_mcp_server/server.py")
+    print("1. Run the MCP server: python tool_retrieval_index/server.py")
     print("2. Add to Claude Desktop config")
     print("3. Test with Claude Desktop")
 

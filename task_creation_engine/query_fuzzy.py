@@ -7,7 +7,7 @@ query_fuzzy.py
 为生成的查询添加噪声约束，模拟真实世界中带有额外信息的用户请求。
 
 用法:
-  python mcp_generate/query_fuzzy.py --in generated_queries.json --out fuzzy_queries.json
+  python task_creation_engine/query_fuzzy.py --in generated_queries.json --out fuzzy_queries.json
 """
 
 import json

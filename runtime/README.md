@@ -146,7 +146,7 @@ Required in `Orchestrator/.env`:
 
 - `run_react_agent.py`: Main runtime script
 - `../Orchestrator/mcpuniverse/agent/dynamic_react.py`: Dynamic agent implementation
-- `../meta_mcp_server/server.py`: Meta-MCP semantic search server
+- `../tool_retrieval_index/server.py`: Meta-MCP semantic search server
 - `../trajectories/*.json`: Saved execution trajectories
 
 ## Known Issues

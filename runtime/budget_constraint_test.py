@@ -14,7 +14,7 @@ Budget Levels:
 Usage:
     # Run budget_3 experiment
     python runtime/budget_constraint_test.py \
-        --query-file mcp_generate/queries_budget_3.json \
+        --query-file task_creation_engine/queries_budget_3.json \
         --budget-level budget_3 \
         --model anthropic/claude-3.5-sonnet \
         --pass-number 1
@@ -22,7 +22,7 @@ Usage:
     # Run all budget levels in sequence
     for budget in budget_3 budget_5 budget_7; do
         python runtime/budget_constraint_test.py \
-            --query-file mcp_generate/queries_${budget}.json \
+            --query-file task_creation_engine/queries_${budget}.json \
             --budget-level ${budget} \
             --model anthropic/claude-3.5-sonnet \
             --pass-number 1

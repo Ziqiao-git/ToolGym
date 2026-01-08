@@ -24,7 +24,7 @@ pip install mcp
 ### Run as MCP Server
 
 ```bash
-python meta_mcp_server/server.py
+python tool_retrieval_index/server.py
 ```
 
 ### Add to Claude Desktop
@@ -37,7 +37,7 @@ Add this to your Claude Desktop config (`~/Library/Application Support/Claude/cl
     "meta-mcp": {
       "command": "python",
       "args": [
-        "/Users/xiziqiao/Documents/MCP-Research/MCP-R/meta_mcp_server/server.py"
+        "/Users/xiziqiao/Documents/MCP-Research/MCP-R/tool_retrieval_index/server.py"
       ]
     }
   }

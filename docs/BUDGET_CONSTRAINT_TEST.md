@@ -17,23 +17,23 @@ Use the `add_budget_constraint.py` script to add budget constraint instructions 
 
 ```bash
 # Budget 3 (tight): Max 3 non-search tool calls
-python mcp_generate/add_budget_constraint.py \
-    --input mcp_generate/queries10.json \
-    --output mcp_generate/queries_budget_3.json \
+python task_creation_engine/add_budget_constraint.py \
+    --input task_creation_engine/queries10.json \
+    --output task_creation_engine/queries_budget_3.json \
     --budget 300 \
     --cost-per-call 100
 
 # Budget 5 (medium): Max 5 non-search tool calls
-python mcp_generate/add_budget_constraint.py \
-    --input mcp_generate/queries10.json \
-    --output mcp_generate/queries_budget_5.json \
+python task_creation_engine/add_budget_constraint.py \
+    --input task_creation_engine/queries10.json \
+    --output task_creation_engine/queries_budget_5.json \
     --budget 500 \
     --cost-per-call 100
 
 # Budget 7 (loose): Max 7 non-search tool calls
-python mcp_generate/add_budget_constraint.py \
-    --input mcp_generate/queries10.json \
-    --output mcp_generate/queries_budget_7.json \
+python task_creation_engine/add_budget_constraint.py \
+    --input task_creation_engine/queries10.json \
+    --output task_creation_engine/queries_budget_7.json \
     --budget 700 \
     --cost-per-call 100
 ```
@@ -44,7 +44,7 @@ python mcp_generate/add_budget_constraint.py \
 
 ```bash
 python runtime/budget_constraint_test.py \
-    --query-file mcp_generate/queries_budget_3.json \
+    --query-file task_creation_engine/queries_budget_3.json \
     --budget-level budget_3 \
     --model anthropic/claude-3.5-sonnet \
     --pass-number 1 \
@@ -55,7 +55,7 @@ python runtime/budget_constraint_test.py \
 
 ```bash
 python runtime/budget_constraint_test.py \
-    --query-file mcp_generate/queries_budget_5.json \
+    --query-file task_creation_engine/queries_budget_5.json \
     --budget-level budget_5 \
     --model anthropic/claude-3.5-sonnet \
     --pass-number 1 \
@@ -66,7 +66,7 @@ python runtime/budget_constraint_test.py \
 
 ```bash
 python runtime/budget_constraint_test.py \
-    --query-file mcp_generate/queries_budget_7.json \
+    --query-file task_creation_engine/queries_budget_7.json \
     --budget-level budget_7 \
     --model anthropic/claude-3.5-sonnet \
     --pass-number 1 \
@@ -77,7 +77,7 @@ python runtime/budget_constraint_test.py \
 
 ```bash
 python runtime/budget_constraint_test.py \
-    --query-file mcp_generate/queries10.json \
+    --query-file task_creation_engine/queries10.json \
     --budget-level baseline \
     --model anthropic/claude-3.5-sonnet \
     --pass-number 1 \
@@ -90,9 +90,9 @@ python runtime/budget_constraint_test.py \
 # Create all budget-constrained query files
 for budget_val in 300 500 700; do
     level=$((budget_val / 100))
-    python mcp_generate/add_budget_constraint.py \
-        --input mcp_generate/queries10.json \
-        --output mcp_generate/queries_budget_${level}.json \
+    python task_creation_engine/add_budget_constraint.py \
+        --input task_creation_engine/queries10.json \
+        --output task_creation_engine/queries_budget_${level}.json \
         --budget ${budget_val} \
         --cost-per-call 100
 done
@@ -100,7 +100,7 @@ done
 # Run all budget levels
 for budget in budget_3 budget_5 budget_7; do
     python runtime/budget_constraint_test.py \
-        --query-file mcp_generate/queries_${budget}.json \
+        --query-file task_creation_engine/queries_${budget}.json \
         --budget-level ${budget} \
         --model anthropic/claude-3.5-sonnet \
         --pass-number 1 \
@@ -109,7 +109,7 @@ done
 
 # Run baseline
 python runtime/budget_constraint_test.py \
-    --query-file mcp_generate/queries10.json \
+    --query-file task_creation_engine/queries10.json \
     --budget-level baseline \
     --model anthropic/claude-3.5-sonnet \
     --pass-number 1 \
@@ -284,7 +284,7 @@ Each trajectory file contains:
       "max_allowed_calls": 3
     },
     "timestamp": "2026-01-14T15:30:45.123456",
-    "query_file": "mcp_generate/queries_budget_3.json",
+    "query_file": "task_creation_engine/queries_budget_3.json",
     "total_queries": 10,
     "successful": 9,
     "failed": 1,

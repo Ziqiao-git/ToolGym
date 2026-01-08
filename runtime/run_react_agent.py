@@ -201,7 +201,7 @@ async def main():
         "stdio": {
             "command": "python",
             "args": [
-                str(PROJECT_ROOT / "meta_mcp_server" / "server.py")
+                str(PROJECT_ROOT / "tool_retrieval_index" / "server.py")
             ],
         }
     }

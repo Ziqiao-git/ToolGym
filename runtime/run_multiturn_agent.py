@@ -586,7 +586,7 @@ async def main():
     meta_mcp_config = {
         "stdio": {
             "command": "python",
-            "args": [str(PROJECT_ROOT / "meta_mcp_server" / "server.py")],
+            "args": [str(PROJECT_ROOT / "tool_retrieval_index" / "server.py")],
         }
     }
     mcp_manager.add_server_config("meta-mcp", meta_mcp_config)

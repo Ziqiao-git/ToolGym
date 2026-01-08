@@ -8,8 +8,8 @@ Generate single-turn queries that require MULTIPLE different tools from MULTIPLE
 This creates complex, realistic tasks that span across different tool domains.
 
 Usage:
-  python mcp_generate/query_generate_multitool.py \
-    --out mcp_generate/requests/multitool_10_20.json \
+  python task_creation_engine/query_generate_multitool.py \
+    --out task_creation_engine/requests/multitool_10_20.json \
     --num-queries 20 \
     --min-tools 10 \
     --max-tools 20 \

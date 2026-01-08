@@ -6,7 +6,7 @@ A simple MCP server that provides semantic search across 4,572 MCP tools
 from 301 servers using FAISS and BGE-M3 embeddings.
 
 Usage:
-    python meta_mcp_server/server.py
+    python tool_retrieval_index/server.py
 """
 from __future__ import annotations
 

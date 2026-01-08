@@ -6,9 +6,9 @@ This script takes an existing query JSON file and adds budget constraints to eac
 The budget constraint tells the agent it has limited tool call budget.
 
 Usage:
-    python mcp_generate/add_budget_constraint.py \
-        --input mcp_generate/queries10.json \
-        --output mcp_generate/queries_budget_3.json \
+    python task_creation_engine/add_budget_constraint.py \
+        --input task_creation_engine/queries10.json \
+        --output task_creation_engine/queries_budget_3.json \
         --budget 300 \
         --cost-per-call 100
 """
