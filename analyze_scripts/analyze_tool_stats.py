@@ -9,11 +9,17 @@ Usage:
     # Basic usage - analyze all trajectories in goaloriented directory
     python analyze_scripts/analyze_tool_stats.py
 
-    # Filter by model
+    # Group results by model and show separate statistics for each
+    python analyze_scripts/analyze_tool_stats.py --by-model
+
+    # Filter by specific model
     python analyze_scripts/analyze_tool_stats.py --model gemini-3-pro-preview
 
     # Use custom trajectories directory
     python analyze_scripts/analyze_tool_stats.py --traj-dir /path/to/trajectories/goaloriented
+
+    # Combine options: group by model with custom directory
+    python analyze_scripts/analyze_tool_stats.py --by-model --traj-dir /path/to/trajectories/goaloriented
 
 Data Source:
     - Reads from trajectories/goaloriented/**/*.json files
@@ -26,6 +32,9 @@ Output:
     - Constraint completion status (from final turn)
     - Tool call success rates
     - Subgoal completion rates and goal achievement statistics
+    - Recovery rate (failed tool retried and succeeded)
+    - Flexibility rate (switched tool after failure)
+    - Goal enforcer (average subgoal completion per turn)
 
 Multiturn Structure:
     - Each trajectory has multiple turns
@@ -150,6 +159,12 @@ def analyze_trajectory_stats(trajectories: List[Dict[str, Any]]) -> Dict[str, An
         "subgoal_completion_rates": [],  # Subgoal completion rates
         "subgoal_achieved_count": 0,  # Number of trajectories with goal achieved
         "error_pattern_counts": defaultdict(int),  # Error pattern -> count
+        # New metrics
+        "recovery_count": 0,  # Number of times a failed tool was retried and succeeded
+        "total_failed_tools_with_retry": 0,  # Number of failed tools that were retried
+        "flexibility_count": 0,  # Number of times agent switched tool after failure
+        "total_failures": 0,  # Total number of tool failures
+        "goal_enforcer_per_turn": [],  # Percentage of subgoals completed per turn
     }
 
     for traj in trajectories:
@@ -166,7 +181,10 @@ def analyze_trajectory_stats(trajectories: List[Dict[str, Any]]) -> Dict[str, An
         successful_calls = 0
         total_calls = 0
 
-        for turn in turns:
+        # Track tool call history for recovery and flexibility analysis
+        tool_call_history = []  # List of (server::tool, is_success) tuples
+
+        for turn_idx, turn in enumerate(turns):
             tool_calls = turn.get("tool_calls", [])
             reasoning_trace = turn.get("reasoning_trace", [])
 
@@ -220,6 +238,33 @@ def analyze_trajectory_stats(trajectories: List[Dict[str, Any]]) -> Dict[str, An
                     "error_pattern": error_pattern,
                     "is_success": is_success
                 })
+
+                # Track for recovery and flexibility analysis
+                tool_call_history.append((tool_full_name, is_success))
+
+            # Calculate goal enforcer for this turn
+            # Use goal_progress from turn (which is the percentage completion rate)
+            goal_progress = turn.get("goal_progress", 0.0)  # This is already a ratio (0.0 to 1.0)
+            stats["goal_enforcer_per_turn"].append(goal_progress * 100)  # Convert to percentage
+
+        # Calculate recovery and flexibility for this trajectory
+        for i in range(len(tool_call_history) - 1):
+            current_tool, current_success = tool_call_history[i]
+            next_tool, next_success = tool_call_history[i + 1]
+
+            if not current_success:  # Current call failed
+                stats["total_failures"] += 1
+
+                if current_tool == next_tool:
+                    # Same tool was retried
+                    stats["total_failed_tools_with_retry"] += 1
+                    if next_success:
+                        # Retry succeeded - this is recovery
+                        stats["recovery_count"] += 1
+                    # else: retry failed again - not counted as recovery or flexibility
+                else:
+                    # Different tool or search_tools - this is flexibility
+                    stats["flexibility_count"] += 1
 
         stats["unique_servers_per_traj"].append(len(servers_in_traj))
         stats["tool_calls_total"].append(len(tools_in_traj))
@@ -293,14 +338,6 @@ def print_multiturn_analysis(stats: Dict[str, Any]):
         print(f"Max servers: {max(unique_servers)}")
 
     print(f"\nTotal unique servers used: {len(stats['server_usage'])}")
-    print("\nTop 10 Most Used Servers:")
-    sorted_servers = sorted(stats['server_usage'].items(), key=lambda x: x[1], reverse=True)
-    print(f"{'Server':<50} {'Tool Calls':<12} {'Unique Tools'}")
-    print("-" * 80)
-    for server, count in sorted_servers[:10]:
-        server_display = server[:48] if len(server) > 48 else server
-        num_tools = len(stats['tools_by_server'][server])
-        print(f"{server_display:<50} {count:<12} {num_tools}")
 
     # Tool call statistics
     print("\n" + "-" * 80)
@@ -359,30 +396,6 @@ def print_multiturn_analysis(stats: Dict[str, Any]):
                 sorted_patterns = sorted(error_patterns.items(), key=lambda x: x[1], reverse=True)
                 for pattern, count in sorted_patterns[:10]:
                     print(f"  - '{pattern}': {count}")
-
-        # Success rate by server
-        print("\nSuccess Rate by Server:")
-        server_stats = defaultdict(lambda: {'total': 0, 'success': 0, 'failed': 0})
-        for call in all_calls:
-            server_stats[call['server']]['total'] += 1
-            if call['is_success']:
-                server_stats[call['server']]['success'] += 1
-            else:
-                server_stats[call['server']]['failed'] += 1
-
-        server_success_rates = []
-        for server, stats_dict in server_stats.items():
-            rate = stats_dict['success'] / stats_dict['total'] * 100
-            server_success_rates.append((server, stats_dict['success'],
-                                        stats_dict['failed'], stats_dict['total'], rate))
-
-        server_success_rates.sort(key=lambda x: x[3], reverse=True)  # Sort by total calls
-
-        print(f"{'Server':<50} {'Success':<10} {'Failed':<8} {'Total':<8} {'Rate'}")
-        print("-" * 85)
-        for server, success, failed, total, rate in server_success_rates[:15]:
-            server_display = server[:48] if len(server) > 48 else server
-            print(f"{server_display:<50} {success:<10} {failed:<8} {total:<8} {rate:.1f}%")
 
     # Constraint satisfaction
     print("\n" + "-" * 80)
@@ -445,7 +458,79 @@ def print_multiturn_analysis(stats: Dict[str, Any]):
     else:
         print("No subgoal completion data available")
 
+    # Recovery analysis
+    print("\n" + "-" * 80)
+    print("RECOVERY ANALYSIS")
+    print("-" * 80)
+
+    if stats['total_failed_tools_with_retry'] > 0:
+        recovery_rate = stats['recovery_count'] / stats['total_failed_tools_with_retry'] * 100
+        print(f"Total failed tool calls that were retried: {stats['total_failed_tools_with_retry']}")
+        print(f"Successful recoveries (retry succeeded): {stats['recovery_count']}")
+        print(f"Recovery rate: {recovery_rate:.1f}%")
+    else:
+        print("No failed tools were retried (no recovery opportunities)")
+
+    # Flexibility analysis
+    print("\n" + "-" * 80)
+    print("FLEXIBILITY ANALYSIS")
+    print("-" * 80)
+
+    if stats['total_failures'] > 0:
+        flexibility_rate = stats['flexibility_count'] / stats['total_failures'] * 100
+        print(f"Total tool call failures: {stats['total_failures']}")
+        print(f"Failures followed by tool switch or search_tools: {stats['flexibility_count']}")
+        print(f"Flexibility rate: {flexibility_rate:.1f}%")
+    else:
+        print("No tool call failures (no flexibility opportunities)")
+
+    # Goal enforcer analysis
+    print("\n" + "-" * 80)
+    print("GOAL ENFORCER ANALYSIS (Subgoal Progress per Turn)")
+    print("-" * 80)
+
+    goal_enforcer_data = stats['goal_enforcer_per_turn']
+    if goal_enforcer_data:
+        print(f"Total turns with subgoal data: {len(goal_enforcer_data)}")
+        print(f"Average subgoal completion per turn: {statistics.mean(goal_enforcer_data):.1f}%")
+        print(f"Median subgoal completion per turn: {statistics.median(goal_enforcer_data):.1f}%")
+        print(f"Min subgoal completion per turn: {min(goal_enforcer_data):.1f}%")
+        print(f"Max subgoal completion per turn: {max(goal_enforcer_data):.1f}%")
+
+        # Distribution
+        high_progress = sum(1 for p in goal_enforcer_data if p >= 50)
+        medium_progress = sum(1 for p in goal_enforcer_data if 20 <= p < 50)
+        low_progress = sum(1 for p in goal_enforcer_data if 0 < p < 20)
+        no_progress = sum(1 for p in goal_enforcer_data if p == 0)
+
+        print(f"\nSubgoal Progress per Turn Distribution:")
+        print(f"  High progress (≥50%):    {high_progress:3d} ({high_progress/len(goal_enforcer_data)*100:.1f}%)")
+        print(f"  Medium progress (20-49%): {medium_progress:3d} ({medium_progress/len(goal_enforcer_data)*100:.1f}%)")
+        print(f"  Low progress (1-19%):     {low_progress:3d} ({low_progress/len(goal_enforcer_data)*100:.1f}%)")
+        print(f"  No progress (0%):         {no_progress:3d} ({no_progress/len(goal_enforcer_data)*100:.1f}%)")
+    else:
+        print("No goal enforcer data available")
+
     print("\n" + "=" * 80)
+
+
+def group_trajectories_by_model(trajectories: List[Dict[str, Any]]) -> Dict[str, List[Dict[str, Any]]]:
+    """
+    Group trajectories by model name.
+
+    Args:
+        trajectories: List of trajectory dictionaries
+
+    Returns:
+        Dictionary mapping model name to list of trajectories
+    """
+    grouped = defaultdict(list)
+
+    for traj in trajectories:
+        agent_model = traj.get("metadata", {}).get("agent_model", "unknown")
+        grouped[agent_model].append(traj)
+
+    return dict(grouped)
 
 
 def main():
@@ -461,6 +546,11 @@ def main():
     parser.add_argument(
         "--model",
         help="Filter to specific model (case-insensitive)",
+    )
+    parser.add_argument(
+        "--by-model",
+        action="store_true",
+        help="Group results by model and show separate statistics for each model",
     )
 
     args = parser.parse_args()
@@ -480,8 +570,27 @@ def main():
         print("\nNo trajectories found matching criteria!")
         return 1
 
-    stats = analyze_trajectory_stats(trajectories)
-    print_multiturn_analysis(stats)
+    # If --by-model is specified, group by model and analyze separately
+    if args.by_model:
+        grouped = group_trajectories_by_model(trajectories)
+
+        print("\n" + "=" * 80)
+        print(f"ANALYSIS BY MODEL ({len(grouped)} models found)")
+        print("=" * 80)
+
+        for model_name in sorted(grouped.keys()):
+            model_trajs = grouped[model_name]
+            print("\n\n" + "#" * 80)
+            print(f"MODEL: {model_name}")
+            print(f"Trajectories: {len(model_trajs)}")
+            print("#" * 80)
+
+            stats = analyze_trajectory_stats(model_trajs)
+            print_multiturn_analysis(stats)
+    else:
+        # Original behavior: analyze all trajectories together
+        stats = analyze_trajectory_stats(trajectories)
+        print_multiturn_analysis(stats)
 
     return 0
 
