@@ -801,11 +801,41 @@
             }, 2000);
         }
 
-        // Tab switching (placeholder - can be enhanced)
+        // Tab switching - highlight relevant columns
+        const columnGroups = {
+            'Overall': [0, 1, 2], // Rank, Model, Overall
+            'Quality': [0, 1, 2, 3, 4], // + Comp, Grnd
+            'Robustness': [0, 1, 2, 5, 6, 7], // + Succ, Recov, Flex
+            'Constraint': [0, 1, 2, 8, 9, 10, 11] // + Order, Info, Fmt, Trade
+        };
+
         document.querySelectorAll('.tab').forEach(tab => {
             tab.addEventListener('click', function() {
+                // Update active tab
                 document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
                 this.classList.add('active');
+
+                const tabName = this.textContent.trim();
+                const activeCols = columnGroups[tabName] || columnGroups['Overall'];
+
+                // Reset all cells first
+                document.querySelectorAll('table th, table td').forEach(cell => {
+                    cell.style.opacity = '1';
+                    cell.style.background = '';
+                });
+
+                // Dim non-selected columns (skip header rows for colspan)
+                const rows = document.querySelectorAll('table tbody tr');
+                rows.forEach(row => {
+                    const cells = row.querySelectorAll('td');
+                    cells.forEach((cell, idx) => {
+                        if (!activeCols.includes(idx)) {
+                            cell.style.opacity = '0.4';
+                        } else {
+                            cell.style.background = 'rgba(59, 130, 246, 0.05)';
+                        }
+                    });
+                });
             });
         });
     </script>
