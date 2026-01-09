@@ -204,6 +204,11 @@
             box-shadow: 0 4px 20px rgba(0,0,0,0.08);
         }
 
+        .table-wrapper {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+
         .leaderboard-header {
             background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
             color: white;
@@ -243,9 +248,15 @@
         }
 
         th, td {
-            padding: 16px 20px;
+            padding: 12px 10px;
             text-align: left;
             border-bottom: 1px solid var(--border);
+            white-space: nowrap;
+            font-size: 0.85rem;
+        }
+
+        th {
+            font-size: 0.8rem;
         }
 
         th {
@@ -403,7 +414,7 @@
                 <a href="#leaderboard" class="btn btn-secondary">
                     <i class="fas fa-trophy"></i> Leaderboard
                 </a>
-                <a href="https://huggingface.co/datasets/ToolGym/ToolGym" class="btn btn-secondary">
+                <a href="https://huggingface.co/ToolGym" class="btn btn-secondary">
                     <i class="fas fa-database"></i> Dataset
                 </a>
             </div>
@@ -491,17 +502,32 @@
                         <button class="tab">Constraint</button>
                     </div>
                 </div>
+                <div class="table-wrapper">
                 <table>
                     <thead>
                         <tr>
-                            <th>Rank</th>
-                            <th>Model</th>
-                            <th>Overall</th>
-                            <th>Completeness</th>
-                            <th>Grounding</th>
-                            <th>Recovery %</th>
-                            <th>Flexibility %</th>
-                            <th>Format %</th>
+                            <th rowspan="2">Rank</th>
+                            <th rowspan="2">Model</th>
+                            <th rowspan="2">Overall</th>
+                            <th colspan="2">Answer Quality</th>
+                            <th colspan="3">Tool Use Robustness</th>
+                            <th colspan="4">Constraint Following</th>
+                            <th colspan="4">Long-horizon</th>
+                        </tr>
+                        <tr>
+                            <th>Comp.</th>
+                            <th>Grnd.</th>
+                            <th>Succ.%</th>
+                            <th>Recov.%</th>
+                            <th>Flex.%</th>
+                            <th>Order%</th>
+                            <th>Info%</th>
+                            <th>Fmt%</th>
+                            <th>Trade%</th>
+                            <th>#Calls</th>
+                            <th>#Turns</th>
+                            <th>Prog.</th>
+                            <th>Decomp.</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -512,14 +538,19 @@
                                 <span class="model-type type-proprietary">Proprietary</span>
                             </td>
                             <td><span class="score score-best">5.87</span></td>
-                            <td>
-                                <div class="metric-bar"><div class="metric-bar-fill" style="width: 47.5%"></div></div>
-                                4.75
-                            </td>
+                            <td><span class="score-best">4.75</span></td>
                             <td>2.58</td>
-                            <td>89.0%</td>
-                            <td>68.8%</td>
-                            <td>53.9%</td>
+                            <td>88.8</td>
+                            <td>89.0</td>
+                            <td>68.8</td>
+                            <td>53.8</td>
+                            <td><span class="score-best">97.8</span></td>
+                            <td>53.9</td>
+                            <td>13.3</td>
+                            <td>47.86</td>
+                            <td>3.20</td>
+                            <td>7.60</td>
+                            <td><span class="score-best">8.66</span></td>
                         </tr>
                         <tr>
                             <td><span class="rank rank-2">🥈 2</span></td>
@@ -528,14 +559,19 @@
                                 <span class="model-type type-proprietary">Proprietary</span>
                             </td>
                             <td><span class="score">5.42</span></td>
-                            <td>
-                                <div class="metric-bar"><div class="metric-bar-fill" style="width: 47%"></div></div>
-                                4.70
-                            </td>
+                            <td>4.70</td>
                             <td>2.93</td>
-                            <td>83.7%</td>
-                            <td>60.8%</td>
-                            <td>51.0%</td>
+                            <td><span class="score-best">92.7</span></td>
+                            <td>83.7</td>
+                            <td>60.8</td>
+                            <td>65.4</td>
+                            <td>73.3</td>
+                            <td>51.0</td>
+                            <td>33.7</td>
+                            <td>45.16</td>
+                            <td>4.01</td>
+                            <td>6.41</td>
+                            <td>7.72</td>
                         </tr>
                         <tr>
                             <td><span class="rank rank-3">🥉 3</span></td>
@@ -544,14 +580,19 @@
                                 <span class="model-type type-open">Open-weight</span>
                             </td>
                             <td><span class="score">4.97</span></td>
-                            <td>
-                                <div class="metric-bar"><div class="metric-bar-fill" style="width: 40%"></div></div>
-                                4.00
-                            </td>
+                            <td>4.00</td>
                             <td>2.18</td>
-                            <td><span class="score-best">90.6%</span></td>
-                            <td><span class="score-best">72.4%</span></td>
-                            <td>39.5%</td>
+                            <td>87.5</td>
+                            <td><span class="score-best">90.6</span></td>
+                            <td><span class="score-best">72.4</span></td>
+                            <td>73.1</td>
+                            <td>70.0</td>
+                            <td>39.5</td>
+                            <td>17.9</td>
+                            <td>21.73</td>
+                            <td>4.92</td>
+                            <td>6.46</td>
+                            <td>8.04</td>
                         </tr>
                         <tr>
                             <td><span class="rank">4</span></td>
@@ -560,14 +601,19 @@
                                 <span class="model-type type-open">Open-weight</span>
                             </td>
                             <td><span class="score">4.86</span></td>
-                            <td>
-                                <div class="metric-bar"><div class="metric-bar-fill" style="width: 40.1%"></div></div>
-                                4.01
-                            </td>
+                            <td>4.01</td>
                             <td>1.18</td>
-                            <td>71.5%</td>
-                            <td>57.3%</td>
-                            <td>34.2%</td>
+                            <td>84.8</td>
+                            <td>71.5</td>
+                            <td>57.3</td>
+                            <td>75.6</td>
+                            <td>52.2</td>
+                            <td>34.2</td>
+                            <td>11.5</td>
+                            <td>18.03</td>
+                            <td>3.27</td>
+                            <td>7.20</td>
+                            <td>8.50</td>
                         </tr>
                         <tr>
                             <td><span class="rank">5</span></td>
@@ -576,14 +622,19 @@
                                 <span class="model-type type-proprietary">Proprietary</span>
                             </td>
                             <td><span class="score">4.78</span></td>
-                            <td>
-                                <div class="metric-bar"><div class="metric-bar-fill" style="width: 38%"></div></div>
-                                3.80
-                            </td>
+                            <td>3.80</td>
                             <td>1.95</td>
-                            <td>89.0%</td>
-                            <td>63.6%</td>
-                            <td><span class="score-best">68.3%</span></td>
+                            <td>87.8</td>
+                            <td>89.0</td>
+                            <td>63.6</td>
+                            <td>64.1</td>
+                            <td>92.2</td>
+                            <td><span class="score-best">68.3</span></td>
+                            <td><span class="score-best">35.5</span></td>
+                            <td>27.37</td>
+                            <td>2.55</td>
+                            <td>6.02</td>
+                            <td>8.28</td>
                         </tr>
                         <tr>
                             <td><span class="rank">6</span></td>
@@ -592,14 +643,19 @@
                                 <span class="model-type type-open">Open-weight</span>
                             </td>
                             <td><span class="score">4.66</span></td>
-                            <td>
-                                <div class="metric-bar"><div class="metric-bar-fill" style="width: 34.2%"></div></div>
-                                3.42
-                            </td>
+                            <td>3.42</td>
                             <td>1.28</td>
-                            <td>72.7%</td>
-                            <td>59.7%</td>
-                            <td>35.8%</td>
+                            <td>86.3</td>
+                            <td>72.7</td>
+                            <td>59.7</td>
+                            <td><span class="score-best">87.2</span></td>
+                            <td>38.9</td>
+                            <td>35.8</td>
+                            <td>13.3</td>
+                            <td>14.40</td>
+                            <td>3.14</td>
+                            <td>6.53</td>
+                            <td>8.10</td>
                         </tr>
                         <tr>
                             <td><span class="rank">7</span></td>
@@ -608,14 +664,19 @@
                                 <span class="model-type type-proprietary">Proprietary</span>
                             </td>
                             <td><span class="score">4.43</span></td>
-                            <td>
-                                <div class="metric-bar"><div class="metric-bar-fill" style="width: 34.2%"></div></div>
-                                3.42
-                            </td>
+                            <td>3.42</td>
                             <td><span class="score-best">3.80</span></td>
-                            <td>79.3%</td>
-                            <td>55.4%</td>
-                            <td>12.4%</td>
+                            <td>85.5</td>
+                            <td>79.3</td>
+                            <td>55.4</td>
+                            <td>71.6</td>
+                            <td>37.2</td>
+                            <td>12.4</td>
+                            <td>12.5</td>
+                            <td>29.20</td>
+                            <td>2.30</td>
+                            <td>5.62</td>
+                            <td>7.73</td>
                         </tr>
                         <tr>
                             <td><span class="rank">8</span></td>
@@ -624,14 +685,19 @@
                                 <span class="model-type type-open">Open-weight</span>
                             </td>
                             <td><span class="score">3.53</span></td>
-                            <td>
-                                <div class="metric-bar"><div class="metric-bar-fill" style="width: 25.6%"></div></div>
-                                2.56
-                            </td>
+                            <td>2.56</td>
                             <td>1.17</td>
-                            <td>88.1%</td>
-                            <td>66.1%</td>
-                            <td>31.3%</td>
+                            <td>87.9</td>
+                            <td>88.1</td>
+                            <td>66.1</td>
+                            <td>80.8</td>
+                            <td>43.3</td>
+                            <td>31.3</td>
+                            <td>8.6</td>
+                            <td>11.15</td>
+                            <td>4.41</td>
+                            <td>6.93</td>
+                            <td>8.51</td>
                         </tr>
                         <tr>
                             <td><span class="rank">9</span></td>
@@ -640,17 +706,23 @@
                                 <span class="model-type type-proprietary">Proprietary</span>
                             </td>
                             <td><span class="score">3.07</span></td>
-                            <td>
-                                <div class="metric-bar"><div class="metric-bar-fill" style="width: 11.3%"></div></div>
-                                1.13
-                            </td>
+                            <td>1.13</td>
                             <td>0.85</td>
-                            <td>50.6%</td>
-                            <td>39.7%</td>
-                            <td>3.3%</td>
+                            <td>87.5</td>
+                            <td>50.6</td>
+                            <td>39.7</td>
+                            <td>85.9</td>
+                            <td>46.7</td>
+                            <td>3.3</td>
+                            <td>0.0</td>
+                            <td>51.71</td>
+                            <td>6.45</td>
+                            <td>6.00</td>
+                            <td>7.71</td>
                         </tr>
                     </tbody>
                 </table>
+                </div>
             </div>
         </div>
     </section>

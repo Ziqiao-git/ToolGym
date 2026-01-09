@@ -3,7 +3,7 @@
 **An Open-world Tool-using Environment for Scalable Agent Testing**
 
 [![Paper](https://img.shields.io/badge/Paper-ACL%202025-blue)](https://arxiv.org/abs/xxxx.xxxxx)
-[![Dataset](https://img.shields.io/badge/Dataset-HuggingFace-yellow)](https://huggingface.co/datasets/ToolGym/ToolGym)
+[![Dataset](https://img.shields.io/badge/Dataset-HuggingFace-yellow)](https://huggingface.co/ToolGym)
 [![Website](https://img.shields.io/badge/Website-GitHub%20Pages-green)](https://ziqiao-git.github.io/ToolGym/)
 
 ## Overview
@@ -172,7 +172,7 @@ ToolGym/
 
 The ToolGym dataset is available on HuggingFace:
 
-🤗 **[ToolGym/ToolGym](https://huggingface.co/datasets/ToolGym/ToolGym)**
+🤗 **[ToolGym](https://huggingface.co/ToolGym)**
 
 Contents:
 - 3,091 task instances with ground-truth tool sequences
@@ -203,5 +203,5 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ---
 
 **Website**: [https://ziqiao-git.github.io/ToolGym/](https://ziqiao-git.github.io/ToolGym/)
-**Dataset**: [https://huggingface.co/datasets/ToolGym/ToolGym](https://huggingface.co/datasets/ToolGym/ToolGym)
+**Dataset**: [https://huggingface.co/ToolGym](https://huggingface.co/ToolGym)
 **GitHub**: [https://github.com/Ziqiao-git/ToolGym](https://github.com/Ziqiao-git/ToolGym)
