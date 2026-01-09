@@ -1,0 +1,741 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ToolGym - Open-world Tool-using Environment</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --primary: #2563eb;
+            --primary-dark: #1d4ed8;
+            --secondary: #10b981;
+            --bg: #ffffff;
+            --bg-secondary: #f8fafc;
+            --text: #1e293b;
+            --text-secondary: #64748b;
+            --border: #e2e8f0;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            color: var(--text);
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 24px;
+        }
+
+        /* Header */
+        header {
+            background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
+            color: white;
+            padding: 80px 0 60px;
+            text-align: center;
+        }
+
+        .logo {
+            font-size: 3.5rem;
+            font-weight: 700;
+            margin-bottom: 16px;
+        }
+
+        .logo span {
+            color: #fbbf24;
+        }
+
+        .tagline {
+            font-size: 1.5rem;
+            font-weight: 300;
+            opacity: 0.95;
+            margin-bottom: 24px;
+        }
+
+        .subtitle {
+            font-size: 1.1rem;
+            opacity: 0.85;
+            max-width: 800px;
+            margin: 0 auto 32px;
+        }
+
+        .buttons {
+            display: flex;
+            gap: 16px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-weight: 500;
+            text-decoration: none;
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background: white;
+            color: var(--primary);
+        }
+
+        .btn-primary:hover {
+            background: #f1f5f9;
+            transform: translateY(-2px);
+        }
+
+        .btn-secondary {
+            background: rgba(255,255,255,0.15);
+            color: white;
+            border: 1px solid rgba(255,255,255,0.3);
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255,255,255,0.25);
+        }
+
+        /* Stats */
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 24px;
+            margin-top: -40px;
+            position: relative;
+            z-index: 10;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 24px;
+            border-radius: 12px;
+            text-align: center;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+        }
+
+        .stat-number {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: var(--primary);
+        }
+
+        .stat-label {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            margin-top: 4px;
+        }
+
+        /* Sections */
+        section {
+            padding: 80px 0;
+        }
+
+        section:nth-child(even) {
+            background: var(--bg-secondary);
+        }
+
+        .section-title {
+            font-size: 2rem;
+            font-weight: 700;
+            text-align: center;
+            margin-bottom: 16px;
+        }
+
+        .section-subtitle {
+            text-align: center;
+            color: var(--text-secondary);
+            max-width: 600px;
+            margin: 0 auto 48px;
+        }
+
+        /* Features */
+        .features {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 32px;
+        }
+
+        .feature {
+            background: white;
+            padding: 32px;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+        }
+
+        .feature-icon {
+            width: 48px;
+            height: 48px;
+            background: linear-gradient(135deg, var(--primary) 0%, #8b5cf6 100%);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 1.25rem;
+            margin-bottom: 16px;
+        }
+
+        .feature h3 {
+            font-size: 1.25rem;
+            margin-bottom: 12px;
+        }
+
+        .feature p {
+            color: var(--text-secondary);
+            font-size: 0.95rem;
+        }
+
+        /* Leaderboard */
+        .leaderboard-container {
+            background: white;
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+        }
+
+        .leaderboard-header {
+            background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
+            color: white;
+            padding: 24px 32px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .leaderboard-header h3 {
+            font-size: 1.5rem;
+        }
+
+        .leaderboard-tabs {
+            display: flex;
+            gap: 8px;
+        }
+
+        .tab {
+            padding: 8px 16px;
+            border-radius: 6px;
+            background: rgba(255,255,255,0.15);
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-size: 0.9rem;
+        }
+
+        .tab.active {
+            background: white;
+            color: var(--primary);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th, td {
+            padding: 16px 20px;
+            text-align: left;
+            border-bottom: 1px solid var(--border);
+        }
+
+        th {
+            background: #f8fafc;
+            font-weight: 600;
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        tr:hover {
+            background: #f8fafc;
+        }
+
+        .rank {
+            font-weight: 700;
+            color: var(--primary);
+        }
+
+        .rank-1 { color: #f59e0b; }
+        .rank-2 { color: #6b7280; }
+        .rank-3 { color: #b45309; }
+
+        .model-name {
+            font-weight: 600;
+        }
+
+        .model-type {
+            font-size: 0.75rem;
+            padding: 2px 8px;
+            border-radius: 4px;
+            margin-left: 8px;
+        }
+
+        .type-proprietary {
+            background: #dbeafe;
+            color: #1d4ed8;
+        }
+
+        .type-open {
+            background: #d1fae5;
+            color: #059669;
+        }
+
+        .score {
+            font-weight: 600;
+        }
+
+        .score-best {
+            color: var(--secondary);
+        }
+
+        .metric-bar {
+            width: 60px;
+            height: 6px;
+            background: #e2e8f0;
+            border-radius: 3px;
+            overflow: hidden;
+            display: inline-block;
+            margin-right: 8px;
+            vertical-align: middle;
+        }
+
+        .metric-bar-fill {
+            height: 100%;
+            background: var(--primary);
+            border-radius: 3px;
+        }
+
+        /* Framework */
+        .framework-img {
+            max-width: 100%;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+        }
+
+        /* Citation */
+        .citation-box {
+            background: #1e293b;
+            color: #e2e8f0;
+            padding: 24px;
+            border-radius: 12px;
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 0.85rem;
+            overflow-x: auto;
+            position: relative;
+        }
+
+        .copy-btn {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            background: #334155;
+            border: none;
+            color: white;
+            padding: 8px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.8rem;
+        }
+
+        .copy-btn:hover {
+            background: #475569;
+        }
+
+        /* Footer */
+        footer {
+            background: #1e293b;
+            color: #94a3b8;
+            padding: 48px 0;
+            text-align: center;
+        }
+
+        footer a {
+            color: #60a5fa;
+            text-decoration: none;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .stats {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            .features {
+                grid-template-columns: 1fr;
+            }
+            .logo {
+                font-size: 2.5rem;
+            }
+            th, td {
+                padding: 12px 8px;
+                font-size: 0.85rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <header>
+        <div class="container">
+            <h1 class="logo">Tool<span>Gym</span></h1>
+            <p class="tagline">An Open-world Tool-using Environment for Scalable Agent Testing</p>
+            <p class="subtitle">
+                Built on 5,571 tools across 204 real-world apps, ToolGym enables realistic evaluation of
+                LLM agents with long-horizon workflows, wild constraints, and robustness testing.
+            </p>
+            <div class="buttons">
+                <a href="https://github.com/your-repo/ToolGym" class="btn btn-primary">
+                    <i class="fab fa-github"></i> Code
+                </a>
+                <a href="#" class="btn btn-secondary">
+                    <i class="fas fa-file-pdf"></i> Paper
+                </a>
+                <a href="#leaderboard" class="btn btn-secondary">
+                    <i class="fas fa-trophy"></i> Leaderboard
+                </a>
+                <a href="#" class="btn btn-secondary">
+                    <i class="fas fa-database"></i> Dataset
+                </a>
+            </div>
+        </div>
+    </header>
+
+    <!-- Stats -->
+    <div class="container">
+        <div class="stats">
+            <div class="stat-card">
+                <div class="stat-number">5,571</div>
+                <div class="stat-label">Tools</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">204</div>
+                <div class="stat-label">Real-world Apps</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">28.5</div>
+                <div class="stat-label">Avg. Tool Calls</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">1,170</div>
+                <div class="stat-label">Training Samples</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Features -->
+    <section>
+        <div class="container">
+            <h2 class="section-title">Key Features</h2>
+            <p class="section-subtitle">
+                ToolGym addresses critical gaps in existing benchmarks for tool-using agents
+            </p>
+            <div class="features">
+                <div class="feature">
+                    <div class="feature-icon"><i class="fas fa-cogs"></i></div>
+                    <h3>Task Creation Engine</h3>
+                    <p>Automatically synthesizes long-horizon, multi-tool workflows with wild realistic constraints for scalable task generation.</p>
+                </div>
+                <div class="feature">
+                    <div class="feature-icon"><i class="fas fa-exclamation-triangle"></i></div>
+                    <h3>State Controller</h3>
+                    <p>Injects realistic failures (timeouts, rate limits, corrupted responses) to stress-test agent robustness under non-ideal conditions.</p>
+                </div>
+                <div class="feature">
+                    <div class="feature-icon"><i class="fas fa-brain"></i></div>
+                    <h3>Planner-Actor Framework</h3>
+                    <p>Separates deliberate reasoning from step-wise execution, enabling better analysis of planning vs. execution capabilities.</p>
+                </div>
+                <div class="feature">
+                    <div class="feature-icon"><i class="fas fa-search"></i></div>
+                    <h3>Tool Retrieval Index</h3>
+                    <p>Semantic search over 5,571 tools using BGE-M3 embeddings, enabling agents to discover tools from a massive registry.</p>
+                </div>
+                <div class="feature">
+                    <div class="feature-icon"><i class="fas fa-gavel"></i></div>
+                    <h3>LLM-as-Judge Evaluation</h3>
+                    <p>Multi-model evaluation with majority voting across GPT-4o, GPT-5.1, and DeepSeek-V3.2 for stable, human-aligned scores.</p>
+                </div>
+                <div class="feature">
+                    <div class="feature-icon"><i class="fas fa-graduation-cap"></i></div>
+                    <h3>Data Curation Engine</h3>
+                    <p>High-quality trajectory collection for fine-tuning. 1,170 samples outperform baselines trained on 119k samples.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Leaderboard -->
+    <section id="leaderboard">
+        <div class="container">
+            <h2 class="section-title">🏆 Leaderboard</h2>
+            <p class="section-subtitle">
+                Evaluation results on ToolGym benchmark with pass@3
+            </p>
+            <div class="leaderboard-container">
+                <div class="leaderboard-header">
+                    <h3>Model Rankings</h3>
+                    <div class="leaderboard-tabs">
+                        <button class="tab active">Overall</button>
+                        <button class="tab">Quality</button>
+                        <button class="tab">Robustness</button>
+                        <button class="tab">Constraint</button>
+                    </div>
+                </div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Rank</th>
+                            <th>Model</th>
+                            <th>Overall</th>
+                            <th>Completeness</th>
+                            <th>Grounding</th>
+                            <th>Recovery %</th>
+                            <th>Flexibility %</th>
+                            <th>Format %</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><span class="rank rank-1">🥇 1</span></td>
+                            <td>
+                                <span class="model-name">gemini-3-pro-preview</span>
+                                <span class="model-type type-proprietary">Proprietary</span>
+                            </td>
+                            <td><span class="score score-best">5.87</span></td>
+                            <td>
+                                <div class="metric-bar"><div class="metric-bar-fill" style="width: 47.5%"></div></div>
+                                4.75
+                            </td>
+                            <td>2.58</td>
+                            <td>89.0%</td>
+                            <td>68.8%</td>
+                            <td>53.9%</td>
+                        </tr>
+                        <tr>
+                            <td><span class="rank rank-2">🥈 2</span></td>
+                            <td>
+                                <span class="model-name">claude-opus-4.5</span>
+                                <span class="model-type type-proprietary">Proprietary</span>
+                            </td>
+                            <td><span class="score">5.42</span></td>
+                            <td>
+                                <div class="metric-bar"><div class="metric-bar-fill" style="width: 47%"></div></div>
+                                4.70
+                            </td>
+                            <td>2.93</td>
+                            <td>83.7%</td>
+                            <td>60.8%</td>
+                            <td>51.0%</td>
+                        </tr>
+                        <tr>
+                            <td><span class="rank rank-3">🥉 3</span></td>
+                            <td>
+                                <span class="model-name">deepseek-v3.2</span>
+                                <span class="model-type type-open">Open-weight</span>
+                            </td>
+                            <td><span class="score">4.97</span></td>
+                            <td>
+                                <div class="metric-bar"><div class="metric-bar-fill" style="width: 40%"></div></div>
+                                4.00
+                            </td>
+                            <td>2.18</td>
+                            <td><span class="score-best">90.6%</span></td>
+                            <td><span class="score-best">72.4%</span></td>
+                            <td>39.5%</td>
+                        </tr>
+                        <tr>
+                            <td><span class="rank">4</span></td>
+                            <td>
+                                <span class="model-name">glm-4.6v</span>
+                                <span class="model-type type-open">Open-weight</span>
+                            </td>
+                            <td><span class="score">4.86</span></td>
+                            <td>
+                                <div class="metric-bar"><div class="metric-bar-fill" style="width: 40.1%"></div></div>
+                                4.01
+                            </td>
+                            <td>1.18</td>
+                            <td>71.5%</td>
+                            <td>57.3%</td>
+                            <td>34.2%</td>
+                        </tr>
+                        <tr>
+                            <td><span class="rank">5</span></td>
+                            <td>
+                                <span class="model-name">grok-4</span>
+                                <span class="model-type type-proprietary">Proprietary</span>
+                            </td>
+                            <td><span class="score">4.78</span></td>
+                            <td>
+                                <div class="metric-bar"><div class="metric-bar-fill" style="width: 38%"></div></div>
+                                3.80
+                            </td>
+                            <td>1.95</td>
+                            <td>89.0%</td>
+                            <td>63.6%</td>
+                            <td><span class="score-best">68.3%</span></td>
+                        </tr>
+                        <tr>
+                            <td><span class="rank">6</span></td>
+                            <td>
+                                <span class="model-name">gpt-oss-120b</span>
+                                <span class="model-type type-open">Open-weight</span>
+                            </td>
+                            <td><span class="score">4.66</span></td>
+                            <td>
+                                <div class="metric-bar"><div class="metric-bar-fill" style="width: 34.2%"></div></div>
+                                3.42
+                            </td>
+                            <td>1.28</td>
+                            <td>72.7%</td>
+                            <td>59.7%</td>
+                            <td>35.8%</td>
+                        </tr>
+                        <tr>
+                            <td><span class="rank">7</span></td>
+                            <td>
+                                <span class="model-name">gpt-5.2</span>
+                                <span class="model-type type-proprietary">Proprietary</span>
+                            </td>
+                            <td><span class="score">4.43</span></td>
+                            <td>
+                                <div class="metric-bar"><div class="metric-bar-fill" style="width: 34.2%"></div></div>
+                                3.42
+                            </td>
+                            <td><span class="score-best">3.80</span></td>
+                            <td>79.3%</td>
+                            <td>55.4%</td>
+                            <td>12.4%</td>
+                        </tr>
+                        <tr>
+                            <td><span class="rank">8</span></td>
+                            <td>
+                                <span class="model-name">qwen3-235b-a22b</span>
+                                <span class="model-type type-open">Open-weight</span>
+                            </td>
+                            <td><span class="score">3.53</span></td>
+                            <td>
+                                <div class="metric-bar"><div class="metric-bar-fill" style="width: 25.6%"></div></div>
+                                2.56
+                            </td>
+                            <td>1.17</td>
+                            <td>88.1%</td>
+                            <td>66.1%</td>
+                            <td>31.3%</td>
+                        </tr>
+                        <tr>
+                            <td><span class="rank">9</span></td>
+                            <td>
+                                <span class="model-name">gpt-4o-mini</span>
+                                <span class="model-type type-proprietary">Proprietary</span>
+                            </td>
+                            <td><span class="score">3.07</span></td>
+                            <td>
+                                <div class="metric-bar"><div class="metric-bar-fill" style="width: 11.3%"></div></div>
+                                1.13
+                            </td>
+                            <td>0.85</td>
+                            <td>50.6%</td>
+                            <td>39.7%</td>
+                            <td>3.3%</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </section>
+
+    <!-- Key Findings -->
+    <section>
+        <div class="container">
+            <h2 class="section-title">Key Findings</h2>
+            <p class="section-subtitle">
+                Insights from evaluating state-of-the-art LLMs on ToolGym
+            </p>
+            <div class="features">
+                <div class="feature">
+                    <div class="feature-icon"><i class="fas fa-chart-line"></i></div>
+                    <h3>Planning ≠ Execution</h3>
+                    <p>All LLMs exhibit strong planning ability (Goal Decomposition: 7.7-8.6), but execution abilities vary significantly, causing large gaps in task success rate.</p>
+                </div>
+                <div class="feature">
+                    <div class="feature-icon"><i class="fas fa-ban"></i></div>
+                    <h3>Constraint Following is the Bottleneck</h3>
+                    <p>Constraint following, rather than tool invocation, is the dominant failure mode. Models struggle with multi-source verification and explicit trade-offs.</p>
+                </div>
+                <div class="feature">
+                    <div class="feature-icon"><i class="fas fa-shield-alt"></i></div>
+                    <h3>DeepSeek-v3.2 Most Robust</h3>
+                    <p>Achieves highest Recovery Rate (90.6%) and Flexibility (72.4%), demonstrating strongest ability to recover from intermediate failures.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Citation -->
+    <section>
+        <div class="container">
+            <h2 class="section-title">Citation</h2>
+            <p class="section-subtitle">
+                If you find ToolGym useful, please cite our paper
+            </p>
+            <div class="citation-box">
+                <button class="copy-btn" onclick="copyBibtex()">
+                    <i class="fas fa-copy"></i> Copy
+                </button>
+<pre>@inproceedings{toolgym2025,
+  title={ToolGym: an Open-world Tool-using Environment for Scalable Agent Testing and Data Curation},
+  author={Anonymous},
+  booktitle={ACL},
+  year={2025}
+}</pre>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer>
+        <div class="container">
+            <p>ToolGym © 2025 | <a href="https://github.com/your-repo/ToolGym">GitHub</a> | <a href="#">Paper</a></p>
+            <p style="margin-top: 12px; font-size: 0.9rem;">
+                Built with ❤️ for the AI research community
+            </p>
+        </div>
+    </footer>
+
+    <script>
+        function copyBibtex() {
+            const bibtex = `@inproceedings{toolgym2025,
+  title={ToolGym: an Open-world Tool-using Environment for Scalable Agent Testing and Data Curation},
+  author={Anonymous},
+  booktitle={ACL},
+  year={2025}
+}`;
+            navigator.clipboard.writeText(bibtex);
+            const btn = document.querySelector('.copy-btn');
+            btn.innerHTML = '<i class="fas fa-check"></i> Copied!';
+            setTimeout(() => {
+                btn.innerHTML = '<i class="fas fa-copy"></i> Copy';
+            }, 2000);
+        }
+
+        // Tab switching (placeholder - can be enhanced)
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', function() {
+                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                this.classList.add('active');
+            });
+        });
+    </script>
+</body>
+</html>
